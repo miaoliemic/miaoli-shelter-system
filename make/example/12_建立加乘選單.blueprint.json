@@ -9,16 +9,22 @@
     "__IMTCONN__": 0
    },
    "mapper": {
-    "url": "/v1/blocks/<放選單圖片的 Notion 圖片區塊 ID>",
+    "url": "/v1/blocks/<放選單圖片的 Notion 頁面 ID>/children",
     "method": "GET",
     "version": "2022-06-28",
-    "headers": []
+    "headers": [],
+    "qs": [
+     {
+      "key": "page_size",
+      "value": "100"
+     }
+    ]
    },
    "metadata": {
     "designer": {
      "x": -300,
      "y": 0,
-     "name": "取得圖片網址（Notion 系統素材頁）"
+     "name": "讀系統素材頁的內容"
     },
     "parameters": [
      {
@@ -38,7 +44,7 @@
     "handleErrors": false
    },
    "mapper": {
-    "url": "{{4.body.image.file.url}}",
+    "url": "{{ifempty(get(last(map(4.body.results; \"image\"; \"type\"; \"image\")); \"file.url\"); get(last(map(4.body.results; \"image\"; \"type\"; \"image\")); \"external.url\"))}}",
     "method": "get",
     "serializeUrl": false,
     "shareCookies": false
@@ -47,7 +53,7 @@
     "designer": {
      "x": 0,
      "y": 0,
-     "name": "下載選單圖片"
+     "name": "下載頁面最後一張圖片"
     }
    }
   },

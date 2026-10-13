@@ -72,5 +72,36 @@ def main():
     print(out, out.stat().st_size, "bytes")
 
 
-if __name__ == "__main__":
+if __name__ == "__main__" and len(__import__("sys").argv) == 1:
     main()
+
+
+def template():
+    """設計範本：標出每個按鈕的點擊範圍與像素座標。輸出 assets/richmenu_template.png"""
+    img = Image.new("RGB", (W, H), (255, 255, 255))
+    d = ImageDraw.Draw(img)
+    f_big = ImageFont.truetype(FONT, 80)
+    f_small = ImageFont.truetype(FONT, 44)
+    cw = W / 3
+    for i, (_, label) in enumerate(PUBLIC):
+        r, c = divmod(i, 3)
+        x0, y0, x1, y1 = int(c * cw), r * ROW_H, int((c + 1) * cw), (r + 1) * ROW_H
+        d.rectangle((x0, y0, x1 - 1, y1 - 1), fill=(255, 244, 222), outline=(200, 160, 90), width=6)
+        center_text(d, (x0, y0, x1, y1 - 80), label, f_big, TEXT_C)
+        center_text(d, (x0, y0 + 110, x1, y1), f"x {x0}–{x1}　y {y0}–{y1}", f_small, (150, 110, 60))
+    sw = W / 4
+    labels = ["掃 QR（開掃描器）", "整備回報", "查詢狀況", "簽退"]
+    for i, label in enumerate(labels):
+        x0, x1 = int(i * sw), int((i + 1) * sw)
+        y0, y1 = 2 * ROW_H, H
+        d.rectangle((x0, y0, x1 - 1, y1 - 1), fill=(214, 240, 220), outline=ACCENT, width=6)
+        center_text(d, (x0, y0, x1, y1 - 80), label, f_small if len(label) > 5 else f_big, ACCENT)
+        center_text(d, (x0, y0 + 110, x1, y1), f"x {x0}–{x1}　y {y0}–{y1}", f_small, ACCENT)
+    d.text((30, 20), "加乘選單設計範本　2500 × 1686 px　PNG／JPG，1MB 以內", font=f_small, fill=(120, 120, 120))
+    out = Path(__file__).resolve().parent.parent / "assets" / "richmenu_template.png"
+    img.save(out, optimize=True)
+    print(out)
+
+
+if __name__ == "__main__" and len(__import__("sys").argv) > 1 and __import__("sys").argv[1] == "--template":
+    template()

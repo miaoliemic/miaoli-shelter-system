@@ -10,8 +10,7 @@
     "staff_menu_alias": "staff-plus"
   },
   "notion": {
-    "_說明": "填 data source ID（Notion 資料表的 collection ID），不是 database ID。",
-    "richmenu_image_block_id": "<放選單圖片的 Notion 圖片區塊 ID>",
+    "_說明": "填 data source ID（Notion 資料表的 collection ID），不是 database ID。richmenu_page_id 是放選單圖片的頁面，系統會用頁面裡「最後一張」圖片。",
     "data_sources": {
       "工作人員名冊": "<工作人員名冊 的 data source ID>",
       "收容所開設": "<收容所開設 的 data source ID>",
@@ -20,6 +19,7 @@
       "號碼牌": "<號碼牌 的 data source ID>",
       "收容登記": "<收容登記 的 data source ID>",
       "進出紀錄": "<進出紀錄 的 data source ID>"
-    }
+    },
+    "richmenu_page_id": "<放選單圖片的 Notion 頁面 ID>"
   }
 }

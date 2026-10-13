@@ -26,7 +26,7 @@ HOOK = CFG["make"]["line_webhook_id"]
 CONN_LINE = CFG["make"]["line_connection_id"]
 CONN_NOTION = CFG["make"]["notion_connection_id"]
 MENU_ALIAS = CFG["line"]["staff_menu_alias"]
-MENU_IMAGE_BLOCK = CFG["notion"]["richmenu_image_block_id"]
+MENU_PAGE = CFG["notion"]["richmenu_page_id"]
 
 _ds = CFG["notion"]["data_sources"]
 DS_STAFF = _ds["工作人員名冊"]
@@ -510,7 +510,8 @@ def build_main():
 
 def build_menu():
     """一次性：建立加乘選單並設定別名。
-    圖片放在 Notion「系統素材：LINE 圖文選單」頁（圖片區塊 MENU_IMAGE_BLOCK），
+    圖片放在 Notion「系統素材：LINE 圖文選單」頁（MENU_PAGE），取頁面裡「最後一張」圖片。
+    換圖只要在頁面最下面貼新圖，再執行一次本情境。
     每次執行都向 Notion 取得新的下載網址（Notion 檔案網址幾分鐘就過期）。"""
     W, ROW = 2500, 562
     cw = [0, 833, 1667, 2500]
@@ -526,15 +527,18 @@ def build_menu():
         a = {"type": typ}
         a["uri" if typ == "uri" else "text"] = v
         areas.append({"bounds": {"x": i * sw, "y": 2 * ROW, "width": sw, "height": 1686 - 2 * ROW}, "action": a})
+    _last_img = 'last(map(4.body.results; "image"; "type"; "image"))'
+    IMG_URL = '{{ifempty(get(' + _last_img + '; "file.url"); get(' + _last_img + '; "external.url"))}}'
     line_meta = [{"name": "__IMTCONN__", "type": "account:line2", "label": "Connection", "required": True}]
     flow = [
         {"id": 4, "module": "notion:makeApiCall", "version": 1, "parameters": {"__IMTCONN__": CONN_NOTION},
-         "mapper": {"url": f"/v1/blocks/{MENU_IMAGE_BLOCK}", "method": "GET", "version": "2022-06-28", "headers": []},
-         "metadata": {"designer": {"x": -300, "y": 0, "name": "取得圖片網址（Notion 系統素材頁）"},
+         "mapper": {"url": f"/v1/blocks/{MENU_PAGE}/children", "method": "GET", "version": "2022-06-28", "headers": [],
+                    "qs": [{"key": "page_size", "value": "100"}]},
+         "metadata": {"designer": {"x": -300, "y": 0, "name": "讀系統素材頁的內容"},
                       "parameters": [{"name": "__IMTCONN__", "type": "account:notion2,notion3", "label": "Connection", "required": True}]}},
         {"id": 1, "module": "http:ActionGetFile", "version": 3, "parameters": {"handleErrors": False},
-         "mapper": {"url": "{{4.body.image.file.url}}", "method": "get", "serializeUrl": False, "shareCookies": False},
-         "metadata": {"designer": {"x": 0, "y": 0, "name": "下載選單圖片"}}},
+         "mapper": {"url": IMG_URL, "method": "get", "serializeUrl": False, "shareCookies": False},
+         "metadata": {"designer": {"x": 0, "y": 0, "name": "下載頁面最後一張圖片"}}},
         {"id": 2, "module": "line:createARichMenu", "version": 1, "parameters": {"__IMTCONN__": CONN_LINE},
          "mapper": {"name": "staff-plus", "chatBarText": "選單", "selected": False, "height": 1686,
                     "areas": areas, "data": "{{1.data}}", "filename": "staff_plus.png"},
