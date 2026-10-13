@@ -26,7 +26,8 @@ HOOK = CFG["make"]["line_webhook_id"]
 CONN_LINE = CFG["make"]["line_connection_id"]
 CONN_NOTION = CFG["make"]["notion_connection_id"]
 MENU_ALIAS = CFG["line"]["staff_menu_alias"]
-MENU_PAGE = CFG["notion"]["richmenu_page_id"]
+MENU_PUBLIC_PAGE = CFG["notion"]["richmenu_public_page_id"]
+MENU_STAFF_PAGE = CFG["notion"]["richmenu_staff_page_id"]
 
 _ds = CFG["notion"]["data_sources"]
 DS_STAFF = _ds["工作人員名冊"]
@@ -509,62 +510,76 @@ def build_main():
 
 
 def build_menu():
-    """一次性：建立加乘選單並設定別名。
-    圖片放在 Notion「系統素材：LINE 圖文選單」頁（MENU_PAGE），取頁面裡「最後一張」圖片。
-    換圖只要在頁面最下面貼新圖，再執行一次本情境。
-    每次執行都向 Notion 取得新的下載網址（Notion 檔案網址幾分鐘就過期）。"""
-    W, ROW = 2500, 562
+    """建立兩張圖文選單（一次性；換圖時再執行）。
+    - 一般選單：上兩列 6 個按鈕，最下列是橫幅（不是按鈕）；設為所有人的預設選單。
+    - 加乘選單：上兩列同一般選單，最下列 4 個工作人員按鈕；設定別名 MENU_ALIAS，簽到時依別名綁定給個人。
+    圖片分別放在兩個 Notion 頁面，各取頁面裡「最後一張」圖片；每次執行都向 Notion 取得新的下載網址。"""
+    ROW = 562
     cw = [0, 833, 1667, 2500]
-    areas = []
+    top = []
     public = ["常見問題", "最新公告", "物資領取", "我需要協助", "緊急聯絡", "工作人員專區"]
     for i, t in enumerate(public):
         r, col = divmod(i, 3)
-        areas.append({"bounds": {"x": cw[col], "y": r * ROW, "width": cw[col + 1] - cw[col], "height": ROW},
-                      "action": {"type": "message", "text": t}})
+        top.append({"bounds": {"x": cw[col], "y": r * ROW, "width": cw[col + 1] - cw[col], "height": ROW},
+                    "action": {"type": "message", "text": t}})
+    staff_row = []
     sw = 625
     staff = [("uri", "https://line.me/R/nv/QRCode"), ("message", "整備回報"), ("message", "查詢狀況"), ("message", "簽退")]
     for i, (typ, v) in enumerate(staff):
         a = {"type": typ}
         a["uri" if typ == "uri" else "text"] = v
-        areas.append({"bounds": {"x": i * sw, "y": 2 * ROW, "width": sw, "height": 1686 - 2 * ROW}, "action": a})
-    _last_img = 'last(map(4.body.results; "image"; "type"; "image"))'
-    IMG_URL = '{{ifempty(get(' + _last_img + '; "file.url"); get(' + _last_img + '; "external.url"))}}'
+        staff_row.append({"bounds": {"x": i * sw, "y": 2 * ROW, "width": sw, "height": 1686 - 2 * ROW}, "action": a})
+
+    notion_meta = [{"name": "__IMTCONN__", "type": "account:notion2,notion3", "label": "Connection", "required": True}]
     line_meta = [{"name": "__IMTCONN__", "type": "account:line2", "label": "Connection", "required": True}]
-    flow = [
-        {"id": 4, "module": "notion:makeApiCall", "version": 1, "parameters": {"__IMTCONN__": CONN_NOTION},
-         "mapper": {"url": f"/v1/blocks/{MENU_PAGE}/children", "method": "GET", "version": "2022-06-28", "headers": [],
-                    "qs": [{"key": "page_size", "value": "100"}]},
-         "metadata": {"designer": {"x": -300, "y": 0, "name": "讀系統素材頁的內容"},
-                      "parameters": [{"name": "__IMTCONN__", "type": "account:notion2,notion3", "label": "Connection", "required": True}]}},
-        {"id": 1, "module": "http:ActionGetFile", "version": 3, "parameters": {"handleErrors": False},
-         "mapper": {"url": IMG_URL, "method": "get", "serializeUrl": False, "shareCookies": False},
-         "metadata": {"designer": {"x": 0, "y": 0, "name": "下載頁面最後一張圖片"}}},
-        {"id": 2, "module": "line:createARichMenu", "version": 1, "parameters": {"__IMTCONN__": CONN_LINE},
-         "mapper": {"name": "staff-plus", "chatBarText": "選單", "selected": False, "height": 1686,
-                    "areas": areas, "data": "{{1.data}}", "filename": "staff_plus.png"},
-         "metadata": {"designer": {"x": 300, "y": 0, "name": "建立加乘選單"}, "parameters": line_meta}},
+
+    def last_image_url(mid):
+        li = f'last(map({mid}.body.results; "image"; "type"; "image"))'
+        return '{{ifempty(get(' + li + '; "file.url"); get(' + li + '; "external.url"))}}'
+
+    def menu_steps(ids, page, name, areas, label, y):
+        n, h, m = ids
+        return [
+            {"id": n, "module": "notion:makeApiCall", "version": 1, "parameters": {"__IMTCONN__": CONN_NOTION},
+             "mapper": {"url": f"/v1/blocks/{page}/children", "method": "GET", "version": "2022-06-28", "headers": [],
+                        "qs": [{"key": "page_size", "value": "100"}]},
+             "metadata": {"designer": {"x": 0, "y": y, "name": f"讀{label}頁"}, "parameters": notion_meta}},
+            {"id": h, "module": "http:ActionGetFile", "version": 3, "parameters": {"handleErrors": False},
+             "mapper": {"url": last_image_url(n), "method": "get", "serializeUrl": False, "shareCookies": False},
+             "metadata": {"designer": {"x": 300, "y": y, "name": f"下載{label}圖片"}}},
+            {"id": m, "module": "line:createARichMenu", "version": 1, "parameters": {"__IMTCONN__": CONN_LINE},
+             "mapper": {"name": name, "chatBarText": "選單", "selected": False, "height": 1686,
+                        "areas": areas, "data": f"{{{{{h}.data}}}}", "filename": f"{name}.png"},
+             "metadata": {"designer": {"x": 600, "y": y, "name": f"建立{label}"}, "parameters": line_meta}},
+        ]
+
+    flow = menu_steps((10, 11, 12), MENU_PUBLIC_PAGE, "public", top, "一般選單", 0) + [
+        {"id": 13, "module": "line:makeApiCall", "version": 1, "parameters": {"__IMTCONN__": CONN_LINE},
+         "mapper": {"url": "/v2/bot/user/all/richmenu/{{12.richMenuId}}", "method": "POST", "headers": []},
+         "metadata": {"designer": {"x": 900, "y": 0, "name": "設為所有人的預設選單"}, "parameters": line_meta}},
+    ] + menu_steps((4, 1, 2), MENU_STAFF_PAGE, "staff-plus", top + staff_row, "加乘選單", 300) + [
         # 別名：路由同時試「更新」和「新建」，各自出錯就略過。
         # 已有別名時更新成功、新建失敗；第一次部署時相反。
         {"id": 8, "module": "builtin:BasicRouter", "version": 1, "mapper": None,
-         "metadata": {"designer": {"x": 600, "y": 0, "name": "設定別名"}},
+         "metadata": {"designer": {"x": 900, "y": 300, "name": "設定別名"}},
          "routes": [
              {"flow": [{"id": 3, "module": "line:makeApiCall", "version": 1, "parameters": {"__IMTCONN__": CONN_LINE},
                         "mapper": {"url": f"/v2/bot/richmenu/alias/{MENU_ALIAS}", "method": "POST",
                                    "body": json.dumps({"richMenuId": "{{2.richMenuId}}"}),
                                    "headers": [{"key": "Content-Type", "value": "application/json"}]},
-                        "metadata": {"designer": {"x": 900, "y": -150, "name": f"更新別名 {MENU_ALIAS}"}, "parameters": line_meta},
+                        "metadata": {"designer": {"x": 1200, "y": 150, "name": f"更新別名 {MENU_ALIAS}"}, "parameters": line_meta},
                         "onerror": [{"id": 6, "module": "builtin:Ignore", "version": 1, "mapper": None,
-                                     "metadata": {"designer": {"x": 1200, "y": -150}}}]}]},
+                                     "metadata": {"designer": {"x": 1500, "y": 150}}}]}]},
              {"flow": [{"id": 5, "module": "line:makeApiCall", "version": 1, "parameters": {"__IMTCONN__": CONN_LINE},
                         "mapper": {"url": "/v2/bot/richmenu/alias", "method": "POST",
                                    "body": json.dumps({"richMenuAliasId": MENU_ALIAS, "richMenuId": "{{2.richMenuId}}"}),
                                    "headers": [{"key": "Content-Type", "value": "application/json"}]},
-                        "metadata": {"designer": {"x": 900, "y": 150, "name": f"新建別名 {MENU_ALIAS}"}, "parameters": line_meta},
+                        "metadata": {"designer": {"x": 1200, "y": 450, "name": f"新建別名 {MENU_ALIAS}"}, "parameters": line_meta},
                         "onerror": [{"id": 7, "module": "builtin:Ignore", "version": 1, "mapper": None,
-                                     "metadata": {"designer": {"x": 1200, "y": 150}}}]}]},
+                                     "metadata": {"designer": {"x": 1500, "y": 450}}}]}]},
          ]},
     ]
-    return blueprint("12 建立加乘選單（一次性）", flow, instant=False)
+    return blueprint("12 建立圖文選單（一般＋加乘）", flow, instant=False)
 
 
 def blueprint(name, flow, instant):
@@ -579,7 +594,7 @@ def main():
     out = ROOT / "make" / ("example" if EXAMPLE else "")
     out.mkdir(parents=True, exist_ok=True)
     for fname, bp in (("11_LINE訊息_第一版.blueprint.json", build_main()),
-                      ("12_建立加乘選單.blueprint.json", build_menu())):
+                      ("12_建立圖文選單.blueprint.json", build_menu())):
         p = out / fname
         p.write_text(json.dumps(bp, ensure_ascii=False, indent=1), encoding="utf-8")
         print(fname, p.stat().st_size)

@@ -1,15 +1,15 @@
 {
- "name": "12 建立加乘選單（一次性）",
+ "name": "12 建立圖文選單（一般＋加乘）",
  "flow": [
   {
-   "id": 4,
+   "id": 10,
    "module": "notion:makeApiCall",
    "version": 1,
    "parameters": {
     "__IMTCONN__": 0
    },
    "mapper": {
-    "url": "/v1/blocks/<放選單圖片的 Notion 頁面 ID>/children",
+    "url": "/v1/blocks/<放一般選單圖片的 Notion 頁面 ID>/children",
     "method": "GET",
     "version": "2022-06-28",
     "headers": [],
@@ -22,9 +22,198 @@
    },
    "metadata": {
     "designer": {
-     "x": -300,
+     "x": 0,
      "y": 0,
-     "name": "讀系統素材頁的內容"
+     "name": "讀一般選單頁"
+    },
+    "parameters": [
+     {
+      "name": "__IMTCONN__",
+      "type": "account:notion2,notion3",
+      "label": "Connection",
+      "required": true
+     }
+    ]
+   }
+  },
+  {
+   "id": 11,
+   "module": "http:ActionGetFile",
+   "version": 3,
+   "parameters": {
+    "handleErrors": false
+   },
+   "mapper": {
+    "url": "{{ifempty(get(last(map(10.body.results; \"image\"; \"type\"; \"image\")); \"file.url\"); get(last(map(10.body.results; \"image\"; \"type\"; \"image\")); \"external.url\"))}}",
+    "method": "get",
+    "serializeUrl": false,
+    "shareCookies": false
+   },
+   "metadata": {
+    "designer": {
+     "x": 300,
+     "y": 0,
+     "name": "下載一般選單圖片"
+    }
+   }
+  },
+  {
+   "id": 12,
+   "module": "line:createARichMenu",
+   "version": 1,
+   "parameters": {
+    "__IMTCONN__": 0
+   },
+   "mapper": {
+    "name": "public",
+    "chatBarText": "選單",
+    "selected": false,
+    "height": 1686,
+    "areas": [
+     {
+      "bounds": {
+       "x": 0,
+       "y": 0,
+       "width": 833,
+       "height": 562
+      },
+      "action": {
+       "type": "message",
+       "text": "常見問題"
+      }
+     },
+     {
+      "bounds": {
+       "x": 833,
+       "y": 0,
+       "width": 834,
+       "height": 562
+      },
+      "action": {
+       "type": "message",
+       "text": "最新公告"
+      }
+     },
+     {
+      "bounds": {
+       "x": 1667,
+       "y": 0,
+       "width": 833,
+       "height": 562
+      },
+      "action": {
+       "type": "message",
+       "text": "物資領取"
+      }
+     },
+     {
+      "bounds": {
+       "x": 0,
+       "y": 562,
+       "width": 833,
+       "height": 562
+      },
+      "action": {
+       "type": "message",
+       "text": "我需要協助"
+      }
+     },
+     {
+      "bounds": {
+       "x": 833,
+       "y": 562,
+       "width": 834,
+       "height": 562
+      },
+      "action": {
+       "type": "message",
+       "text": "緊急聯絡"
+      }
+     },
+     {
+      "bounds": {
+       "x": 1667,
+       "y": 562,
+       "width": 833,
+       "height": 562
+      },
+      "action": {
+       "type": "message",
+       "text": "工作人員專區"
+      }
+     }
+    ],
+    "data": "{{11.data}}",
+    "filename": "public.png"
+   },
+   "metadata": {
+    "designer": {
+     "x": 600,
+     "y": 0,
+     "name": "建立一般選單"
+    },
+    "parameters": [
+     {
+      "name": "__IMTCONN__",
+      "type": "account:line2",
+      "label": "Connection",
+      "required": true
+     }
+    ]
+   }
+  },
+  {
+   "id": 13,
+   "module": "line:makeApiCall",
+   "version": 1,
+   "parameters": {
+    "__IMTCONN__": 0
+   },
+   "mapper": {
+    "url": "/v2/bot/user/all/richmenu/{{12.richMenuId}}",
+    "method": "POST",
+    "headers": []
+   },
+   "metadata": {
+    "designer": {
+     "x": 900,
+     "y": 0,
+     "name": "設為所有人的預設選單"
+    },
+    "parameters": [
+     {
+      "name": "__IMTCONN__",
+      "type": "account:line2",
+      "label": "Connection",
+      "required": true
+     }
+    ]
+   }
+  },
+  {
+   "id": 4,
+   "module": "notion:makeApiCall",
+   "version": 1,
+   "parameters": {
+    "__IMTCONN__": 0
+   },
+   "mapper": {
+    "url": "/v1/blocks/<放加乘選單圖片的 Notion 頁面 ID>/children",
+    "method": "GET",
+    "version": "2022-06-28",
+    "headers": [],
+    "qs": [
+     {
+      "key": "page_size",
+      "value": "100"
+     }
+    ]
+   },
+   "metadata": {
+    "designer": {
+     "x": 0,
+     "y": 300,
+     "name": "讀加乘選單頁"
     },
     "parameters": [
      {
@@ -51,9 +240,9 @@
    },
    "metadata": {
     "designer": {
-     "x": 0,
-     "y": 0,
-     "name": "下載頁面最後一張圖片"
+     "x": 300,
+     "y": 300,
+     "name": "下載加乘選單圖片"
     }
    }
   },
@@ -192,12 +381,12 @@
      }
     ],
     "data": "{{1.data}}",
-    "filename": "staff_plus.png"
+    "filename": "staff-plus.png"
    },
    "metadata": {
     "designer": {
-     "x": 300,
-     "y": 0,
+     "x": 600,
+     "y": 300,
      "name": "建立加乘選單"
     },
     "parameters": [
@@ -217,8 +406,8 @@
    "mapper": null,
    "metadata": {
     "designer": {
-     "x": 600,
-     "y": 0,
+     "x": 900,
+     "y": 300,
      "name": "設定別名"
     }
    },
@@ -245,8 +434,8 @@
        },
        "metadata": {
         "designer": {
-         "x": 900,
-         "y": -150,
+         "x": 1200,
+         "y": 150,
          "name": "更新別名 staff-plus"
         },
         "parameters": [
@@ -266,8 +455,8 @@
          "mapper": null,
          "metadata": {
           "designer": {
-           "x": 1200,
-           "y": -150
+           "x": 1500,
+           "y": 150
           }
          }
         }
@@ -297,8 +486,8 @@
        },
        "metadata": {
         "designer": {
-         "x": 900,
-         "y": 150,
+         "x": 1200,
+         "y": 450,
          "name": "新建別名 staff-plus"
         },
         "parameters": [
@@ -318,8 +507,8 @@
          "mapper": null,
          "metadata": {
           "designer": {
-           "x": 1200,
-           "y": 150
+           "x": 1500,
+           "y": 450
           }
          }
         }
