@@ -1,0 +1,5204 @@
+{
+ "name": "11 LINE 訊息（第一版）",
+ "flow": [
+  {
+   "id": 1,
+   "module": "line:watchMessages",
+   "version": 1,
+   "mapper": {},
+   "metadata": {
+    "designer": {
+     "x": -300,
+     "y": 0
+    },
+    "parameters": [
+     {
+      "name": "__IMTHOOK__",
+      "type": "hook:line",
+      "label": "Webhook",
+      "required": true
+     }
+    ]
+   },
+   "parameters": {
+    "__IMTHOOK__": 0
+   }
+  },
+  {
+   "id": 2,
+   "module": "notion:searchObjects1",
+   "version": 1,
+   "mapper": {
+    "limit": "1",
+    "select": "data_source_item",
+    "data_source": "<工作人員名冊 的 data source ID>",
+    "filter": [
+     [
+      {
+       "a": "LINE User ID |&*^%$#@| rich_text",
+       "o": "text:equals",
+       "b": "{{1.events[1].source.userId}}"
+      }
+     ]
+    ]
+   },
+   "metadata": {
+    "designer": {
+     "x": 0,
+     "y": 0,
+     "name": "查身分：工作人員名冊"
+    },
+    "parameters": [
+     {
+      "name": "__IMTCONN__",
+      "type": "account:notion2,notion3",
+      "label": "Connection",
+      "required": true
+     }
+    ]
+   },
+   "parameters": {
+    "__IMTCONN__": 0
+   }
+  },
+  {
+   "id": 3,
+   "module": "builtin:BasicRouter",
+   "version": 1,
+   "mapper": null,
+   "metadata": {
+    "designer": {
+     "x": 300,
+     "y": 0,
+     "name": "依訊息分流"
+    }
+   },
+   "routes": [
+    {
+     "flow": [
+      {
+       "id": 11,
+       "module": "notion:searchObjects1",
+       "version": 1,
+       "mapper": {
+        "limit": "1",
+        "filter": [
+         [
+          {
+           "a": "簽到代碼 |&*^%$#@| rich_text",
+           "o": "text:equals",
+           "b": "{{trim(replace(1.events[1].message.text; \"簽到\"; \"\"))}}"
+          }
+         ]
+        ],
+        "select": "data_source_item",
+        "data_source": "<收容所開設 的 data source ID>"
+       },
+       "metadata": {
+        "designer": {
+         "x": 900,
+         "y": 150,
+         "name": "找簽到碼對應的開設"
+        },
+        "parameters": [
+         {
+          "name": "__IMTCONN__",
+          "type": "account:notion2,notion3",
+          "label": "Connection",
+          "required": true
+         }
+        ]
+       },
+       "parameters": {
+        "__IMTCONN__": 0
+       },
+       "filter": {
+        "name": "R1 簽到",
+        "conditions": [
+         [
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:contain",
+           "b": "SIGN-"
+          }
+         ]
+        ]
+       }
+      },
+      {
+       "id": 19,
+       "module": "builtin:BasicRouter",
+       "version": 1,
+       "mapper": null,
+       "metadata": {
+        "designer": {
+         "x": 600,
+         "y": 1350,
+         "name": "簽到分流"
+        }
+       },
+       "routes": [
+        {
+         "flow": [
+          {
+           "id": 12,
+           "module": "notion:createDataSourceItem",
+           "version": 1,
+           "mapper": {
+            "fields": [
+             {
+              "key": "紀錄",
+              "type": "title",
+              "value": "{{2.properties_value.`姓名`[].plain_text}} {{formatDate(now; \"MM/DD HH:mm\")}} 簽到"
+             },
+             {
+              "key": "人員",
+              "type": "relation",
+              "value": [
+               "{{2.id}}"
+              ]
+             },
+             {
+              "key": "收容所開設",
+              "type": "relation",
+              "value": [
+               "{{11.id}}"
+              ]
+             },
+             {
+              "key": "簽到時間",
+              "type": "date",
+              "date": {
+               "start": "{{now}}",
+               "includeTime": true
+              }
+             },
+             {
+              "key": "簽到方式",
+              "type": "select",
+              "value": "掃現場 QR"
+             }
+            ],
+            "select": "map",
+            "data_source": "<出勤紀錄 的 data source ID>"
+           },
+           "metadata": {
+            "designer": {
+             "x": 900,
+             "y": 300,
+             "name": "新增出勤紀錄"
+            },
+            "parameters": [
+             {
+              "name": "__IMTCONN__",
+              "type": "account:notion2,notion3",
+              "label": "Connection",
+              "required": true
+             }
+            ]
+           },
+           "parameters": {
+            "__IMTCONN__": 0
+           },
+           "filter": {
+            "name": "簽到成功",
+            "conditions": [
+             [
+              {
+               "a": "{{2.id}}",
+               "o": "exist"
+              },
+              {
+               "a": "{{2.properties_value.`啟用中`}}",
+               "o": "boolean:equal",
+               "b": "true"
+              },
+              {
+               "a": "{{2.properties_value.`簽到狀態`.name}}",
+               "o": "text:notequal",
+               "b": "上班中"
+              },
+              {
+               "a": "{{11.id}}",
+               "o": "exist"
+              },
+              {
+               "a": "{{11.properties_value.`開設狀態`.name}}",
+               "o": "text:notequal",
+               "b": "已撤收"
+              }
+             ]
+            ]
+           }
+          },
+          {
+           "id": 13,
+           "module": "notion:updateADatabaseItem",
+           "version": 1,
+           "mapper": {
+            "page": "{{2.id}}",
+            "fields": [
+             {
+              "key": "簽到狀態",
+              "type": "select",
+              "value": "上班中"
+             },
+             {
+              "key": "派駐開設",
+              "type": "relation",
+              "value": [
+               "{{11.id}}"
+              ]
+             },
+             {
+              "key": "選單狀態",
+              "type": "select",
+              "value": "{{if(2.properties_value.`身分類別`.name = \"工作人員\"; \"工作人員加乘\"; \"一般\")}}"
+             },
+             {
+              "key": "對話暫存",
+              "type": "rich_text",
+              "value": ""
+             }
+            ],
+            "select": "map",
+            "updateBy": "data_source",
+            "data_source": "<工作人員名冊 的 data source ID>"
+           },
+           "metadata": {
+            "designer": {
+             "x": 900,
+             "y": 450,
+             "name": "名冊改上班中"
+            },
+            "parameters": [
+             {
+              "name": "__IMTCONN__",
+              "type": "account:notion2,notion3",
+              "label": "Connection",
+              "required": true
+             }
+            ]
+           },
+           "parameters": {
+            "__IMTCONN__": 0
+           }
+          },
+          {
+           "id": 14,
+           "module": "line:sendAReplyMessage",
+           "version": 1,
+           "mapper": {
+            "messages": [
+             {
+              "type": "text",
+              "text": "✅ {{2.properties_value.`姓名`[].plain_text}} 已在【{{11.properties_value.`開設名稱`[].plain_text}}】簽到。\n開設狀態：{{11.properties_value.`開設狀態`.name}}\n工作人員功能在下方選單最後一列。"
+             }
+            ],
+            "replyToken": "{{1.events[1].replyToken}}",
+            "notificationDisabled": false
+           },
+           "metadata": {
+            "designer": {
+             "x": 900,
+             "y": 600,
+             "name": "回覆簽到成功"
+            },
+            "parameters": [
+             {
+              "name": "__IMTCONN__",
+              "type": "account:line2",
+              "label": "Connection",
+              "required": true
+             }
+            ]
+           },
+           "parameters": {
+            "__IMTCONN__": 0
+           }
+          },
+          {
+           "id": 15,
+           "module": "line:makeApiCall",
+           "version": 1,
+           "mapper": {
+            "url": "/v2/bot/richmenu/alias/staff-plus",
+            "method": "GET",
+            "headers": []
+           },
+           "metadata": {
+            "designer": {
+             "x": 900,
+             "y": 750,
+             "name": "取得加乘選單 ID"
+            },
+            "parameters": [
+             {
+              "name": "__IMTCONN__",
+              "type": "account:line2",
+              "label": "Connection",
+              "required": true
+             }
+            ]
+           },
+           "parameters": {
+            "__IMTCONN__": 0
+           },
+           "filter": {
+            "name": "工作人員才換選單",
+            "conditions": [
+             [
+              {
+               "a": "{{2.properties_value.`身分類別`.name}}",
+               "o": "text:equal",
+               "b": "工作人員"
+              }
+             ]
+            ]
+           }
+          },
+          {
+           "id": 20,
+           "module": "line:makeApiCall",
+           "version": 1,
+           "mapper": {
+            "url": "/v2/bot/user/{{1.events[1].source.userId}}/richmenu/{{15.body.richMenuId}}",
+            "method": "POST",
+            "headers": []
+           },
+           "metadata": {
+            "designer": {
+             "x": 900,
+             "y": 1500,
+             "name": "切換成加乘選單"
+            },
+            "parameters": [
+             {
+              "name": "__IMTCONN__",
+              "type": "account:line2",
+              "label": "Connection",
+              "required": true
+             }
+            ]
+           },
+           "parameters": {
+            "__IMTCONN__": 0
+           }
+          }
+         ]
+        },
+        {
+         "flow": [
+          {
+           "id": 16,
+           "module": "line:sendAReplyMessage",
+           "version": 1,
+           "mapper": {
+            "messages": [
+             {
+              "type": "text",
+              "text": "{{2.properties_value.`姓名`[].plain_text}} 您已在班中，不用重複簽到。要下班請按「我要簽退」。"
+             }
+            ],
+            "replyToken": "{{1.events[1].replyToken}}",
+            "notificationDisabled": false
+           },
+           "metadata": {
+            "designer": {
+             "x": 900,
+             "y": 900,
+             "name": "回覆已在班"
+            },
+            "parameters": [
+             {
+              "name": "__IMTCONN__",
+              "type": "account:line2",
+              "label": "Connection",
+              "required": true
+             }
+            ]
+           },
+           "parameters": {
+            "__IMTCONN__": 0
+           },
+           "filter": {
+            "name": "已在班",
+            "conditions": [
+             [
+              {
+               "a": "{{2.id}}",
+               "o": "exist"
+              },
+              {
+               "a": "{{2.properties_value.`啟用中`}}",
+               "o": "boolean:equal",
+               "b": "true"
+              },
+              {
+               "a": "{{2.properties_value.`簽到狀態`.name}}",
+               "o": "text:equal",
+               "b": "上班中"
+              },
+              {
+               "a": "{{11.id}}",
+               "o": "exist"
+              }
+             ]
+            ]
+           }
+          }
+         ]
+        },
+        {
+         "flow": [
+          {
+           "id": 17,
+           "module": "line:sendAReplyMessage",
+           "version": 1,
+           "mapper": {
+            "messages": [
+             {
+              "type": "text",
+              "text": "⚠ 此簽到碼無效，或該收容所已撤收。請洽現場負責人。"
+             }
+            ],
+            "replyToken": "{{1.events[1].replyToken}}",
+            "notificationDisabled": false
+           },
+           "metadata": {
+            "designer": {
+             "x": 900,
+             "y": 1050,
+             "name": "回覆簽到碼無效"
+            },
+            "parameters": [
+             {
+              "name": "__IMTCONN__",
+              "type": "account:line2",
+              "label": "Connection",
+              "required": true
+             }
+            ]
+           },
+           "parameters": {
+            "__IMTCONN__": 0
+           },
+           "filter": {
+            "name": "簽到碼無效",
+            "conditions": [
+             [
+              {
+               "a": "{{2.id}}",
+               "o": "exist"
+              },
+              {
+               "a": "{{2.properties_value.`啟用中`}}",
+               "o": "boolean:equal",
+               "b": "true"
+              },
+              {
+               "a": "{{11.id}}",
+               "o": "notexist"
+              }
+             ],
+             [
+              {
+               "a": "{{2.id}}",
+               "o": "exist"
+              },
+              {
+               "a": "{{2.properties_value.`啟用中`}}",
+               "o": "boolean:equal",
+               "b": "true"
+              },
+              {
+               "a": "{{2.properties_value.`簽到狀態`.name}}",
+               "o": "text:notequal",
+               "b": "上班中"
+              },
+              {
+               "a": "{{11.properties_value.`開設狀態`.name}}",
+               "o": "text:equal",
+               "b": "已撤收"
+              }
+             ]
+            ]
+           }
+          }
+         ]
+        },
+        {
+         "flow": [
+          {
+           "id": 18,
+           "module": "line:sendAReplyMessage",
+           "version": 1,
+           "mapper": {
+            "messages": [
+             {
+              "type": "text",
+              "text": "您還不是已開通的工作人員。請按選單「工作人員專區」申請開通，由管理者審核後才能簽到。"
+             }
+            ],
+            "replyToken": "{{1.events[1].replyToken}}",
+            "notificationDisabled": false
+           },
+           "metadata": {
+            "designer": {
+             "x": 900,
+             "y": 1200,
+             "name": "回覆請先開通"
+            },
+            "parameters": [
+             {
+              "name": "__IMTCONN__",
+              "type": "account:line2",
+              "label": "Connection",
+              "required": true
+             }
+            ]
+           },
+           "parameters": {
+            "__IMTCONN__": 0
+           },
+           "filter": {
+            "name": "不是工作人員",
+            "conditions": [
+             [
+              {
+               "a": "{{2.id}}",
+               "o": "notexist"
+              }
+             ],
+             [
+              {
+               "a": "{{2.properties_value.`啟用中`}}",
+               "o": "boolean:notequal",
+               "b": "true"
+              }
+             ]
+            ]
+           }
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "flow": [
+      {
+       "id": 27,
+       "module": "builtin:BasicRouter",
+       "version": 1,
+       "mapper": null,
+       "metadata": {
+        "designer": {
+         "x": 600,
+         "y": 2550,
+         "name": "簽退分流"
+        }
+       },
+       "routes": [
+        {
+         "flow": [
+          {
+           "id": 22,
+           "module": "notion:updateADatabaseItem",
+           "version": 1,
+           "mapper": {
+            "page": "{{2.id}}",
+            "fields": [
+             {
+              "key": "簽到狀態",
+              "type": "select",
+              "value": "已簽退"
+             },
+             {
+              "key": "選單狀態",
+              "type": "select",
+              "value": "一般"
+             },
+             {
+              "key": "對話暫存",
+              "type": "rich_text",
+              "value": ""
+             }
+            ],
+            "select": "map",
+            "updateBy": "data_source",
+            "data_source": "<工作人員名冊 的 data source ID>"
+           },
+           "metadata": {
+            "designer": {
+             "x": 900,
+             "y": 1800,
+             "name": "名冊改已簽退"
+            },
+            "parameters": [
+             {
+              "name": "__IMTCONN__",
+              "type": "account:notion2,notion3",
+              "label": "Connection",
+              "required": true
+             }
+            ]
+           },
+           "parameters": {
+            "__IMTCONN__": 0
+           },
+           "filter": {
+            "name": "可以簽退",
+            "conditions": [
+             [
+              {
+               "a": "{{2.id}}",
+               "o": "exist"
+              },
+              {
+               "a": "{{2.properties_value.`啟用中`}}",
+               "o": "boolean:equal",
+               "b": "true"
+              },
+              {
+               "a": "{{2.properties_value.`簽到狀態`.name}}",
+               "o": "text:equal",
+               "b": "上班中"
+              }
+             ]
+            ]
+           }
+          },
+          {
+           "id": 23,
+           "module": "line:sendAReplyMessage",
+           "version": 1,
+           "mapper": {
+            "messages": [
+             {
+              "type": "text",
+              "text": "👋 {{2.properties_value.`姓名`[].plain_text}} 已簽退，辛苦了！"
+             }
+            ],
+            "replyToken": "{{1.events[1].replyToken}}",
+            "notificationDisabled": false
+           },
+           "metadata": {
+            "designer": {
+             "x": 900,
+             "y": 1950,
+             "name": "回覆簽退"
+            },
+            "parameters": [
+             {
+              "name": "__IMTCONN__",
+              "type": "account:line2",
+              "label": "Connection",
+              "required": true
+             }
+            ]
+           },
+           "parameters": {
+            "__IMTCONN__": 0
+           }
+          },
+          {
+           "id": 24,
+           "module": "line:makeApiCall",
+           "version": 1,
+           "mapper": {
+            "url": "/v2/bot/user/{{1.events[1].source.userId}}/richmenu",
+            "method": "DELETE",
+            "headers": []
+           },
+           "metadata": {
+            "designer": {
+             "x": 900,
+             "y": 2100,
+             "name": "解除加乘選單"
+            },
+            "parameters": [
+             {
+              "name": "__IMTCONN__",
+              "type": "account:line2",
+              "label": "Connection",
+              "required": true
+             }
+            ]
+           },
+           "parameters": {
+            "__IMTCONN__": 0
+           }
+          },
+          {
+           "id": 21,
+           "module": "notion:searchObjects1",
+           "version": 1,
+           "mapper": {
+            "limit": "1",
+            "filter": [
+             [
+              {
+               "a": "人員 |&*^%$#@| relation",
+               "o": "relation:contains",
+               "b": "{{2.id}}"
+              },
+              {
+               "a": "簽退時間 |&*^%$#@| date",
+               "o": "date:is_empty",
+               "b": "true"
+              }
+             ]
+            ],
+            "select": "data_source_item",
+            "data_source": "<出勤紀錄 的 data source ID>",
+            "sorts": [
+             {
+              "select": "timestamp",
+              "direction": "descending",
+              "timestamp": "created_time"
+             }
+            ]
+           },
+           "metadata": {
+            "designer": {
+             "x": 900,
+             "y": 1650,
+             "name": "找未簽退的出勤"
+            },
+            "parameters": [
+             {
+              "name": "__IMTCONN__",
+              "type": "account:notion2,notion3",
+              "label": "Connection",
+              "required": true
+             }
+            ]
+           },
+           "parameters": {
+            "__IMTCONN__": 0
+           }
+          },
+          {
+           "id": 25,
+           "module": "notion:updateADatabaseItem",
+           "version": 1,
+           "mapper": {
+            "page": "{{21.id}}",
+            "fields": [
+             {
+              "key": "簽退時間",
+              "type": "date",
+              "date": {
+               "start": "{{now}}",
+               "includeTime": true
+              }
+             },
+             {
+              "key": "簽退方式",
+              "type": "select",
+              "value": "自行簽退"
+             }
+            ],
+            "select": "map",
+            "updateBy": "data_source",
+            "data_source": "<出勤紀錄 的 data source ID>"
+           },
+           "metadata": {
+            "designer": {
+             "x": 900,
+             "y": 2250,
+             "name": "出勤補簽退時間"
+            },
+            "parameters": [
+             {
+              "name": "__IMTCONN__",
+              "type": "account:notion2,notion3",
+              "label": "Connection",
+              "required": true
+             }
+            ]
+           },
+           "parameters": {
+            "__IMTCONN__": 0
+           },
+           "filter": {
+            "name": "有找到出勤",
+            "conditions": [
+             [
+              {
+               "a": "{{21.id}}",
+               "o": "exist"
+              }
+             ]
+            ]
+           }
+          }
+         ]
+        },
+        {
+         "flow": [
+          {
+           "id": 26,
+           "module": "line:sendAReplyMessage",
+           "version": 1,
+           "mapper": {
+            "messages": [
+             {
+              "type": "text",
+              "text": "您目前不在班，不需要簽退。"
+             }
+            ],
+            "replyToken": "{{1.events[1].replyToken}}",
+            "notificationDisabled": false
+           },
+           "metadata": {
+            "designer": {
+             "x": 900,
+             "y": 2400,
+             "name": "回覆不在班"
+            },
+            "parameters": [
+             {
+              "name": "__IMTCONN__",
+              "type": "account:line2",
+              "label": "Connection",
+              "required": true
+             }
+            ]
+           },
+           "parameters": {
+            "__IMTCONN__": 0
+           },
+           "filter": {
+            "name": "不在班",
+            "conditions": [
+             [
+              {
+               "a": "{{2.id}}",
+               "o": "notexist"
+              }
+             ],
+             [
+              {
+               "a": "{{2.properties_value.`啟用中`}}",
+               "o": "boolean:notequal",
+               "b": "true"
+              }
+             ],
+             [
+              {
+               "a": "{{2.properties_value.`簽到狀態`.name}}",
+               "o": "text:notequal",
+               "b": "上班中"
+              }
+             ]
+            ]
+           }
+          }
+         ]
+        }
+       ],
+       "filter": {
+        "name": "R2 簽退",
+        "conditions": [
+         [
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:equal",
+           "b": "簽退"
+          }
+         ],
+         [
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:equal",
+           "b": "我要簽退"
+          }
+         ]
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "flow": [
+      {
+       "id": 30,
+       "module": "builtin:BasicRouter",
+       "version": 1,
+       "mapper": null,
+       "metadata": {
+        "designer": {
+         "x": 600,
+         "y": 3000,
+         "name": "整備選單分流"
+        }
+       },
+       "routes": [
+        {
+         "flow": [
+          {
+           "id": 28,
+           "module": "line:makeApiCall",
+           "version": 1,
+           "mapper": {
+            "url": "/v2/bot/message/reply",
+            "method": "POST",
+            "headers": [
+             {
+              "key": "Content-Type",
+              "value": "application/json"
+             }
+            ],
+            "body": "{\"replyToken\": \"{{1.events[1].replyToken}}\", \"messages\": [{\"type\": \"text\", \"text\": \"要回報哪一項整備？\", \"quickReply\": {\"items\": [{\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"場地清潔\", \"text\": \"整備：場地清潔\"}}, {\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"水電設備\", \"text\": \"整備：水電設備\"}}, {\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"安全檢查\", \"text\": \"整備：安全檢查\"}}, {\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"寢具\", \"text\": \"整備：寢具\"}}, {\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"醫療物資\", \"text\": \"整備：醫療物資\"}}, {\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"其他\", \"text\": \"整備：其他\"}}]}}]}"
+           },
+           "metadata": {
+            "designer": {
+             "x": 900,
+             "y": 2700,
+             "name": "選整備項目"
+            },
+            "parameters": [
+             {
+              "name": "__IMTCONN__",
+              "type": "account:line2",
+              "label": "Connection",
+              "required": true
+             }
+            ]
+           },
+           "parameters": {
+            "__IMTCONN__": 0
+           },
+           "filter": {
+            "name": "在班",
+            "conditions": [
+             [
+              {
+               "a": "{{2.id}}",
+               "o": "exist"
+              },
+              {
+               "a": "{{2.properties_value.`啟用中`}}",
+               "o": "boolean:equal",
+               "b": "true"
+              },
+              {
+               "a": "{{2.properties_value.`簽到狀態`.name}}",
+               "o": "text:equal",
+               "b": "上班中"
+              }
+             ]
+            ]
+           }
+          }
+         ]
+        },
+        {
+         "flow": [
+          {
+           "id": 29,
+           "module": "line:sendAReplyMessage",
+           "version": 1,
+           "mapper": {
+            "messages": [
+             {
+              "type": "text",
+              "text": "請先掃服務台的簽到 QR，簽到後才能回報。"
+             }
+            ],
+            "replyToken": "{{1.events[1].replyToken}}",
+            "notificationDisabled": false
+           },
+           "metadata": {
+            "designer": {
+             "x": 900,
+             "y": 2850,
+             "name": "回覆請先簽到"
+            },
+            "parameters": [
+             {
+              "name": "__IMTCONN__",
+              "type": "account:line2",
+              "label": "Connection",
+              "required": true
+             }
+            ]
+           },
+           "parameters": {
+            "__IMTCONN__": 0
+           },
+           "filter": {
+            "name": "不在班",
+            "conditions": [
+             [
+              {
+               "a": "{{2.id}}",
+               "o": "notexist"
+              }
+             ],
+             [
+              {
+               "a": "{{2.properties_value.`啟用中`}}",
+               "o": "boolean:notequal",
+               "b": "true"
+              }
+             ],
+             [
+              {
+               "a": "{{2.properties_value.`簽到狀態`.name}}",
+               "o": "text:notequal",
+               "b": "上班中"
+              }
+             ]
+            ]
+           }
+          }
+         ]
+        }
+       ],
+       "filter": {
+        "name": "R3a 整備回報",
+        "conditions": [
+         [
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:equal",
+           "b": "整備回報"
+          }
+         ]
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "flow": [
+      {
+       "id": 33,
+       "module": "builtin:BasicRouter",
+       "version": 1,
+       "mapper": null,
+       "metadata": {
+        "designer": {
+         "x": 600,
+         "y": 3450,
+         "name": "整備項目分流"
+        }
+       },
+       "routes": [
+        {
+         "flow": [
+          {
+           "id": 31,
+           "module": "line:makeApiCall",
+           "version": 1,
+           "mapper": {
+            "url": "/v2/bot/message/reply",
+            "method": "POST",
+            "headers": [
+             {
+              "key": "Content-Type",
+              "value": "application/json"
+             }
+            ],
+            "body": "{\"replyToken\": \"{{1.events[1].replyToken}}\", \"messages\": [{\"type\": \"text\", \"text\": \"{{1.events[1].message.text}}：狀況如何？\", \"quickReply\": {\"items\": [{\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"✅ 已完成\", \"text\": \"{{1.events[1].message.text}}｜已完成\"}}, {\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"⚠ 有問題\", \"text\": \"{{1.events[1].message.text}}｜有問題\"}}]}}]}"
+           },
+           "metadata": {
+            "designer": {
+             "x": 900,
+             "y": 3150,
+             "name": "選完成或有問題"
+            },
+            "parameters": [
+             {
+              "name": "__IMTCONN__",
+              "type": "account:line2",
+              "label": "Connection",
+              "required": true
+             }
+            ]
+           },
+           "parameters": {
+            "__IMTCONN__": 0
+           },
+           "filter": {
+            "name": "在班",
+            "conditions": [
+             [
+              {
+               "a": "{{2.id}}",
+               "o": "exist"
+              },
+              {
+               "a": "{{2.properties_value.`啟用中`}}",
+               "o": "boolean:equal",
+               "b": "true"
+              },
+              {
+               "a": "{{2.properties_value.`簽到狀態`.name}}",
+               "o": "text:equal",
+               "b": "上班中"
+              }
+             ]
+            ]
+           }
+          }
+         ]
+        },
+        {
+         "flow": [
+          {
+           "id": 32,
+           "module": "line:sendAReplyMessage",
+           "version": 1,
+           "mapper": {
+            "messages": [
+             {
+              "type": "text",
+              "text": "請先簽到後再回報。"
+             }
+            ],
+            "replyToken": "{{1.events[1].replyToken}}",
+            "notificationDisabled": false
+           },
+           "metadata": {
+            "designer": {
+             "x": 900,
+             "y": 3300,
+             "name": "回覆請先簽到"
+            },
+            "parameters": [
+             {
+              "name": "__IMTCONN__",
+              "type": "account:line2",
+              "label": "Connection",
+              "required": true
+             }
+            ]
+           },
+           "parameters": {
+            "__IMTCONN__": 0
+           },
+           "filter": {
+            "name": "不在班",
+            "conditions": [
+             [
+              {
+               "a": "{{2.id}}",
+               "o": "notexist"
+              }
+             ],
+             [
+              {
+               "a": "{{2.properties_value.`啟用中`}}",
+               "o": "boolean:notequal",
+               "b": "true"
+              }
+             ],
+             [
+              {
+               "a": "{{2.properties_value.`簽到狀態`.name}}",
+               "o": "text:notequal",
+               "b": "上班中"
+              }
+             ]
+            ]
+           }
+          }
+         ]
+        }
+       ],
+       "filter": {
+        "name": "R3b 整備項目",
+        "conditions": [
+         [
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:contain",
+           "b": "整備："
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notcontain",
+           "b": "｜"
+          }
+         ]
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "flow": [
+      {
+       "id": 37,
+       "module": "builtin:BasicRouter",
+       "version": 1,
+       "mapper": null,
+       "metadata": {
+        "designer": {
+         "x": 600,
+         "y": 4050,
+         "name": "整備結果分流"
+        }
+       },
+       "routes": [
+        {
+         "flow": [
+          {
+           "id": 34,
+           "module": "notion:createDataSourceItem",
+           "version": 1,
+           "mapper": {
+            "fields": [
+             {
+              "key": "日誌標題",
+              "type": "title",
+              "value": "整備回報：{{replace(first(split(1.events[1].message.text; \"｜\")); \"整備：\"; \"\")}}{{last(split(1.events[1].message.text; \"｜\"))}}"
+             },
+             {
+              "key": "日誌類別",
+              "type": "select",
+              "value": "整備回報"
+             },
+             {
+              "key": "整備項目",
+              "type": "select",
+              "value": "{{replace(first(split(1.events[1].message.text; \"｜\")); \"整備：\"; \"\")}}"
+             },
+             {
+              "key": "處理進度",
+              "type": "select",
+              "value": "{{if(last(split(1.events[1].message.text; \"｜\")) = \"已完成\"; \"已解決\"; \"待處理\")}}"
+             },
+             {
+              "key": "嚴重程度",
+              "type": "select",
+              "value": "{{if(last(split(1.events[1].message.text; \"｜\")) = \"已完成\"; \"低\"; \"中\")}}"
+             },
+             {
+              "key": "收容所開設",
+              "type": "relation",
+              "value": [
+               "{{2.properties_value.`派駐開設`[].id}}"
+              ]
+             },
+             {
+              "key": "回報人",
+              "type": "relation",
+              "value": [
+               "{{2.id}}"
+              ]
+             },
+             {
+              "key": "發生時間",
+              "type": "date",
+              "date": {
+               "start": "{{now}}",
+               "includeTime": true
+              }
+             },
+             {
+              "key": "來源",
+              "type": "select",
+              "value": "LINE 回報"
+             }
+            ],
+            "select": "map",
+            "data_source": "<現場日誌 的 data source ID>"
+           },
+           "metadata": {
+            "designer": {
+             "x": 900,
+             "y": 3600,
+             "name": "新增整備日誌"
+            },
+            "parameters": [
+             {
+              "name": "__IMTCONN__",
+              "type": "account:notion2,notion3",
+              "label": "Connection",
+              "required": true
+             }
+            ]
+           },
+           "parameters": {
+            "__IMTCONN__": 0
+           },
+           "filter": {
+            "name": "在班",
+            "conditions": [
+             [
+              {
+               "a": "{{2.id}}",
+               "o": "exist"
+              },
+              {
+               "a": "{{2.properties_value.`啟用中`}}",
+               "o": "boolean:equal",
+               "b": "true"
+              },
+              {
+               "a": "{{2.properties_value.`簽到狀態`.name}}",
+               "o": "text:equal",
+               "b": "上班中"
+              }
+             ]
+            ]
+           }
+          },
+          {
+           "id": 35,
+           "module": "line:makeApiCall",
+           "version": 1,
+           "mapper": {
+            "url": "/v2/bot/message/reply",
+            "method": "POST",
+            "headers": [
+             {
+              "key": "Content-Type",
+              "value": "application/json"
+             }
+            ],
+            "body": "{\"replyToken\": \"{{1.events[1].replyToken}}\", \"messages\": [{\"type\": \"text\", \"text\": \"已記錄：{{1.events[1].message.text}}。還有其他項目嗎？\", \"quickReply\": {\"items\": [{\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"場地清潔\", \"text\": \"整備：場地清潔\"}}, {\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"水電設備\", \"text\": \"整備：水電設備\"}}, {\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"安全檢查\", \"text\": \"整備：安全檢查\"}}, {\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"寢具\", \"text\": \"整備：寢具\"}}, {\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"醫療物資\", \"text\": \"整備：醫療物資\"}}, {\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"其他\", \"text\": \"整備：其他\"}}]}}]}"
+           },
+           "metadata": {
+            "designer": {
+             "x": 900,
+             "y": 3750,
+             "name": "回覆已記錄"
+            },
+            "parameters": [
+             {
+              "name": "__IMTCONN__",
+              "type": "account:line2",
+              "label": "Connection",
+              "required": true
+             }
+            ]
+           },
+           "parameters": {
+            "__IMTCONN__": 0
+           }
+          }
+         ]
+        },
+        {
+         "flow": [
+          {
+           "id": 36,
+           "module": "line:sendAReplyMessage",
+           "version": 1,
+           "mapper": {
+            "messages": [
+             {
+              "type": "text",
+              "text": "請先簽到後再回報。"
+             }
+            ],
+            "replyToken": "{{1.events[1].replyToken}}",
+            "notificationDisabled": false
+           },
+           "metadata": {
+            "designer": {
+             "x": 900,
+             "y": 3900,
+             "name": "回覆請先簽到"
+            },
+            "parameters": [
+             {
+              "name": "__IMTCONN__",
+              "type": "account:line2",
+              "label": "Connection",
+              "required": true
+             }
+            ]
+           },
+           "parameters": {
+            "__IMTCONN__": 0
+           },
+           "filter": {
+            "name": "不在班",
+            "conditions": [
+             [
+              {
+               "a": "{{2.id}}",
+               "o": "notexist"
+              }
+             ],
+             [
+              {
+               "a": "{{2.properties_value.`啟用中`}}",
+               "o": "boolean:notequal",
+               "b": "true"
+              }
+             ],
+             [
+              {
+               "a": "{{2.properties_value.`簽到狀態`.name}}",
+               "o": "text:notequal",
+               "b": "上班中"
+              }
+             ]
+            ]
+           }
+          }
+         ]
+        }
+       ],
+       "filter": {
+        "name": "R3c 整備結果",
+        "conditions": [
+         [
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:contain",
+           "b": "整備："
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:contain",
+           "b": "｜"
+          }
+         ]
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "flow": [
+      {
+       "id": 45,
+       "module": "builtin:BasicRouter",
+       "version": 1,
+       "mapper": null,
+       "metadata": {
+        "designer": {
+         "x": 600,
+         "y": 5250,
+         "name": "整備完成權限"
+        }
+       },
+       "routes": [
+        {
+         "flow": [
+          {
+           "id": 38,
+           "module": "notion:getADatabaseItem",
+           "version": 1,
+           "mapper": {
+            "page": "{{2.properties_value.`派駐開設`[].id}}",
+            "getBy": "data_source",
+            "select": "map"
+           },
+           "metadata": {
+            "designer": {
+             "x": 900,
+             "y": 4200,
+             "name": "讀所在開設"
+            },
+            "parameters": [
+             {
+              "name": "__IMTCONN__",
+              "type": "account:notion2,notion3",
+              "label": "Connection",
+              "required": true
+             }
+            ]
+           },
+           "parameters": {
+            "__IMTCONN__": 0
+           },
+           "filter": {
+            "name": "負責人在班",
+            "conditions": [
+             [
+              {
+               "a": "{{2.id}}",
+               "o": "exist"
+              },
+              {
+               "a": "{{2.properties_value.`啟用中`}}",
+               "o": "boolean:equal",
+               "b": "true"
+              },
+              {
+               "a": "{{2.properties_value.`簽到狀態`.name}}",
+               "o": "text:equal",
+               "b": "上班中"
+              },
+              {
+               "a": "{{2.properties_value.`角色`.name}}",
+               "o": "text:contain",
+               "b": "管理者"
+              }
+             ]
+            ]
+           }
+          },
+          {
+           "id": 43,
+           "module": "builtin:BasicRouter",
+           "version": 1,
+           "mapper": null,
+           "metadata": {
+            "designer": {
+             "x": 600,
+             "y": 4950,
+             "name": "開設狀態分流"
+            }
+           },
+           "routes": [
+            {
+             "flow": [
+              {
+               "id": 39,
+               "module": "notion:updateADatabaseItem",
+               "version": 1,
+               "mapper": {
+                "page": "{{38.id}}",
+                "fields": [
+                 {
+                  "key": "開設狀態",
+                  "type": "select",
+                  "value": "待核准"
+                 }
+                ],
+                "select": "map",
+                "updateBy": "data_source",
+                "data_source": "<收容所開設 的 data source ID>"
+               },
+               "metadata": {
+                "designer": {
+                 "x": 900,
+                 "y": 4350,
+                 "name": "開設改待核准"
+                },
+                "parameters": [
+                 {
+                  "name": "__IMTCONN__",
+                  "type": "account:notion2,notion3",
+                  "label": "Connection",
+                  "required": true
+                 }
+                ]
+               },
+               "parameters": {
+                "__IMTCONN__": 0
+               },
+               "filter": {
+                "name": "整備中",
+                "conditions": [
+                 [
+                  {
+                   "a": "{{38.properties_value.`開設狀態`.name}}",
+                   "o": "text:equal",
+                   "b": "整備中"
+                  }
+                 ]
+                ]
+               }
+              },
+              {
+               "id": 40,
+               "module": "notion:createDataSourceItem",
+               "version": 1,
+               "mapper": {
+                "fields": [
+                 {
+                  "key": "日誌標題",
+                  "type": "title",
+                  "value": "整備完成，申請開放進駐"
+                 },
+                 {
+                  "key": "日誌類別",
+                  "type": "select",
+                  "value": "整備回報"
+                 },
+                 {
+                  "key": "處理進度",
+                  "type": "select",
+                  "value": "待處理"
+                 },
+                 {
+                  "key": "嚴重程度",
+                  "type": "select",
+                  "value": "中"
+                 },
+                 {
+                  "key": "需回報社會處",
+                  "type": "checkbox",
+                  "value": true
+                 },
+                 {
+                  "key": "收容所開設",
+                  "type": "relation",
+                  "value": [
+                   "{{38.id}}"
+                  ]
+                 },
+                 {
+                  "key": "回報人",
+                  "type": "relation",
+                  "value": [
+                   "{{2.id}}"
+                  ]
+                 },
+                 {
+                  "key": "發生時間",
+                  "type": "date",
+                  "date": {
+                   "start": "{{now}}",
+                   "includeTime": true
+                  }
+                 },
+                 {
+                  "key": "來源",
+                  "type": "select",
+                  "value": "LINE 回報"
+                 }
+                ],
+                "select": "map",
+                "data_source": "<現場日誌 的 data source ID>"
+               },
+               "metadata": {
+                "designer": {
+                 "x": 900,
+                 "y": 4500,
+                 "name": "新增申請日誌"
+                },
+                "parameters": [
+                 {
+                  "name": "__IMTCONN__",
+                  "type": "account:notion2,notion3",
+                  "label": "Connection",
+                  "required": true
+                 }
+                ]
+               },
+               "parameters": {
+                "__IMTCONN__": 0
+               }
+              },
+              {
+               "id": 41,
+               "module": "line:sendAReplyMessage",
+               "version": 1,
+               "mapper": {
+                "messages": [
+                 {
+                  "type": "text",
+                  "text": "📨 已送出「整備完成」，等社會處核准後就可以開始報到。\n可以按「查詢狀況」確認是否已核准。"
+                 }
+                ],
+                "replyToken": "{{1.events[1].replyToken}}",
+                "notificationDisabled": false
+               },
+               "metadata": {
+                "designer": {
+                 "x": 900,
+                 "y": 4650,
+                 "name": "回覆已送出"
+                },
+                "parameters": [
+                 {
+                  "name": "__IMTCONN__",
+                  "type": "account:line2",
+                  "label": "Connection",
+                  "required": true
+                 }
+                ]
+               },
+               "parameters": {
+                "__IMTCONN__": 0
+               }
+              }
+             ]
+            },
+            {
+             "flow": [
+              {
+               "id": 42,
+               "module": "line:sendAReplyMessage",
+               "version": 1,
+               "mapper": {
+                "messages": [
+                 {
+                  "type": "text",
+                  "text": "目前狀態是「{{38.properties_value.`開設狀態`.name}}」，不需要再送出整備完成。"
+                 }
+                ],
+                "replyToken": "{{1.events[1].replyToken}}",
+                "notificationDisabled": false
+               },
+               "metadata": {
+                "designer": {
+                 "x": 900,
+                 "y": 4800,
+                 "name": "回覆狀態"
+                },
+                "parameters": [
+                 {
+                  "name": "__IMTCONN__",
+                  "type": "account:line2",
+                  "label": "Connection",
+                  "required": true
+                 }
+                ]
+               },
+               "parameters": {
+                "__IMTCONN__": 0
+               },
+               "filter": {
+                "name": "不是整備中",
+                "conditions": [
+                 [
+                  {
+                   "a": "{{38.properties_value.`開設狀態`.name}}",
+                   "o": "text:notequal",
+                   "b": "整備中"
+                  }
+                 ]
+                ]
+               }
+              }
+             ]
+            }
+           ]
+          }
+         ]
+        },
+        {
+         "flow": [
+          {
+           "id": 44,
+           "module": "line:sendAReplyMessage",
+           "version": 1,
+           "mapper": {
+            "messages": [
+             {
+              "type": "text",
+              "text": "只有在班中的收容所負責人可以送出「整備完成」。"
+             }
+            ],
+            "replyToken": "{{1.events[1].replyToken}}",
+            "notificationDisabled": false
+           },
+           "metadata": {
+            "designer": {
+             "x": 900,
+             "y": 5100,
+             "name": "回覆沒有權限"
+            },
+            "parameters": [
+             {
+              "name": "__IMTCONN__",
+              "type": "account:line2",
+              "label": "Connection",
+              "required": true
+             }
+            ]
+           },
+           "parameters": {
+            "__IMTCONN__": 0
+           },
+           "filter": {
+            "name": "沒有權限",
+            "conditions": [
+             [
+              {
+               "a": "{{2.id}}",
+               "o": "notexist"
+              }
+             ],
+             [
+              {
+               "a": "{{2.properties_value.`啟用中`}}",
+               "o": "boolean:notequal",
+               "b": "true"
+              }
+             ],
+             [
+              {
+               "a": "{{2.properties_value.`簽到狀態`.name}}",
+               "o": "text:notequal",
+               "b": "上班中"
+              }
+             ],
+             [
+              {
+               "a": "{{2.properties_value.`角色`.name}}",
+               "o": "text:notcontain",
+               "b": "管理者"
+              }
+             ]
+            ]
+           }
+          }
+         ]
+        }
+       ],
+       "filter": {
+        "name": "R4 整備完成",
+        "conditions": [
+         [
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:equal",
+           "b": "整備完成"
+          }
+         ]
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "flow": [
+      {
+       "id": 46,
+       "module": "notion:searchObjects1",
+       "version": 1,
+       "mapper": {
+        "limit": "1",
+        "filter": [
+         [
+          {
+           "a": "編號 |&*^%$#@| title",
+           "o": "text:equals",
+           "b": "{{substring(1.events[1].message.text; 3)}}"
+          }
+         ]
+        ],
+        "select": "data_source_item",
+        "data_source": "<號碼牌 的 data source ID>"
+       },
+       "metadata": {
+        "designer": {
+         "x": 900,
+         "y": 5400,
+         "name": "找號碼牌"
+        },
+        "parameters": [
+         {
+          "name": "__IMTCONN__",
+          "type": "account:notion2,notion3",
+          "label": "Connection",
+          "required": true
+         }
+        ]
+       },
+       "parameters": {
+        "__IMTCONN__": 0
+       },
+       "filter": {
+        "name": "R5 掃號碼牌",
+        "conditions": [
+         [
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:contain",
+           "b": "QR MLS-"
+          }
+         ]
+        ]
+       }
+      },
+      {
+       "id": 60,
+       "module": "builtin:BasicRouter",
+       "version": 1,
+       "mapper": null,
+       "metadata": {
+        "designer": {
+         "x": 600,
+         "y": 7500,
+         "name": "號碼牌分流"
+        }
+       },
+       "routes": [
+        {
+         "flow": [
+          {
+           "id": 57,
+           "module": "line:sendAReplyMessage",
+           "version": 1,
+           "mapper": {
+            "messages": [
+             {
+              "type": "text",
+              "text": "⚠ 號碼牌 {{substring(1.events[1].message.text; 3)}} 已失效，請勿放行，並通知現場負責人。"
+             }
+            ],
+            "replyToken": "{{1.events[1].replyToken}}",
+            "notificationDisabled": false
+           },
+           "metadata": {
+            "designer": {
+             "x": 900,
+             "y": 7050,
+             "name": "回覆失效"
+            },
+            "parameters": [
+             {
+              "name": "__IMTCONN__",
+              "type": "account:line2",
+              "label": "Connection",
+              "required": true
+             }
+            ]
+           },
+           "parameters": {
+            "__IMTCONN__": 0
+           },
+           "filter": {
+            "name": "失效",
+            "conditions": [
+             [
+              {
+               "a": "{{46.id}}",
+               "o": "exist"
+              },
+              {
+               "a": "{{46.properties_value.`狀態`.name}}",
+               "o": "text:equal",
+               "b": "失效"
+              }
+             ]
+            ]
+           }
+          }
+         ]
+        },
+        {
+         "flow": [
+          {
+           "id": 47,
+           "module": "notion:getADatabaseItem",
+           "version": 1,
+           "mapper": {
+            "page": "{{2.properties_value.`派駐開設`[].id}}",
+            "getBy": "data_source",
+            "select": "map"
+           },
+           "metadata": {
+            "designer": {
+             "x": 900,
+             "y": 5550,
+             "name": "讀所在開設（報到）"
+            },
+            "parameters": [
+             {
+              "name": "__IMTCONN__",
+              "type": "account:notion2,notion3",
+              "label": "Connection",
+              "required": true
+             }
+            ]
+           },
+           "parameters": {
+            "__IMTCONN__": 0
+           },
+           "filter": {
+            "name": "空白牌：報到",
+            "conditions": [
+             [
+              {
+               "a": "{{46.id}}",
+               "o": "exist"
+              },
+              {
+               "a": "{{46.properties_value.`狀態`.name}}",
+               "o": "text:equal",
+               "b": "可用"
+              },
+              {
+               "a": "{{2.id}}",
+               "o": "exist"
+              },
+              {
+               "a": "{{2.properties_value.`啟用中`}}",
+               "o": "boolean:equal",
+               "b": "true"
+              },
+              {
+               "a": "{{2.properties_value.`簽到狀態`.name}}",
+               "o": "text:equal",
+               "b": "上班中"
+              },
+              {
+               "a": "管理者（收容所負責人）,門禁組",
+               "o": "text:contain",
+               "b": "{{2.properties_value.`角色`.name}}"
+              }
+             ]
+            ]
+           }
+          },
+          {
+           "id": 51,
+           "module": "builtin:BasicRouter",
+           "version": 1,
+           "mapper": null,
+           "metadata": {
+            "designer": {
+             "x": 600,
+             "y": 6150,
+             "name": "可否報到"
+            }
+           },
+           "routes": [
+            {
+             "flow": [
+              {
+               "id": 48,
+               "module": "notion:updateADatabaseItem",
+               "version": 1,
+               "mapper": {
+                "page": "{{2.id}}",
+                "fields": [
+                 {
+                  "key": "對話暫存",
+                  "type": "rich_text",
+                  "value": "報到|{{substring(1.events[1].message.text; 3)}}"
+                 }
+                ],
+                "select": "map",
+                "updateBy": "data_source",
+                "data_source": "<工作人員名冊 的 data source ID>"
+               },
+               "metadata": {
+                "designer": {
+                 "x": 900,
+                 "y": 5700,
+                 "name": "暫存報到"
+                },
+                "parameters": [
+                 {
+                  "name": "__IMTCONN__",
+                  "type": "account:notion2,notion3",
+                  "label": "Connection",
+                  "required": true
+                 }
+                ]
+               },
+               "parameters": {
+                "__IMTCONN__": 0
+               },
+               "filter": {
+                "name": "開設中",
+                "conditions": [
+                 [
+                  {
+                   "a": "{{47.properties_value.`開設狀態`.name}}",
+                   "o": "text:equal",
+                   "b": "開設中"
+                  }
+                 ]
+                ]
+               }
+              },
+              {
+               "id": 49,
+               "module": "line:sendAReplyMessage",
+               "version": 1,
+               "mapper": {
+                "messages": [
+                 {
+                  "type": "text",
+                  "text": "🆕 號碼牌 {{substring(1.events[1].message.text; 3)}} 開始報到。\n請輸入居民姓名（打「取消」可中斷）："
+                 }
+                ],
+                "replyToken": "{{1.events[1].replyToken}}",
+                "notificationDisabled": false
+               },
+               "metadata": {
+                "designer": {
+                 "x": 900,
+                 "y": 5850,
+                 "name": "請輸入姓名"
+                },
+                "parameters": [
+                 {
+                  "name": "__IMTCONN__",
+                  "type": "account:line2",
+                  "label": "Connection",
+                  "required": true
+                 }
+                ]
+               },
+               "parameters": {
+                "__IMTCONN__": 0
+               }
+              }
+             ]
+            },
+            {
+             "flow": [
+              {
+               "id": 50,
+               "module": "line:sendAReplyMessage",
+               "version": 1,
+               "mapper": {
+                "messages": [
+                 {
+                  "type": "text",
+                  "text": "本所目前是「{{47.properties_value.`開設狀態`.name}}」，社會處核准開放後才能報到。"
+                 }
+                ],
+                "replyToken": "{{1.events[1].replyToken}}",
+                "notificationDisabled": false
+               },
+               "metadata": {
+                "designer": {
+                 "x": 900,
+                 "y": 6000,
+                 "name": "回覆尚未開放"
+                },
+                "parameters": [
+                 {
+                  "name": "__IMTCONN__",
+                  "type": "account:line2",
+                  "label": "Connection",
+                  "required": true
+                 }
+                ]
+               },
+               "parameters": {
+                "__IMTCONN__": 0
+               },
+               "filter": {
+                "name": "尚未開放",
+                "conditions": [
+                 [
+                  {
+                   "a": "{{47.properties_value.`開設狀態`.name}}",
+                   "o": "text:notequal",
+                   "b": "開設中"
+                  }
+                 ]
+                ]
+               }
+              }
+             ]
+            }
+           ]
+          }
+         ]
+        },
+        {
+         "flow": [
+          {
+           "id": 52,
+           "module": "notion:getADatabaseItem",
+           "version": 1,
+           "mapper": {
+            "page": "{{46.properties_value.`綁定居民`[].id}}",
+            "getBy": "data_source",
+            "select": "map"
+           },
+           "metadata": {
+            "designer": {
+             "x": 900,
+             "y": 6300,
+             "name": "讀綁定的居民"
+            },
+            "parameters": [
+             {
+              "name": "__IMTCONN__",
+              "type": "account:notion2,notion3",
+              "label": "Connection",
+              "required": true
+             }
+            ]
+           },
+           "parameters": {
+            "__IMTCONN__": 0
+           },
+           "filter": {
+            "name": "使用中：進出",
+            "conditions": [
+             [
+              {
+               "a": "{{46.id}}",
+               "o": "exist"
+              },
+              {
+               "a": "{{46.properties_value.`狀態`.name}}",
+               "o": "text:equal",
+               "b": "使用中"
+              },
+              {
+               "a": "{{2.id}}",
+               "o": "exist"
+              },
+              {
+               "a": "{{2.properties_value.`啟用中`}}",
+               "o": "boolean:equal",
+               "b": "true"
+              },
+              {
+               "a": "{{2.properties_value.`簽到狀態`.name}}",
+               "o": "text:equal",
+               "b": "上班中"
+              },
+              {
+               "a": "管理者（收容所負責人）,門禁組,志工",
+               "o": "text:contain",
+               "b": "{{2.properties_value.`角色`.name}}"
+              }
+             ]
+            ]
+           }
+          },
+          {
+           "id": 56,
+           "module": "builtin:BasicRouter",
+           "version": 1,
+           "mapper": null,
+           "metadata": {
+            "designer": {
+             "x": 600,
+             "y": 6900,
+             "name": "依在所狀態給按鈕"
+            }
+           },
+           "routes": [
+            {
+             "flow": [
+              {
+               "id": 53,
+               "module": "line:makeApiCall",
+               "version": 1,
+               "mapper": {
+                "url": "/v2/bot/message/reply",
+                "method": "POST",
+                "headers": [
+                 {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                 }
+                ],
+                "body": "{\"replyToken\": \"{{1.events[1].replyToken}}\", \"messages\": [{\"type\": \"text\", \"text\": \"號碼牌 {{substring(1.events[1].message.text; 3)}}：目前在所\", \"quickReply\": {\"items\": [{\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"外出\", \"text\": \"外出 {{substring(1.events[1].message.text; 3)}}\"}}, {\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"離所\", \"text\": \"離所 {{substring(1.events[1].message.text; 3)}}\"}}]}}]}"
+               },
+               "metadata": {
+                "designer": {
+                 "x": 900,
+                 "y": 6450,
+                 "name": "按鈕：外出或離所"
+                },
+                "parameters": [
+                 {
+                  "name": "__IMTCONN__",
+                  "type": "account:line2",
+                  "label": "Connection",
+                  "required": true
+                 }
+                ]
+               },
+               "parameters": {
+                "__IMTCONN__": 0
+               },
+               "filter": {
+                "name": "在所",
+                "conditions": [
+                 [
+                  {
+                   "a": "{{52.properties_value.`在所狀態`.name}}",
+                   "o": "text:equal",
+                   "b": "在所"
+                  }
+                 ]
+                ]
+               }
+              }
+             ]
+            },
+            {
+             "flow": [
+              {
+               "id": 54,
+               "module": "line:makeApiCall",
+               "version": 1,
+               "mapper": {
+                "url": "/v2/bot/message/reply",
+                "method": "POST",
+                "headers": [
+                 {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                 }
+                ],
+                "body": "{\"replyToken\": \"{{1.events[1].replyToken}}\", \"messages\": [{\"type\": \"text\", \"text\": \"號碼牌 {{substring(1.events[1].message.text; 3)}}：目前{{52.properties_value.`在所狀態`.name}}\", \"quickReply\": {\"items\": [{\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"返回\", \"text\": \"返回 {{substring(1.events[1].message.text; 3)}}\"}}, {\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"離所\", \"text\": \"離所 {{substring(1.events[1].message.text; 3)}}\"}}]}}]}"
+               },
+               "metadata": {
+                "designer": {
+                 "x": 900,
+                 "y": 6600,
+                 "name": "按鈕：返回或離所"
+                },
+                "parameters": [
+                 {
+                  "name": "__IMTCONN__",
+                  "type": "account:line2",
+                  "label": "Connection",
+                  "required": true
+                 }
+                ]
+               },
+               "parameters": {
+                "__IMTCONN__": 0
+               },
+               "filter": {
+                "name": "外出或未返",
+                "conditions": [
+                 [
+                  {
+                   "a": "{{52.properties_value.`在所狀態`.name}}",
+                   "o": "text:equal",
+                   "b": "外出"
+                  }
+                 ],
+                 [
+                  {
+                   "a": "{{52.properties_value.`在所狀態`.name}}",
+                   "o": "text:equal",
+                   "b": "未返"
+                  }
+                 ]
+                ]
+               }
+              }
+             ]
+            },
+            {
+             "flow": [
+              {
+               "id": 55,
+               "module": "line:sendAReplyMessage",
+               "version": 1,
+               "mapper": {
+                "messages": [
+                 {
+                  "type": "text",
+                  "text": "號碼牌 {{substring(1.events[1].message.text; 3)}} 的居民已離所。"
+                 }
+                ],
+                "replyToken": "{{1.events[1].replyToken}}",
+                "notificationDisabled": false
+               },
+               "metadata": {
+                "designer": {
+                 "x": 900,
+                 "y": 6750,
+                 "name": "回覆已離所"
+                },
+                "parameters": [
+                 {
+                  "name": "__IMTCONN__",
+                  "type": "account:line2",
+                  "label": "Connection",
+                  "required": true
+                 }
+                ]
+               },
+               "parameters": {
+                "__IMTCONN__": 0
+               },
+               "filter": {
+                "name": "已離所",
+                "conditions": [
+                 [
+                  {
+                   "a": "{{52.properties_value.`在所狀態`.name}}",
+                   "o": "text:equal",
+                   "b": "已離所"
+                  }
+                 ]
+                ]
+               }
+              }
+             ]
+            }
+           ]
+          }
+         ]
+        },
+        {
+         "flow": [
+          {
+           "id": 58,
+           "module": "line:sendAReplyMessage",
+           "version": 1,
+           "mapper": {
+            "messages": [
+             {
+              "type": "text",
+              "text": "查無號碼牌 {{substring(1.events[1].message.text; 3)}}，請確認後再試。"
+             }
+            ],
+            "replyToken": "{{1.events[1].replyToken}}",
+            "notificationDisabled": false
+           },
+           "metadata": {
+            "designer": {
+             "x": 900,
+             "y": 7200,
+             "name": "回覆查無此牌"
+            },
+            "parameters": [
+             {
+              "name": "__IMTCONN__",
+              "type": "account:line2",
+              "label": "Connection",
+              "required": true
+             }
+            ]
+           },
+           "parameters": {
+            "__IMTCONN__": 0
+           },
+           "filter": {
+            "name": "查無此牌",
+            "conditions": [
+             [
+              {
+               "a": "{{46.id}}",
+               "o": "notexist"
+              }
+             ]
+            ]
+           }
+          }
+         ]
+        },
+        {
+         "flow": [
+          {
+           "id": 59,
+           "module": "line:sendAReplyMessage",
+           "version": 1,
+           "mapper": {
+            "messages": [
+             {
+              "type": "text",
+              "text": "請洽現場工作人員協助。"
+             }
+            ],
+            "replyToken": "{{1.events[1].replyToken}}",
+            "notificationDisabled": false
+           },
+           "metadata": {
+            "designer": {
+             "x": 900,
+             "y": 7350,
+             "name": "回覆請洽工作人員"
+            },
+            "parameters": [
+             {
+              "name": "__IMTCONN__",
+              "type": "account:line2",
+              "label": "Connection",
+              "required": true
+             }
+            ]
+           },
+           "parameters": {
+            "__IMTCONN__": 0
+           },
+           "filter": {
+            "name": "沒有權限",
+            "conditions": [
+             [
+              {
+               "a": "{{46.id}}",
+               "o": "exist"
+              },
+              {
+               "a": "{{46.properties_value.`狀態`.name}}",
+               "o": "text:notequal",
+               "b": "失效"
+              },
+              {
+               "a": "{{2.id}}",
+               "o": "notexist"
+              }
+             ],
+             [
+              {
+               "a": "{{46.id}}",
+               "o": "exist"
+              },
+              {
+               "a": "{{46.properties_value.`狀態`.name}}",
+               "o": "text:notequal",
+               "b": "失效"
+              },
+              {
+               "a": "{{2.properties_value.`啟用中`}}",
+               "o": "boolean:notequal",
+               "b": "true"
+              }
+             ],
+             [
+              {
+               "a": "{{46.id}}",
+               "o": "exist"
+              },
+              {
+               "a": "{{46.properties_value.`狀態`.name}}",
+               "o": "text:notequal",
+               "b": "失效"
+              },
+              {
+               "a": "{{2.properties_value.`簽到狀態`.name}}",
+               "o": "text:notequal",
+               "b": "上班中"
+              }
+             ],
+             [
+              {
+               "a": "{{46.id}}",
+               "o": "exist"
+              },
+              {
+               "a": "{{46.properties_value.`狀態`.name}}",
+               "o": "text:equal",
+               "b": "可用"
+              },
+              {
+               "a": "管理者（收容所負責人）,門禁組",
+               "o": "text:notcontain",
+               "b": "{{2.properties_value.`角色`.name}}"
+              }
+             ],
+             [
+              {
+               "a": "{{46.id}}",
+               "o": "exist"
+              },
+              {
+               "a": "{{46.properties_value.`狀態`.name}}",
+               "o": "text:equal",
+               "b": "使用中"
+              },
+              {
+               "a": "管理者（收容所負責人）,門禁組,志工",
+               "o": "text:notcontain",
+               "b": "{{2.properties_value.`角色`.name}}"
+              }
+             ]
+            ]
+           }
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "flow": [
+      {
+       "id": 75,
+       "module": "builtin:BasicRouter",
+       "version": 1,
+       "mapper": null,
+       "metadata": {
+        "designer": {
+         "x": 600,
+         "y": 9750,
+         "name": "進出權限"
+        }
+       },
+       "routes": [
+        {
+         "flow": [
+          {
+           "id": 61,
+           "module": "notion:searchObjects1",
+           "version": 1,
+           "mapper": {
+            "limit": "1",
+            "filter": [
+             [
+              {
+               "a": "編號 |&*^%$#@| title",
+               "o": "text:equals",
+               "b": "{{last(split(1.events[1].message.text; \" \"))}}"
+              }
+             ]
+            ],
+            "select": "data_source_item",
+            "data_source": "<號碼牌 的 data source ID>"
+           },
+           "metadata": {
+            "designer": {
+             "x": 900,
+             "y": 7650,
+             "name": "找號碼牌（進出）"
+            },
+            "parameters": [
+             {
+              "name": "__IMTCONN__",
+              "type": "account:notion2,notion3",
+              "label": "Connection",
+              "required": true
+             }
+            ]
+           },
+           "parameters": {
+            "__IMTCONN__": 0
+           },
+           "filter": {
+            "name": "可以登記",
+            "conditions": [
+             [
+              {
+               "a": "{{2.id}}",
+               "o": "exist"
+              },
+              {
+               "a": "{{2.properties_value.`啟用中`}}",
+               "o": "boolean:equal",
+               "b": "true"
+              },
+              {
+               "a": "{{2.properties_value.`簽到狀態`.name}}",
+               "o": "text:equal",
+               "b": "上班中"
+              },
+              {
+               "a": "管理者（收容所負責人）,門禁組,志工",
+               "o": "text:contain",
+               "b": "{{2.properties_value.`角色`.name}}"
+              }
+             ]
+            ]
+           }
+          },
+          {
+           "id": 62,
+           "module": "notion:getADatabaseItem",
+           "version": 1,
+           "mapper": {
+            "page": "{{61.properties_value.`綁定居民`[].id}}",
+            "getBy": "data_source",
+            "select": "map"
+           },
+           "metadata": {
+            "designer": {
+             "x": 900,
+             "y": 7800,
+             "name": "讀居民（進出）"
+            },
+            "parameters": [
+             {
+              "name": "__IMTCONN__",
+              "type": "account:notion2,notion3",
+              "label": "Connection",
+              "required": true
+             }
+            ]
+           },
+           "parameters": {
+            "__IMTCONN__": 0
+           }
+          },
+          {
+           "id": 73,
+           "module": "builtin:BasicRouter",
+           "version": 1,
+           "mapper": null,
+           "metadata": {
+            "designer": {
+             "x": 600,
+             "y": 9450,
+             "name": "進出動作"
+            }
+           },
+           "routes": [
+            {
+             "flow": [
+              {
+               "id": 63,
+               "module": "notion:updateADatabaseItem",
+               "version": 1,
+               "mapper": {
+                "page": "{{62.id}}",
+                "fields": [
+                 {
+                  "key": "在所狀態",
+                  "type": "select",
+                  "value": "外出"
+                 },
+                 {
+                  "key": "預計返回時間",
+                  "type": "date",
+                  "date": {
+                   "start": "{{addHours(now; 3)}}",
+                   "includeTime": true
+                  }
+                 }
+                ],
+                "select": "map",
+                "updateBy": "data_source",
+                "data_source": "<收容登記 的 data source ID>"
+               },
+               "metadata": {
+                "designer": {
+                 "x": 900,
+                 "y": 7950,
+                 "name": "居民改外出"
+                },
+                "parameters": [
+                 {
+                  "name": "__IMTCONN__",
+                  "type": "account:notion2,notion3",
+                  "label": "Connection",
+                  "required": true
+                 }
+                ]
+               },
+               "parameters": {
+                "__IMTCONN__": 0
+               },
+               "filter": {
+                "name": "外出",
+                "conditions": [
+                 [
+                  {
+                   "a": "{{first(split(1.events[1].message.text; \" \"))}}",
+                   "o": "text:equal",
+                   "b": "外出"
+                  },
+                  {
+                   "a": "{{62.properties_value.`在所狀態`.name}}",
+                   "o": "text:equal",
+                   "b": "在所"
+                  }
+                 ]
+                ]
+               }
+              },
+              {
+               "id": 64,
+               "module": "notion:createDataSourceItem",
+               "version": 1,
+               "mapper": {
+                "fields": [
+                 {
+                  "key": "摘要",
+                  "type": "title",
+                  "value": "{{last(split(1.events[1].message.text; \" \"))}} 外出"
+                 },
+                 {
+                  "key": "類型",
+                  "type": "select",
+                  "value": "外出"
+                 },
+                 {
+                  "key": "居民",
+                  "type": "relation",
+                  "value": [
+                   "{{62.id}}"
+                  ]
+                 },
+                 {
+                  "key": "號碼牌",
+                  "type": "relation",
+                  "value": [
+                   "{{61.id}}"
+                  ]
+                 },
+                 {
+                  "key": "收容所開設",
+                  "type": "relation",
+                  "value": [
+                   "{{62.properties_value.`收容所開設`[].id}}"
+                  ]
+                 },
+                 {
+                  "key": "經手人",
+                  "type": "relation",
+                  "value": [
+                   "{{2.id}}"
+                  ]
+                 },
+                 {
+                  "key": "時間",
+                  "type": "date",
+                  "date": {
+                   "start": "{{now}}",
+                   "includeTime": true
+                  }
+                 },
+                 {
+                  "key": "來源",
+                  "type": "select",
+                  "value": "工作人員掃描"
+                 },
+                 {
+                  "key": "預計返回時間",
+                  "type": "date",
+                  "date": {
+                   "start": "{{addHours(now; 3)}}",
+                   "includeTime": true
+                  }
+                 }
+                ],
+                "select": "map",
+                "data_source": "<進出紀錄 的 data source ID>"
+               },
+               "metadata": {
+                "designer": {
+                 "x": 900,
+                 "y": 8100,
+                 "name": "新增進出紀錄：外出"
+                },
+                "parameters": [
+                 {
+                  "name": "__IMTCONN__",
+                  "type": "account:notion2,notion3",
+                  "label": "Connection",
+                  "required": true
+                 }
+                ]
+               },
+               "parameters": {
+                "__IMTCONN__": 0
+               }
+              },
+              {
+               "id": 65,
+               "module": "line:sendAReplyMessage",
+               "version": 1,
+               "mapper": {
+                "messages": [
+                 {
+                  "type": "text",
+                  "text": "🚶 {{last(split(1.events[1].message.text; \" \"))}} 已登記外出，預計 3 小時內返回。"
+                 }
+                ],
+                "replyToken": "{{1.events[1].replyToken}}",
+                "notificationDisabled": false
+               },
+               "metadata": {
+                "designer": {
+                 "x": 900,
+                 "y": 8250,
+                 "name": "回覆外出"
+                },
+                "parameters": [
+                 {
+                  "name": "__IMTCONN__",
+                  "type": "account:line2",
+                  "label": "Connection",
+                  "required": true
+                 }
+                ]
+               },
+               "parameters": {
+                "__IMTCONN__": 0
+               }
+              }
+             ]
+            },
+            {
+             "flow": [
+              {
+               "id": 66,
+               "module": "notion:updateADatabaseItem",
+               "version": 1,
+               "mapper": {
+                "page": "{{62.id}}",
+                "fields": [
+                 {
+                  "key": "在所狀態",
+                  "type": "select",
+                  "value": "在所"
+                 }
+                ],
+                "select": "map",
+                "updateBy": "data_source",
+                "data_source": "<收容登記 的 data source ID>"
+               },
+               "metadata": {
+                "designer": {
+                 "x": 900,
+                 "y": 8400,
+                 "name": "居民改在所"
+                },
+                "parameters": [
+                 {
+                  "name": "__IMTCONN__",
+                  "type": "account:notion2,notion3",
+                  "label": "Connection",
+                  "required": true
+                 }
+                ]
+               },
+               "parameters": {
+                "__IMTCONN__": 0
+               },
+               "filter": {
+                "name": "返回",
+                "conditions": [
+                 [
+                  {
+                   "a": "{{first(split(1.events[1].message.text; \" \"))}}",
+                   "o": "text:equal",
+                   "b": "返回"
+                  },
+                  {
+                   "a": "{{62.properties_value.`在所狀態`.name}}",
+                   "o": "text:equal",
+                   "b": "外出"
+                  }
+                 ],
+                 [
+                  {
+                   "a": "{{first(split(1.events[1].message.text; \" \"))}}",
+                   "o": "text:equal",
+                   "b": "返回"
+                  },
+                  {
+                   "a": "{{62.properties_value.`在所狀態`.name}}",
+                   "o": "text:equal",
+                   "b": "未返"
+                  }
+                 ]
+                ]
+               }
+              },
+              {
+               "id": 67,
+               "module": "notion:createDataSourceItem",
+               "version": 1,
+               "mapper": {
+                "fields": [
+                 {
+                  "key": "摘要",
+                  "type": "title",
+                  "value": "{{last(split(1.events[1].message.text; \" \"))}} 返所"
+                 },
+                 {
+                  "key": "類型",
+                  "type": "select",
+                  "value": "返所"
+                 },
+                 {
+                  "key": "居民",
+                  "type": "relation",
+                  "value": [
+                   "{{62.id}}"
+                  ]
+                 },
+                 {
+                  "key": "號碼牌",
+                  "type": "relation",
+                  "value": [
+                   "{{61.id}}"
+                  ]
+                 },
+                 {
+                  "key": "收容所開設",
+                  "type": "relation",
+                  "value": [
+                   "{{62.properties_value.`收容所開設`[].id}}"
+                  ]
+                 },
+                 {
+                  "key": "經手人",
+                  "type": "relation",
+                  "value": [
+                   "{{2.id}}"
+                  ]
+                 },
+                 {
+                  "key": "時間",
+                  "type": "date",
+                  "date": {
+                   "start": "{{now}}",
+                   "includeTime": true
+                  }
+                 },
+                 {
+                  "key": "來源",
+                  "type": "select",
+                  "value": "工作人員掃描"
+                 }
+                ],
+                "select": "map",
+                "data_source": "<進出紀錄 的 data source ID>"
+               },
+               "metadata": {
+                "designer": {
+                 "x": 900,
+                 "y": 8550,
+                 "name": "新增進出紀錄：返所"
+                },
+                "parameters": [
+                 {
+                  "name": "__IMTCONN__",
+                  "type": "account:notion2,notion3",
+                  "label": "Connection",
+                  "required": true
+                 }
+                ]
+               },
+               "parameters": {
+                "__IMTCONN__": 0
+               }
+              },
+              {
+               "id": 68,
+               "module": "line:sendAReplyMessage",
+               "version": 1,
+               "mapper": {
+                "messages": [
+                 {
+                  "type": "text",
+                  "text": "🏠 {{last(split(1.events[1].message.text; \" \"))}} 已返回。"
+                 }
+                ],
+                "replyToken": "{{1.events[1].replyToken}}",
+                "notificationDisabled": false
+               },
+               "metadata": {
+                "designer": {
+                 "x": 900,
+                 "y": 8700,
+                 "name": "回覆返回"
+                },
+                "parameters": [
+                 {
+                  "name": "__IMTCONN__",
+                  "type": "account:line2",
+                  "label": "Connection",
+                  "required": true
+                 }
+                ]
+               },
+               "parameters": {
+                "__IMTCONN__": 0
+               }
+              }
+             ]
+            },
+            {
+             "flow": [
+              {
+               "id": 69,
+               "module": "notion:updateADatabaseItem",
+               "version": 1,
+               "mapper": {
+                "page": "{{62.id}}",
+                "fields": [
+                 {
+                  "key": "在所狀態",
+                  "type": "select",
+                  "value": "已離所"
+                 },
+                 {
+                  "key": "離所時間",
+                  "type": "date",
+                  "date": {
+                   "start": "{{now}}",
+                   "includeTime": true
+                  }
+                 }
+                ],
+                "select": "map",
+                "updateBy": "data_source",
+                "data_source": "<收容登記 的 data source ID>"
+               },
+               "metadata": {
+                "designer": {
+                 "x": 900,
+                 "y": 8850,
+                 "name": "居民改已離所"
+                },
+                "parameters": [
+                 {
+                  "name": "__IMTCONN__",
+                  "type": "account:notion2,notion3",
+                  "label": "Connection",
+                  "required": true
+                 }
+                ]
+               },
+               "parameters": {
+                "__IMTCONN__": 0
+               },
+               "filter": {
+                "name": "離所",
+                "conditions": [
+                 [
+                  {
+                   "a": "{{first(split(1.events[1].message.text; \" \"))}}",
+                   "o": "text:equal",
+                   "b": "離所"
+                  },
+                  {
+                   "a": "{{62.properties_value.`在所狀態`.name}}",
+                   "o": "text:notequal",
+                   "b": "已離所"
+                  }
+                 ]
+                ]
+               }
+              },
+              {
+               "id": 70,
+               "module": "notion:updateADatabaseItem",
+               "version": 1,
+               "mapper": {
+                "page": "{{61.id}}",
+                "fields": [
+                 {
+                  "key": "狀態",
+                  "type": "select",
+                  "value": "失效"
+                 },
+                 {
+                  "key": "失效原因",
+                  "type": "select",
+                  "value": "離所回收"
+                 },
+                 {
+                  "key": "失效時間",
+                  "type": "date",
+                  "date": {
+                   "start": "{{now}}",
+                   "includeTime": true
+                  }
+                 }
+                ],
+                "select": "map",
+                "updateBy": "data_source",
+                "data_source": "<號碼牌 的 data source ID>"
+               },
+               "metadata": {
+                "designer": {
+                 "x": 900,
+                 "y": 9000,
+                 "name": "號碼牌回收失效"
+                },
+                "parameters": [
+                 {
+                  "name": "__IMTCONN__",
+                  "type": "account:notion2,notion3",
+                  "label": "Connection",
+                  "required": true
+                 }
+                ]
+               },
+               "parameters": {
+                "__IMTCONN__": 0
+               }
+              },
+              {
+               "id": 71,
+               "module": "notion:createDataSourceItem",
+               "version": 1,
+               "mapper": {
+                "fields": [
+                 {
+                  "key": "摘要",
+                  "type": "title",
+                  "value": "{{last(split(1.events[1].message.text; \" \"))}} 離所"
+                 },
+                 {
+                  "key": "類型",
+                  "type": "select",
+                  "value": "離所"
+                 },
+                 {
+                  "key": "居民",
+                  "type": "relation",
+                  "value": [
+                   "{{62.id}}"
+                  ]
+                 },
+                 {
+                  "key": "號碼牌",
+                  "type": "relation",
+                  "value": [
+                   "{{61.id}}"
+                  ]
+                 },
+                 {
+                  "key": "收容所開設",
+                  "type": "relation",
+                  "value": [
+                   "{{62.properties_value.`收容所開設`[].id}}"
+                  ]
+                 },
+                 {
+                  "key": "經手人",
+                  "type": "relation",
+                  "value": [
+                   "{{2.id}}"
+                  ]
+                 },
+                 {
+                  "key": "時間",
+                  "type": "date",
+                  "date": {
+                   "start": "{{now}}",
+                   "includeTime": true
+                  }
+                 },
+                 {
+                  "key": "來源",
+                  "type": "select",
+                  "value": "工作人員掃描"
+                 }
+                ],
+                "select": "map",
+                "data_source": "<進出紀錄 的 data source ID>"
+               },
+               "metadata": {
+                "designer": {
+                 "x": 900,
+                 "y": 9150,
+                 "name": "新增進出紀錄：離所"
+                },
+                "parameters": [
+                 {
+                  "name": "__IMTCONN__",
+                  "type": "account:notion2,notion3",
+                  "label": "Connection",
+                  "required": true
+                 }
+                ]
+               },
+               "parameters": {
+                "__IMTCONN__": 0
+               }
+              },
+              {
+               "id": 72,
+               "module": "line:sendAReplyMessage",
+               "version": 1,
+               "mapper": {
+                "messages": [
+                 {
+                  "type": "text",
+                  "text": "✅ {{last(split(1.events[1].message.text; \" \"))}} 已辦理離所，號碼牌已回收。祝平安！"
+                 }
+                ],
+                "replyToken": "{{1.events[1].replyToken}}",
+                "notificationDisabled": false
+               },
+               "metadata": {
+                "designer": {
+                 "x": 900,
+                 "y": 9300,
+                 "name": "回覆離所"
+                },
+                "parameters": [
+                 {
+                  "name": "__IMTCONN__",
+                  "type": "account:line2",
+                  "label": "Connection",
+                  "required": true
+                 }
+                ]
+               },
+               "parameters": {
+                "__IMTCONN__": 0
+               }
+              }
+             ]
+            }
+           ]
+          }
+         ]
+        },
+        {
+         "flow": [
+          {
+           "id": 74,
+           "module": "line:sendAReplyMessage",
+           "version": 1,
+           "mapper": {
+            "messages": [
+             {
+              "type": "text",
+              "text": "請先簽到後再登記進出。"
+             }
+            ],
+            "replyToken": "{{1.events[1].replyToken}}",
+            "notificationDisabled": false
+           },
+           "metadata": {
+            "designer": {
+             "x": 900,
+             "y": 9600,
+             "name": "回覆請先簽到"
+            },
+            "parameters": [
+             {
+              "name": "__IMTCONN__",
+              "type": "account:line2",
+              "label": "Connection",
+              "required": true
+             }
+            ]
+           },
+           "parameters": {
+            "__IMTCONN__": 0
+           },
+           "filter": {
+            "name": "沒有權限",
+            "conditions": [
+             [
+              {
+               "a": "{{2.id}}",
+               "o": "notexist"
+              }
+             ],
+             [
+              {
+               "a": "{{2.properties_value.`啟用中`}}",
+               "o": "boolean:notequal",
+               "b": "true"
+              }
+             ],
+             [
+              {
+               "a": "{{2.properties_value.`簽到狀態`.name}}",
+               "o": "text:notequal",
+               "b": "上班中"
+              }
+             ],
+             [
+              {
+               "a": "管理者（收容所負責人）,門禁組,志工",
+               "o": "text:notcontain",
+               "b": "{{2.properties_value.`角色`.name}}"
+              }
+             ]
+            ]
+           }
+          }
+         ]
+        }
+       ],
+       "filter": {
+        "name": "R6 外出返回離所",
+        "conditions": [
+         [
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:contain",
+           "b": "MLS-"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notcontain",
+           "b": "QR MLS-"
+          }
+         ]
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "flow": [
+      {
+       "id": 76,
+       "module": "notion:updateADatabaseItem",
+       "version": 1,
+       "mapper": {
+        "page": "{{2.id}}",
+        "fields": [
+         {
+          "key": "對話暫存",
+          "type": "rich_text",
+          "value": "{{2.properties_value.`對話暫存`[].plain_text}}|{{1.events[1].message.text}}"
+         }
+        ],
+        "select": "map",
+        "updateBy": "data_source",
+        "data_source": "<工作人員名冊 的 data source ID>"
+       },
+       "metadata": {
+        "designer": {
+         "x": 900,
+         "y": 9900,
+         "name": "暫存加姓名"
+        },
+        "parameters": [
+         {
+          "name": "__IMTCONN__",
+          "type": "account:notion2,notion3",
+          "label": "Connection",
+          "required": true
+         }
+        ]
+       },
+       "parameters": {
+        "__IMTCONN__": 0
+       },
+       "filter": {
+        "name": "R5b 報到：輸入姓名",
+        "conditions": [
+         [
+          {
+           "a": "{{2.id}}",
+           "o": "exist"
+          },
+          {
+           "a": "{{2.properties_value.`啟用中`}}",
+           "o": "boolean:equal",
+           "b": "true"
+          },
+          {
+           "a": "{{2.properties_value.`對話暫存`[].plain_text}}",
+           "o": "text:contain",
+           "b": "報到|"
+          },
+          {
+           "a": "{{length(split(2.properties_value.`對話暫存`[].plain_text; \"|\"))}}",
+           "o": "number:equal",
+           "b": "2"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "exist"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notcontain",
+           "b": "SIGN-"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notcontain",
+           "b": "MLS-"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notcontain",
+           "b": "整備"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notcontain",
+           "b": "："
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notequal",
+           "b": "簽退"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notequal",
+           "b": "我要簽退"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notequal",
+           "b": "我要簽到"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notequal",
+           "b": "整備完成"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notequal",
+           "b": "查詢狀況"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notequal",
+           "b": "申請開通"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notequal",
+           "b": "工作人員專區"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notequal",
+           "b": "取消"
+          }
+         ]
+        ]
+       }
+      },
+      {
+       "id": 77,
+       "module": "line:makeApiCall",
+       "version": 1,
+       "mapper": {
+        "url": "/v2/bot/message/reply",
+        "method": "POST",
+        "headers": [
+         {
+          "key": "Content-Type",
+          "value": "application/json"
+         }
+        ],
+        "body": "{\"replyToken\": \"{{1.events[1].replyToken}}\", \"messages\": [{\"type\": \"text\", \"text\": \"{{1.events[1].message.text}} 的年齡層？\", \"quickReply\": {\"items\": [{\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"成人\", \"text\": \"年齡層：成人\"}}, {\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"長者\", \"text\": \"年齡層：長者\"}}, {\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"兒童\", \"text\": \"年齡層：兒童\"}}, {\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"嬰幼兒\", \"text\": \"年齡層：嬰幼兒\"}}]}}]}"
+       },
+       "metadata": {
+        "designer": {
+         "x": 900,
+         "y": 10050,
+         "name": "選年齡層"
+        },
+        "parameters": [
+         {
+          "name": "__IMTCONN__",
+          "type": "account:line2",
+          "label": "Connection",
+          "required": true
+         }
+        ]
+       },
+       "parameters": {
+        "__IMTCONN__": 0
+       }
+      }
+     ]
+    },
+    {
+     "flow": [
+      {
+       "id": 78,
+       "module": "notion:updateADatabaseItem",
+       "version": 1,
+       "mapper": {
+        "page": "{{2.id}}",
+        "fields": [
+         {
+          "key": "對話暫存",
+          "type": "rich_text",
+          "value": "{{2.properties_value.`對話暫存`[].plain_text}}|{{1.events[1].message.text}}"
+         }
+        ],
+        "select": "map",
+        "updateBy": "data_source",
+        "data_source": "<工作人員名冊 的 data source ID>"
+       },
+       "metadata": {
+        "designer": {
+         "x": 900,
+         "y": 10200,
+         "name": "暫存加年齡層"
+        },
+        "parameters": [
+         {
+          "name": "__IMTCONN__",
+          "type": "account:notion2,notion3",
+          "label": "Connection",
+          "required": true
+         }
+        ]
+       },
+       "parameters": {
+        "__IMTCONN__": 0
+       },
+       "filter": {
+        "name": "R5c 報到：年齡層",
+        "conditions": [
+         [
+          {
+           "a": "{{2.id}}",
+           "o": "exist"
+          },
+          {
+           "a": "{{2.properties_value.`啟用中`}}",
+           "o": "boolean:equal",
+           "b": "true"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:contain",
+           "b": "年齡層："
+          },
+          {
+           "a": "{{length(split(2.properties_value.`對話暫存`[].plain_text; \"|\"))}}",
+           "o": "number:equal",
+           "b": "3"
+          }
+         ]
+        ]
+       }
+      },
+      {
+       "id": 79,
+       "module": "line:makeApiCall",
+       "version": 1,
+       "mapper": {
+        "url": "/v2/bot/message/reply",
+        "method": "POST",
+        "headers": [
+         {
+          "key": "Content-Type",
+          "value": "application/json"
+         }
+        ],
+        "body": "{\"replyToken\": \"{{1.events[1].replyToken}}\", \"messages\": [{\"type\": \"text\", \"text\": \"需要特殊關懷嗎？\", \"quickReply\": {\"items\": [{\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"無\", \"text\": \"關懷：無\"}}, {\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"高齡者\", \"text\": \"關懷：高齡者\"}}, {\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"身心障礙\", \"text\": \"關懷：身心障礙\"}}, {\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"孕婦\", \"text\": \"關懷：孕婦\"}}, {\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"幼童\", \"text\": \"關懷：幼童\"}}, {\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"特殊醫療需求\", \"text\": \"關懷：特殊醫療需求\"}}]}}]}"
+       },
+       "metadata": {
+        "designer": {
+         "x": 900,
+         "y": 10350,
+         "name": "選特殊關懷"
+        },
+        "parameters": [
+         {
+          "name": "__IMTCONN__",
+          "type": "account:line2",
+          "label": "Connection",
+          "required": true
+         }
+        ]
+       },
+       "parameters": {
+        "__IMTCONN__": 0
+       }
+      }
+     ]
+    },
+    {
+     "flow": [
+      {
+       "id": 80,
+       "module": "notion:searchObjects1",
+       "version": 1,
+       "mapper": {
+        "limit": "1",
+        "filter": [
+         [
+          {
+           "a": "編號 |&*^%$#@| title",
+           "o": "text:equals",
+           "b": "{{get(split(2.properties_value.`對話暫存`[].plain_text; \"|\"); 2)}}"
+          }
+         ]
+        ],
+        "select": "data_source_item",
+        "data_source": "<號碼牌 的 data source ID>"
+       },
+       "metadata": {
+        "designer": {
+         "x": 900,
+         "y": 10500,
+         "name": "找號碼牌（報到）"
+        },
+        "parameters": [
+         {
+          "name": "__IMTCONN__",
+          "type": "account:notion2,notion3",
+          "label": "Connection",
+          "required": true
+         }
+        ]
+       },
+       "parameters": {
+        "__IMTCONN__": 0
+       },
+       "filter": {
+        "name": "R5d 報到：特殊關懷→完成",
+        "conditions": [
+         [
+          {
+           "a": "{{2.id}}",
+           "o": "exist"
+          },
+          {
+           "a": "{{2.properties_value.`啟用中`}}",
+           "o": "boolean:equal",
+           "b": "true"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:contain",
+           "b": "關懷："
+          },
+          {
+           "a": "{{length(split(2.properties_value.`對話暫存`[].plain_text; \"|\"))}}",
+           "o": "number:equal",
+           "b": "4"
+          }
+         ]
+        ]
+       }
+      },
+      {
+       "id": 81,
+       "module": "notion:createDataSourceItem",
+       "version": 1,
+       "mapper": {
+        "fields": [
+         {
+          "key": "姓名",
+          "type": "title",
+          "value": "{{get(split(2.properties_value.`對話暫存`[].plain_text; \"|\"); 3)}}"
+         },
+         {
+          "key": "年齡層",
+          "type": "select",
+          "value": "{{replace(get(split(2.properties_value.`對話暫存`[].plain_text; \"|\"); 4); \"年齡層：\"; \"\")}}"
+         },
+         {
+          "key": "在所狀態",
+          "type": "select",
+          "value": "在所"
+         },
+         {
+          "key": "報到時間",
+          "type": "date",
+          "date": {
+           "start": "{{now}}",
+           "includeTime": true
+          }
+         },
+         {
+          "key": "收容所開設",
+          "type": "relation",
+          "value": [
+           "{{2.properties_value.`派駐開設`[].id}}"
+          ]
+         },
+         {
+          "key": "號碼牌",
+          "type": "relation",
+          "value": [
+           "{{80.id}}"
+          ]
+         },
+         {
+          "key": "是否在名冊",
+          "type": "checkbox",
+          "value": false
+         },
+         {
+          "key": "查核狀態",
+          "type": "select",
+          "value": "不需查核"
+         }
+        ],
+        "select": "map",
+        "data_source": "<收容登記 的 data source ID>"
+       },
+       "metadata": {
+        "designer": {
+         "x": 900,
+         "y": 10650,
+         "name": "新增收容登記"
+        },
+        "parameters": [
+         {
+          "name": "__IMTCONN__",
+          "type": "account:notion2,notion3",
+          "label": "Connection",
+          "required": true
+         }
+        ]
+       },
+       "parameters": {
+        "__IMTCONN__": 0
+       }
+      },
+      {
+       "id": 82,
+       "module": "notion:updateADatabaseItem",
+       "version": 1,
+       "mapper": {
+        "page": "{{80.id}}",
+        "fields": [
+         {
+          "key": "狀態",
+          "type": "select",
+          "value": "使用中"
+         },
+         {
+          "key": "綁定居民",
+          "type": "relation",
+          "value": [
+           "{{81.id}}"
+          ]
+         }
+        ],
+        "select": "map",
+        "updateBy": "data_source",
+        "data_source": "<號碼牌 的 data source ID>"
+       },
+       "metadata": {
+        "designer": {
+         "x": 900,
+         "y": 10800,
+         "name": "號碼牌改使用中"
+        },
+        "parameters": [
+         {
+          "name": "__IMTCONN__",
+          "type": "account:notion2,notion3",
+          "label": "Connection",
+          "required": true
+         }
+        ]
+       },
+       "parameters": {
+        "__IMTCONN__": 0
+       }
+      },
+      {
+       "id": 83,
+       "module": "notion:createDataSourceItem",
+       "version": 1,
+       "mapper": {
+        "fields": [
+         {
+          "key": "摘要",
+          "type": "title",
+          "value": "{{get(split(2.properties_value.`對話暫存`[].plain_text; \"|\"); 3)}} 報到"
+         },
+         {
+          "key": "類型",
+          "type": "select",
+          "value": "報到"
+         },
+         {
+          "key": "居民",
+          "type": "relation",
+          "value": [
+           "{{81.id}}"
+          ]
+         },
+         {
+          "key": "號碼牌",
+          "type": "relation",
+          "value": [
+           "{{80.id}}"
+          ]
+         },
+         {
+          "key": "收容所開設",
+          "type": "relation",
+          "value": [
+           "{{2.properties_value.`派駐開設`[].id}}"
+          ]
+         },
+         {
+          "key": "經手人",
+          "type": "relation",
+          "value": [
+           "{{2.id}}"
+          ]
+         },
+         {
+          "key": "時間",
+          "type": "date",
+          "date": {
+           "start": "{{now}}",
+           "includeTime": true
+          }
+         },
+         {
+          "key": "來源",
+          "type": "select",
+          "value": "工作人員掃描"
+         }
+        ],
+        "select": "map",
+        "data_source": "<進出紀錄 的 data source ID>"
+       },
+       "metadata": {
+        "designer": {
+         "x": 900,
+         "y": 10950,
+         "name": "新增進出紀錄：報到"
+        },
+        "parameters": [
+         {
+          "name": "__IMTCONN__",
+          "type": "account:notion2,notion3",
+          "label": "Connection",
+          "required": true
+         }
+        ]
+       },
+       "parameters": {
+        "__IMTCONN__": 0
+       }
+      },
+      {
+       "id": 84,
+       "module": "notion:updateADatabaseItem",
+       "version": 1,
+       "mapper": {
+        "page": "{{2.id}}",
+        "fields": [
+         {
+          "key": "對話暫存",
+          "type": "rich_text",
+          "value": ""
+         }
+        ],
+        "select": "map",
+        "updateBy": "data_source",
+        "data_source": "<工作人員名冊 的 data source ID>"
+       },
+       "metadata": {
+        "designer": {
+         "x": 900,
+         "y": 11100,
+         "name": "清空暫存"
+        },
+        "parameters": [
+         {
+          "name": "__IMTCONN__",
+          "type": "account:notion2,notion3",
+          "label": "Connection",
+          "required": true
+         }
+        ]
+       },
+       "parameters": {
+        "__IMTCONN__": 0
+       }
+      },
+      {
+       "id": 85,
+       "module": "line:sendAReplyMessage",
+       "version": 1,
+       "mapper": {
+        "messages": [
+         {
+          "type": "text",
+          "text": "✅ {{get(split(2.properties_value.`對話暫存`[].plain_text; \"|\"); 3)}}（{{replace(get(split(2.properties_value.`對話暫存`[].plain_text; \"|\"); 4); \"年齡層：\"; \"\")}}）報到完成，號碼牌 {{get(split(2.properties_value.`對話暫存`[].plain_text; \"|\"); 2)}}。\n特殊關懷：{{replace(1.events[1].message.text; \"關懷：\"; \"\")}}\n請掃下一個號碼牌繼續報到。"
+         }
+        ],
+        "replyToken": "{{1.events[1].replyToken}}",
+        "notificationDisabled": false
+       },
+       "metadata": {
+        "designer": {
+         "x": 900,
+         "y": 11250,
+         "name": "回覆報到完成"
+        },
+        "parameters": [
+         {
+          "name": "__IMTCONN__",
+          "type": "account:line2",
+          "label": "Connection",
+          "required": true
+         }
+        ]
+       },
+       "parameters": {
+        "__IMTCONN__": 0
+       }
+      },
+      {
+       "id": 86,
+       "module": "notion:updateADatabaseItem",
+       "version": 1,
+       "mapper": {
+        "page": "{{81.id}}",
+        "fields": [
+         {
+          "key": "特殊關懷",
+          "type": "multi_select",
+          "value": [
+           "{{replace(1.events[1].message.text; \"關懷：\"; \"\")}}"
+          ]
+         }
+        ],
+        "select": "map",
+        "updateBy": "data_source",
+        "data_source": "<收容登記 的 data source ID>"
+       },
+       "metadata": {
+        "designer": {
+         "x": 900,
+         "y": 11400,
+         "name": "寫入特殊關懷"
+        },
+        "parameters": [
+         {
+          "name": "__IMTCONN__",
+          "type": "account:notion2,notion3",
+          "label": "Connection",
+          "required": true
+         }
+        ]
+       },
+       "parameters": {
+        "__IMTCONN__": 0
+       },
+       "filter": {
+        "name": "有特殊關懷",
+        "conditions": [
+         [
+          {
+           "a": "{{replace(1.events[1].message.text; \"關懷：\"; \"\")}}",
+           "o": "text:notequal",
+           "b": "無"
+          }
+         ]
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "flow": [
+      {
+       "id": 90,
+       "module": "builtin:BasicRouter",
+       "version": 1,
+       "mapper": null,
+       "metadata": {
+        "designer": {
+         "x": 600,
+         "y": 12000,
+         "name": "查詢權限"
+        }
+       },
+       "routes": [
+        {
+         "flow": [
+          {
+           "id": 87,
+           "module": "notion:getADatabaseItem",
+           "version": 1,
+           "mapper": {
+            "page": "{{2.properties_value.`派駐開設`[].id}}",
+            "getBy": "data_source",
+            "select": "map"
+           },
+           "metadata": {
+            "designer": {
+             "x": 900,
+             "y": 11550,
+             "name": "讀所在開設（查詢）"
+            },
+            "parameters": [
+             {
+              "name": "__IMTCONN__",
+              "type": "account:notion2,notion3",
+              "label": "Connection",
+              "required": true
+             }
+            ]
+           },
+           "parameters": {
+            "__IMTCONN__": 0
+           },
+           "filter": {
+            "name": "在班",
+            "conditions": [
+             [
+              {
+               "a": "{{2.id}}",
+               "o": "exist"
+              },
+              {
+               "a": "{{2.properties_value.`啟用中`}}",
+               "o": "boolean:equal",
+               "b": "true"
+              },
+              {
+               "a": "{{2.properties_value.`簽到狀態`.name}}",
+               "o": "text:equal",
+               "b": "上班中"
+              }
+             ]
+            ]
+           }
+          },
+          {
+           "id": 88,
+           "module": "line:sendAReplyMessage",
+           "version": 1,
+           "mapper": {
+            "messages": [
+             {
+              "type": "text",
+              "text": "📊 {{87.properties_value.`開設名稱`[].plain_text}}\n狀態：{{87.properties_value.`開設狀態`.name}}　燈號：{{87.properties_value.`狀況燈號`.string}}\n在所 {{87.properties_value.`在所人數`.number}}／容量 {{87.properties_value.`容納人數`.number}}\n外出 {{87.properties_value.`外出人數`.number}}　未返 {{87.properties_value.`未返人數`.number}}\n需關懷 {{87.properties_value.`需關懷人數`.number}}\n未結日誌 {{87.properties_value.`未結日誌數`.number}}（緊急 {{87.properties_value.`緊急未結數`.number}}）\n缺工作人員 {{87.properties_value.`缺工作人員`.number}}　缺志工 {{87.properties_value.`缺志工`.number}}"
+             }
+            ],
+            "replyToken": "{{1.events[1].replyToken}}",
+            "notificationDisabled": false
+           },
+           "metadata": {
+            "designer": {
+             "x": 900,
+             "y": 11700,
+             "name": "回覆狀況"
+            },
+            "parameters": [
+             {
+              "name": "__IMTCONN__",
+              "type": "account:line2",
+              "label": "Connection",
+              "required": true
+             }
+            ]
+           },
+           "parameters": {
+            "__IMTCONN__": 0
+           }
+          }
+         ]
+        },
+        {
+         "flow": [
+          {
+           "id": 89,
+           "module": "line:sendAReplyMessage",
+           "version": 1,
+           "mapper": {
+            "messages": [
+             {
+              "type": "text",
+              "text": "請先簽到後再查詢本所狀況。"
+             }
+            ],
+            "replyToken": "{{1.events[1].replyToken}}",
+            "notificationDisabled": false
+           },
+           "metadata": {
+            "designer": {
+             "x": 900,
+             "y": 11850,
+             "name": "回覆請先簽到"
+            },
+            "parameters": [
+             {
+              "name": "__IMTCONN__",
+              "type": "account:line2",
+              "label": "Connection",
+              "required": true
+             }
+            ]
+           },
+           "parameters": {
+            "__IMTCONN__": 0
+           },
+           "filter": {
+            "name": "不在班",
+            "conditions": [
+             [
+              {
+               "a": "{{2.id}}",
+               "o": "notexist"
+              }
+             ],
+             [
+              {
+               "a": "{{2.properties_value.`啟用中`}}",
+               "o": "boolean:notequal",
+               "b": "true"
+              }
+             ],
+             [
+              {
+               "a": "{{2.properties_value.`簽到狀態`.name}}",
+               "o": "text:notequal",
+               "b": "上班中"
+              }
+             ]
+            ]
+           }
+          }
+         ]
+        }
+       ],
+       "filter": {
+        "name": "R7 查詢狀況",
+        "conditions": [
+         [
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:equal",
+           "b": "查詢狀況"
+          }
+         ]
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "flow": [
+      {
+       "id": 95,
+       "module": "builtin:BasicRouter",
+       "version": 1,
+       "mapper": null,
+       "metadata": {
+        "designer": {
+         "x": 600,
+         "y": 12750,
+         "name": "申請分流"
+        }
+       },
+       "routes": [
+        {
+         "flow": [
+          {
+           "id": 91,
+           "module": "line:makeApiCall",
+           "version": 1,
+           "mapper": {
+            "url": "/v2/bot/profile/{{1.events[1].source.userId}}",
+            "method": "GET",
+            "headers": []
+           },
+           "metadata": {
+            "designer": {
+             "x": 900,
+             "y": 12150,
+             "name": "取得 LINE 名稱"
+            },
+            "parameters": [
+             {
+              "name": "__IMTCONN__",
+              "type": "account:line2",
+              "label": "Connection",
+              "required": true
+             }
+            ]
+           },
+           "parameters": {
+            "__IMTCONN__": 0
+           },
+           "filter": {
+            "name": "新申請",
+            "conditions": [
+             [
+              {
+               "a": "{{2.id}}",
+               "o": "notexist"
+              }
+             ]
+            ]
+           }
+          },
+          {
+           "id": 92,
+           "module": "notion:createDataSourceItem",
+           "version": 1,
+           "mapper": {
+            "fields": [
+             {
+              "key": "姓名",
+              "type": "title",
+              "value": "（待審）{{91.body.displayName}}"
+             },
+             {
+              "key": "LINE User ID",
+              "type": "rich_text",
+              "value": "{{1.events[1].source.userId}}"
+             },
+             {
+              "key": "LINE 顯示名稱",
+              "type": "rich_text",
+              "value": "{{91.body.displayName}}"
+             },
+             {
+              "key": "申請時間",
+              "type": "date",
+              "date": {
+               "start": "{{now}}",
+               "includeTime": true
+              }
+             },
+             {
+              "key": "啟用中",
+              "type": "checkbox",
+              "value": false
+             },
+             {
+              "key": "簽到狀態",
+              "type": "select",
+              "value": "已簽退"
+             },
+             {
+              "key": "選單狀態",
+              "type": "select",
+              "value": "一般"
+             }
+            ],
+            "select": "map",
+            "data_source": "<工作人員名冊 的 data source ID>"
+           },
+           "metadata": {
+            "designer": {
+             "x": 900,
+             "y": 12300,
+             "name": "新增名冊（待審）"
+            },
+            "parameters": [
+             {
+              "name": "__IMTCONN__",
+              "type": "account:notion2,notion3",
+              "label": "Connection",
+              "required": true
+             }
+            ]
+           },
+           "parameters": {
+            "__IMTCONN__": 0
+           }
+          },
+          {
+           "id": 93,
+           "module": "line:sendAReplyMessage",
+           "version": 1,
+           "mapper": {
+            "messages": [
+             {
+              "type": "text",
+              "text": "📝 已送出工作人員開通申請，請等候管理者審核。"
+             }
+            ],
+            "replyToken": "{{1.events[1].replyToken}}",
+            "notificationDisabled": false
+           },
+           "metadata": {
+            "designer": {
+             "x": 900,
+             "y": 12450,
+             "name": "回覆已申請"
+            },
+            "parameters": [
+             {
+              "name": "__IMTCONN__",
+              "type": "account:line2",
+              "label": "Connection",
+              "required": true
+             }
+            ]
+           },
+           "parameters": {
+            "__IMTCONN__": 0
+           }
+          }
+         ]
+        },
+        {
+         "flow": [
+          {
+           "id": 94,
+           "module": "line:sendAReplyMessage",
+           "version": 1,
+           "mapper": {
+            "messages": [
+             {
+              "type": "text",
+              "text": "{{2.properties_value.`姓名`[].plain_text}} 您已在名冊中。{{if(2.properties_value.`啟用中`; \"已開通，可以直接簽到。\"; \"申請審核中，請稍候。\")}}"
+             }
+            ],
+            "replyToken": "{{1.events[1].replyToken}}",
+            "notificationDisabled": false
+           },
+           "metadata": {
+            "designer": {
+             "x": 900,
+             "y": 12600,
+             "name": "回覆已申請過"
+            },
+            "parameters": [
+             {
+              "name": "__IMTCONN__",
+              "type": "account:line2",
+              "label": "Connection",
+              "required": true
+             }
+            ]
+           },
+           "parameters": {
+            "__IMTCONN__": 0
+           },
+           "filter": {
+            "name": "已在名冊",
+            "conditions": [
+             [
+              {
+               "a": "{{2.id}}",
+               "o": "exist"
+              }
+             ]
+            ]
+           }
+          }
+         ]
+        }
+       ],
+       "filter": {
+        "name": "R8 申請開通",
+        "conditions": [
+         [
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:equal",
+           "b": "申請開通"
+          }
+         ]
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "flow": [
+      {
+       "id": 100,
+       "module": "builtin:BasicRouter",
+       "version": 1,
+       "mapper": null,
+       "metadata": {
+        "designer": {
+         "x": 600,
+         "y": 13500,
+         "name": "專區分流"
+        }
+       },
+       "routes": [
+        {
+         "flow": [
+          {
+           "id": 96,
+           "module": "line:makeApiCall",
+           "version": 1,
+           "mapper": {
+            "url": "/v2/bot/message/reply",
+            "method": "POST",
+            "headers": [
+             {
+              "key": "Content-Type",
+              "value": "application/json"
+             }
+            ],
+            "body": "{\"replyToken\": \"{{1.events[1].replyToken}}\", \"messages\": [{\"type\": \"text\", \"text\": \"{{2.properties_value.`姓名`[].plain_text}}（{{2.properties_value.`角色`.name}}）您好，目前上班中。\", \"quickReply\": {\"items\": [{\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"整備回報\", \"text\": \"整備回報\"}}, {\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"整備完成\", \"text\": \"整備完成\"}}, {\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"查詢狀況\", \"text\": \"查詢狀況\"}}, {\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"我要簽退\", \"text\": \"我要簽退\"}}]}}]}"
+           },
+           "metadata": {
+            "designer": {
+             "x": 900,
+             "y": 12900,
+             "name": "專區按鈕（在班）"
+            },
+            "parameters": [
+             {
+              "name": "__IMTCONN__",
+              "type": "account:line2",
+              "label": "Connection",
+              "required": true
+             }
+            ]
+           },
+           "parameters": {
+            "__IMTCONN__": 0
+           },
+           "filter": {
+            "name": "在班",
+            "conditions": [
+             [
+              {
+               "a": "{{2.id}}",
+               "o": "exist"
+              },
+              {
+               "a": "{{2.properties_value.`啟用中`}}",
+               "o": "boolean:equal",
+               "b": "true"
+              },
+              {
+               "a": "{{2.properties_value.`簽到狀態`.name}}",
+               "o": "text:equal",
+               "b": "上班中"
+              }
+             ]
+            ]
+           }
+          }
+         ]
+        },
+        {
+         "flow": [
+          {
+           "id": 97,
+           "module": "line:makeApiCall",
+           "version": 1,
+           "mapper": {
+            "url": "/v2/bot/message/reply",
+            "method": "POST",
+            "headers": [
+             {
+              "key": "Content-Type",
+              "value": "application/json"
+             }
+            ],
+            "body": "{\"replyToken\": \"{{1.events[1].replyToken}}\", \"messages\": [{\"type\": \"text\", \"text\": \"{{2.properties_value.`姓名`[].plain_text}}（{{2.properties_value.`角色`.name}}）您好，目前未上班。到現場後請先簽到。\", \"quickReply\": {\"items\": [{\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"我要簽到\", \"text\": \"我要簽到\"}}]}}]}"
+           },
+           "metadata": {
+            "designer": {
+             "x": 900,
+             "y": 13050,
+             "name": "專區按鈕（未在班）"
+            },
+            "parameters": [
+             {
+              "name": "__IMTCONN__",
+              "type": "account:line2",
+              "label": "Connection",
+              "required": true
+             }
+            ]
+           },
+           "parameters": {
+            "__IMTCONN__": 0
+           },
+           "filter": {
+            "name": "未在班",
+            "conditions": [
+             [
+              {
+               "a": "{{2.id}}",
+               "o": "exist"
+              },
+              {
+               "a": "{{2.properties_value.`啟用中`}}",
+               "o": "boolean:equal",
+               "b": "true"
+              },
+              {
+               "a": "{{2.properties_value.`簽到狀態`.name}}",
+               "o": "text:notequal",
+               "b": "上班中"
+              }
+             ]
+            ]
+           }
+          }
+         ]
+        },
+        {
+         "flow": [
+          {
+           "id": 98,
+           "module": "line:sendAReplyMessage",
+           "version": 1,
+           "mapper": {
+            "messages": [
+             {
+              "type": "text",
+              "text": "您的開通申請審核中，請稍候。"
+             }
+            ],
+            "replyToken": "{{1.events[1].replyToken}}",
+            "notificationDisabled": false
+           },
+           "metadata": {
+            "designer": {
+             "x": 900,
+             "y": 13200,
+             "name": "回覆審核中"
+            },
+            "parameters": [
+             {
+              "name": "__IMTCONN__",
+              "type": "account:line2",
+              "label": "Connection",
+              "required": true
+             }
+            ]
+           },
+           "parameters": {
+            "__IMTCONN__": 0
+           },
+           "filter": {
+            "name": "審核中",
+            "conditions": [
+             [
+              {
+               "a": "{{2.id}}",
+               "o": "exist"
+              },
+              {
+               "a": "{{2.properties_value.`啟用中`}}",
+               "o": "boolean:notequal",
+               "b": "true"
+              }
+             ]
+            ]
+           }
+          }
+         ]
+        },
+        {
+         "flow": [
+          {
+           "id": 99,
+           "module": "line:makeApiCall",
+           "version": 1,
+           "mapper": {
+            "url": "/v2/bot/message/reply",
+            "method": "POST",
+            "headers": [
+             {
+              "key": "Content-Type",
+              "value": "application/json"
+             }
+            ],
+            "body": "{\"replyToken\": \"{{1.events[1].replyToken}}\", \"messages\": [{\"type\": \"text\", \"text\": \"工作人員專區：開通後才能使用工作人員功能。\", \"quickReply\": {\"items\": [{\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"申請開通\", \"text\": \"申請開通\"}}]}}]}"
+           },
+           "metadata": {
+            "designer": {
+             "x": 900,
+             "y": 13350,
+             "name": "申請按鈕"
+            },
+            "parameters": [
+             {
+              "name": "__IMTCONN__",
+              "type": "account:line2",
+              "label": "Connection",
+              "required": true
+             }
+            ]
+           },
+           "parameters": {
+            "__IMTCONN__": 0
+           },
+           "filter": {
+            "name": "未申請",
+            "conditions": [
+             [
+              {
+               "a": "{{2.id}}",
+               "o": "notexist"
+              }
+             ]
+            ]
+           }
+          }
+         ]
+        }
+       ],
+       "filter": {
+        "name": "R9 工作人員專區",
+        "conditions": [
+         [
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:equal",
+           "b": "工作人員專區"
+          }
+         ]
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "flow": [
+      {
+       "id": 104,
+       "module": "builtin:BasicRouter",
+       "version": 1,
+       "mapper": null,
+       "metadata": {
+        "designer": {
+         "x": 600,
+         "y": 14100,
+         "name": "我要簽到分流"
+        }
+       },
+       "routes": [
+        {
+         "flow": [
+          {
+           "id": 101,
+           "module": "line:sendAReplyMessage",
+           "version": 1,
+           "mapper": {
+            "messages": [
+             {
+              "type": "text",
+              "text": "請掃服務台張貼的「工作人員簽到」QR Code。\n點下面的連結會直接打開 LINE 掃描器：\nhttps://line.me/R/nv/QRCode"
+             }
+            ],
+            "replyToken": "{{1.events[1].replyToken}}",
+            "notificationDisabled": false
+           },
+           "metadata": {
+            "designer": {
+             "x": 900,
+             "y": 13650,
+             "name": "回覆掃碼方式"
+            },
+            "parameters": [
+             {
+              "name": "__IMTCONN__",
+              "type": "account:line2",
+              "label": "Connection",
+              "required": true
+             }
+            ]
+           },
+           "parameters": {
+            "__IMTCONN__": 0
+           },
+           "filter": {
+            "name": "未在班",
+            "conditions": [
+             [
+              {
+               "a": "{{2.id}}",
+               "o": "exist"
+              },
+              {
+               "a": "{{2.properties_value.`啟用中`}}",
+               "o": "boolean:equal",
+               "b": "true"
+              },
+              {
+               "a": "{{2.properties_value.`簽到狀態`.name}}",
+               "o": "text:notequal",
+               "b": "上班中"
+              }
+             ]
+            ]
+           }
+          }
+         ]
+        },
+        {
+         "flow": [
+          {
+           "id": 102,
+           "module": "line:sendAReplyMessage",
+           "version": 1,
+           "mapper": {
+            "messages": [
+             {
+              "type": "text",
+              "text": "{{2.properties_value.`姓名`[].plain_text}} 您已在班中。要下班請按「我要簽退」。"
+             }
+            ],
+            "replyToken": "{{1.events[1].replyToken}}",
+            "notificationDisabled": false
+           },
+           "metadata": {
+            "designer": {
+             "x": 900,
+             "y": 13800,
+             "name": "回覆已在班（我要簽到）"
+            },
+            "parameters": [
+             {
+              "name": "__IMTCONN__",
+              "type": "account:line2",
+              "label": "Connection",
+              "required": true
+             }
+            ]
+           },
+           "parameters": {
+            "__IMTCONN__": 0
+           },
+           "filter": {
+            "name": "已在班",
+            "conditions": [
+             [
+              {
+               "a": "{{2.id}}",
+               "o": "exist"
+              },
+              {
+               "a": "{{2.properties_value.`啟用中`}}",
+               "o": "boolean:equal",
+               "b": "true"
+              },
+              {
+               "a": "{{2.properties_value.`簽到狀態`.name}}",
+               "o": "text:equal",
+               "b": "上班中"
+              }
+             ]
+            ]
+           }
+          }
+         ]
+        },
+        {
+         "flow": [
+          {
+           "id": 103,
+           "module": "line:sendAReplyMessage",
+           "version": 1,
+           "mapper": {
+            "messages": [
+             {
+              "type": "text",
+              "text": "請先按「工作人員專區」申請開通，審核通過後才能簽到。"
+             }
+            ],
+            "replyToken": "{{1.events[1].replyToken}}",
+            "notificationDisabled": false
+           },
+           "metadata": {
+            "designer": {
+             "x": 900,
+             "y": 13950,
+             "name": "回覆請先開通（我要簽到）"
+            },
+            "parameters": [
+             {
+              "name": "__IMTCONN__",
+              "type": "account:line2",
+              "label": "Connection",
+              "required": true
+             }
+            ]
+           },
+           "parameters": {
+            "__IMTCONN__": 0
+           },
+           "filter": {
+            "name": "不是工作人員",
+            "conditions": [
+             [
+              {
+               "a": "{{2.id}}",
+               "o": "notexist"
+              }
+             ],
+             [
+              {
+               "a": "{{2.properties_value.`啟用中`}}",
+               "o": "boolean:notequal",
+               "b": "true"
+              }
+             ]
+            ]
+           }
+          }
+         ]
+        }
+       ],
+       "filter": {
+        "name": "R11 我要簽到",
+        "conditions": [
+         [
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:equal",
+           "b": "我要簽到"
+          }
+         ]
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "flow": [
+      {
+       "id": 105,
+       "module": "notion:updateADatabaseItem",
+       "version": 1,
+       "mapper": {
+        "page": "{{2.id}}",
+        "fields": [
+         {
+          "key": "對話暫存",
+          "type": "rich_text",
+          "value": ""
+         }
+        ],
+        "select": "map",
+        "updateBy": "data_source",
+        "data_source": "<工作人員名冊 的 data source ID>"
+       },
+       "metadata": {
+        "designer": {
+         "x": 900,
+         "y": 14250,
+         "name": "清空暫存（取消）"
+        },
+        "parameters": [
+         {
+          "name": "__IMTCONN__",
+          "type": "account:notion2,notion3",
+          "label": "Connection",
+          "required": true
+         }
+        ]
+       },
+       "parameters": {
+        "__IMTCONN__": 0
+       },
+       "filter": {
+        "name": "R10 取消",
+        "conditions": [
+         [
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:equal",
+           "b": "取消"
+          },
+          {
+           "a": "{{2.id}}",
+           "o": "exist"
+          }
+         ]
+        ]
+       }
+      },
+      {
+       "id": 106,
+       "module": "line:sendAReplyMessage",
+       "version": 1,
+       "mapper": {
+        "messages": [
+         {
+          "type": "text",
+          "text": "已取消。"
+         }
+        ],
+        "replyToken": "{{1.events[1].replyToken}}",
+        "notificationDisabled": false
+       },
+       "metadata": {
+        "designer": {
+         "x": 900,
+         "y": 14400,
+         "name": "回覆已取消"
+        },
+        "parameters": [
+         {
+          "name": "__IMTCONN__",
+          "type": "account:line2",
+          "label": "Connection",
+          "required": true
+         }
+        ]
+       },
+       "parameters": {
+        "__IMTCONN__": 0
+       }
+      }
+     ]
+    },
+    {
+     "flow": [
+      {
+       "id": 107,
+       "module": "line:sendAReplyMessage",
+       "version": 1,
+       "mapper": {
+        "messages": [
+         {
+          "type": "text",
+          "text": "您好，這裡是苗栗避難收容所系統。\n請點下方選單使用功能；工作人員請按「工作人員專區」。"
+         }
+        ],
+        "replyToken": "{{1.events[1].replyToken}}",
+        "notificationDisabled": false
+       },
+       "metadata": {
+        "designer": {
+         "x": 900,
+         "y": 14550,
+         "name": "回覆引導"
+        },
+        "parameters": [
+         {
+          "name": "__IMTCONN__",
+          "type": "account:line2",
+          "label": "Connection",
+          "required": true
+         }
+        ]
+       },
+       "parameters": {
+        "__IMTCONN__": 0
+       },
+       "filter": {
+        "name": "R99 其他訊息",
+        "conditions": [
+         [
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notcontain",
+           "b": "SIGN-"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notcontain",
+           "b": "MLS-"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notcontain",
+           "b": "整備"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notcontain",
+           "b": "年齡層："
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notcontain",
+           "b": "關懷："
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notequal",
+           "b": "簽退"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notequal",
+           "b": "我要簽退"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notequal",
+           "b": "我要簽到"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notequal",
+           "b": "查詢狀況"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notequal",
+           "b": "申請開通"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notequal",
+           "b": "工作人員專區"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notequal",
+           "b": "取消"
+          },
+          {
+           "a": "{{2.properties_value.`對話暫存`[].plain_text}}",
+           "o": "text:notcontain",
+           "b": "報到|"
+          }
+         ],
+         [
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notcontain",
+           "b": "SIGN-"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notcontain",
+           "b": "MLS-"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notcontain",
+           "b": "整備"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notcontain",
+           "b": "年齡層："
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notcontain",
+           "b": "關懷："
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notequal",
+           "b": "簽退"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notequal",
+           "b": "我要簽退"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notequal",
+           "b": "我要簽到"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notequal",
+           "b": "查詢狀況"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notequal",
+           "b": "申請開通"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notequal",
+           "b": "工作人員專區"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notequal",
+           "b": "取消"
+          },
+          {
+           "a": "{{length(split(2.properties_value.`對話暫存`[].plain_text; \"|\"))}}",
+           "o": "number:notequal",
+           "b": "2"
+          }
+         ]
+        ]
+       }
+      }
+     ]
+    }
+   ]
+  }
+ ],
+ "metadata": {
+  "instant": true,
+  "version": 1,
+  "designer": {
+   "orphans": []
+  },
+  "scenario": {
+   "dlq": true,
+   "slots": null,
+   "dataloss": false,
+   "maxErrors": 3,
+   "autoCommit": true,
+   "roundtrips": 1,
+   "sequential": false,
+   "confidential": false,
+   "freshVariables": false,
+   "autoCommitTriggerLast": true
+  }
+ }
+}

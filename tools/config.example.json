@@ -1,0 +1,25 @@
+{
+  "_說明": "複製本檔為 config.local.json 後填入自己的設定。config.local.json 不進版本庫。",
+  "make": {
+    "_說明": "在 Make.com 建好 LINE webhook、LINE 連線、Notion 連線後，填入它們的編號（數字）。",
+    "line_webhook_id": 0,
+    "line_connection_id": 0,
+    "notion_connection_id": 0
+  },
+  "line": {
+    "staff_menu_alias": "staff-plus"
+  },
+  "notion": {
+    "_說明": "填 data source ID（Notion 資料表的 collection ID），不是 database ID。",
+    "richmenu_image_block_id": "<放選單圖片的 Notion 圖片區塊 ID>",
+    "data_sources": {
+      "工作人員名冊": "<工作人員名冊 的 data source ID>",
+      "收容所開設": "<收容所開設 的 data source ID>",
+      "出勤紀錄": "<出勤紀錄 的 data source ID>",
+      "現場日誌": "<現場日誌 的 data source ID>",
+      "號碼牌": "<號碼牌 的 data source ID>",
+      "收容登記": "<收容登記 的 data source ID>",
+      "進出紀錄": "<進出紀錄 的 data source ID>"
+    }
+  }
+}

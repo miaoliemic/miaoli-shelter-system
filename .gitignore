@@ -1,0 +1,11 @@
+node_modules/
+tools/.history/
+.claude/
+*.log
+.DS_Store
+Thumbs.db
+
+# 本機專案設定與紀錄（含實際的 Notion／Make.com ID，不公開）
+tools/config.local.json
+建置紀錄.md
+make/*.blueprint.json

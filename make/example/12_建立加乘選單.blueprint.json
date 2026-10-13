@@ -1,0 +1,261 @@
+{
+ "name": "12 建立加乘選單（一次性）",
+ "flow": [
+  {
+   "id": 4,
+   "module": "notion:makeApiCall",
+   "version": 1,
+   "parameters": {
+    "__IMTCONN__": 0
+   },
+   "mapper": {
+    "url": "/v1/blocks/<放選單圖片的 Notion 圖片區塊 ID>",
+    "method": "GET",
+    "version": "2022-06-28",
+    "headers": []
+   },
+   "metadata": {
+    "designer": {
+     "x": -300,
+     "y": 0,
+     "name": "取得圖片網址（Notion 系統素材頁）"
+    },
+    "parameters": [
+     {
+      "name": "__IMTCONN__",
+      "type": "account:notion2,notion3",
+      "label": "Connection",
+      "required": true
+     }
+    ]
+   }
+  },
+  {
+   "id": 1,
+   "module": "http:ActionGetFile",
+   "version": 3,
+   "parameters": {
+    "handleErrors": false
+   },
+   "mapper": {
+    "url": "{{4.body.image.file.url}}",
+    "method": "get",
+    "serializeUrl": false,
+    "shareCookies": false
+   },
+   "metadata": {
+    "designer": {
+     "x": 0,
+     "y": 0,
+     "name": "下載選單圖片"
+    }
+   }
+  },
+  {
+   "id": 2,
+   "module": "line:createARichMenu",
+   "version": 1,
+   "parameters": {
+    "__IMTCONN__": 0
+   },
+   "mapper": {
+    "name": "staff-plus-v1",
+    "chatBarText": "選單",
+    "selected": false,
+    "height": 1686,
+    "areas": [
+     {
+      "bounds": {
+       "x": 0,
+       "y": 0,
+       "width": 833,
+       "height": 562
+      },
+      "action": {
+       "type": "message",
+       "text": "常見問題"
+      }
+     },
+     {
+      "bounds": {
+       "x": 833,
+       "y": 0,
+       "width": 834,
+       "height": 562
+      },
+      "action": {
+       "type": "message",
+       "text": "最新公告"
+      }
+     },
+     {
+      "bounds": {
+       "x": 1667,
+       "y": 0,
+       "width": 833,
+       "height": 562
+      },
+      "action": {
+       "type": "message",
+       "text": "物資領取"
+      }
+     },
+     {
+      "bounds": {
+       "x": 0,
+       "y": 562,
+       "width": 833,
+       "height": 562
+      },
+      "action": {
+       "type": "message",
+       "text": "我需要協助"
+      }
+     },
+     {
+      "bounds": {
+       "x": 833,
+       "y": 562,
+       "width": 834,
+       "height": 562
+      },
+      "action": {
+       "type": "message",
+       "text": "緊急聯絡"
+      }
+     },
+     {
+      "bounds": {
+       "x": 1667,
+       "y": 562,
+       "width": 833,
+       "height": 562
+      },
+      "action": {
+       "type": "message",
+       "text": "工作人員專區"
+      }
+     },
+     {
+      "bounds": {
+       "x": 0,
+       "y": 1124,
+       "width": 625,
+       "height": 562
+      },
+      "action": {
+       "type": "uri",
+       "uri": "https://line.me/R/nv/QRCode"
+      }
+     },
+     {
+      "bounds": {
+       "x": 625,
+       "y": 1124,
+       "width": 625,
+       "height": 562
+      },
+      "action": {
+       "type": "message",
+       "text": "整備回報"
+      }
+     },
+     {
+      "bounds": {
+       "x": 1250,
+       "y": 1124,
+       "width": 625,
+       "height": 562
+      },
+      "action": {
+       "type": "message",
+       "text": "查詢狀況"
+      }
+     },
+     {
+      "bounds": {
+       "x": 1875,
+       "y": 1124,
+       "width": 625,
+       "height": 562
+      },
+      "action": {
+       "type": "message",
+       "text": "簽退"
+      }
+     }
+    ],
+    "data": "{{1.data}}",
+    "filename": "staff_plus.png"
+   },
+   "metadata": {
+    "designer": {
+     "x": 300,
+     "y": 0,
+     "name": "建立加乘選單"
+    },
+    "parameters": [
+     {
+      "name": "__IMTCONN__",
+      "type": "account:line2",
+      "label": "Connection",
+      "required": true
+     }
+    ]
+   }
+  },
+  {
+   "id": 3,
+   "module": "line:makeApiCall",
+   "version": 1,
+   "parameters": {
+    "__IMTCONN__": 0
+   },
+   "mapper": {
+    "url": "/v2/bot/richmenu/alias",
+    "method": "POST",
+    "body": "{\"richMenuAliasId\": \"staff-plus\", \"richMenuId\": \"{{2.richMenuId}}\"}",
+    "headers": [
+     {
+      "key": "Content-Type",
+      "value": "application/json"
+     }
+    ]
+   },
+   "metadata": {
+    "designer": {
+     "x": 600,
+     "y": 0,
+     "name": "設定別名 staff-plus"
+    },
+    "parameters": [
+     {
+      "name": "__IMTCONN__",
+      "type": "account:line2",
+      "label": "Connection",
+      "required": true
+     }
+    ]
+   }
+  }
+ ],
+ "metadata": {
+  "instant": false,
+  "version": 1,
+  "designer": {
+   "orphans": []
+  },
+  "scenario": {
+   "dlq": true,
+   "slots": null,
+   "dataloss": false,
+   "maxErrors": 3,
+   "autoCommit": true,
+   "roundtrips": 1,
+   "sequential": false,
+   "confidential": false,
+   "freshVariables": false,
+   "autoCommitTriggerLast": true
+  }
+ }
+}
