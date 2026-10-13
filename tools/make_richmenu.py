@@ -1,7 +1,7 @@
-"""產生 LINE 圖文選單圖片與設計範本。兩張選單一樣大（2500x1686），上兩列完全相同。
+"""產生 LINE 圖文選單圖片與設計範本。兩張選單一樣大（2500x1686），上下兩列，上列完全相同。
 
-- 一般選單（所有人）：上兩列 6 個按鈕；最下列是橫幅，不是按鈕（放標誌、緊急電話）
-- 加乘選單（工作人員簽到後）：上兩列同一般選單；最下列換成 4 個工作人員按鈕
+- 一般選單（所有人）：上列 3 格（收容所資訊、我要反映、緊急聯絡）；下列整列一個「工作人員」入口
+- 加乘選單（工作人員簽到後）：上列同一般選單；下列 3 格（掃 QR、本所狀況、簽退）
 
 用法：
   python tools/make_richmenu.py             產生預設圖 assets/richmenu_public.png、richmenu_staff.png
@@ -14,21 +14,24 @@ from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 
 W, H = 2500, 1686
-ROW_H = H // 3  # 562
+ROW_H = H // 2  # 843：上下兩列
 FONT = "C:/Windows/Fonts/msjhbd.ttc"
 OUT = Path(__file__).resolve().parent.parent / "assets"
 
-PUBLIC = ["常見問題", "最新公告", "物資領取", "我需要協助", "緊急聯絡", "工作人員專區"]
-STAFF = [("掃 QR", "報到・進出"), ("整備回報", ""), ("查詢狀況", ""), ("簽退", "")]
-BANNER = ("苗栗縣避難收容所", "緊急狀況請撥 119")
+# 上列（兩張選單共用）：(主標, 副標)
+TOP = [("收容所資訊", "公告・用餐・規定"), ("我要反映", "需要協助・意見"), ("緊急聯絡", "電話・119")]
+# 下列：一般選單是整列一個入口；加乘選單是 3 格
+PUBLIC_BOTTOM = ("工作人員", "簽到・申請開通")
+STAFF_BOTTOM = [("掃 QR", "報到・進出"), ("本所狀況", "查詢・回報"), ("簽退", "下班")]
 
-BG_PUBLIC = (255, 248, 235)
+BG_TOP = (255, 248, 235)
+BG_PUBLIC_BOTTOM = (236, 228, 214)
 BG_STAFF = (214, 240, 220)
-BG_BANNER = (236, 228, 214)
 LINE_C = (200, 200, 200)
 TEXT_C = (40, 40, 40)
+SUB_C = (120, 100, 70)
 ACCENT = (34, 120, 60)
-BANNER_C = (110, 90, 60)
+BOTTOM_C = (110, 90, 60)
 
 
 def font(size):
@@ -41,72 +44,65 @@ def center_text(draw, box, text, f, fill):
     draw.text(((x0 + x1 - (r - l)) / 2 - l, (y0 + y1 - (b - t)) / 2 - t), text, font=f, fill=fill)
 
 
-def top_six(d):
+def two_line(d, box, title, sub, color, sub_color):
+    x0, y0, x1, y1 = box
+    center_text(d, (x0, y0, x1, y1 - 150), title, font(135), color)
+    center_text(d, (x0, y0 + 190, x1, y1), sub, font(80), sub_color)
+
+
+def top_row(d):
     cw = W / 3
-    for i, label in enumerate(PUBLIC):
-        r, c = divmod(i, 3)
-        center_text(d, (c * cw, r * ROW_H, (c + 1) * cw, (r + 1) * ROW_H), label, font(110), TEXT_C)
+    for i, (title, sub) in enumerate(TOP):
+        two_line(d, (i * cw, 0, (i + 1) * cw, ROW_H), title, sub, TEXT_C, SUB_C)
     for c in (1, 2):
-        d.line([(c * cw, 0), (c * cw, 2 * ROW_H)], fill=LINE_C, width=4)
-    d.line([(0, ROW_H), (W, ROW_H)], fill=LINE_C, width=4)
+        d.line([(c * cw, 0), (c * cw, ROW_H)], fill=LINE_C, width=4)
 
 
 def public_image():
-    img = Image.new("RGB", (W, H), BG_PUBLIC)
+    img = Image.new("RGB", (W, H), BG_TOP)
     d = ImageDraw.Draw(img)
-    top_six(d)
-    d.rectangle((0, 2 * ROW_H, W, H), fill=BG_BANNER)
-    d.line([(0, 2 * ROW_H), (W, 2 * ROW_H)], fill=BANNER_C, width=8)
-    center_text(d, (0, 2 * ROW_H, W, H - 120), BANNER[0], font(110), BANNER_C)
-    center_text(d, (0, 2 * ROW_H + 150, W, H), BANNER[1], font(80), BANNER_C)
+    top_row(d)
+    d.rectangle((0, ROW_H, W, H), fill=BG_PUBLIC_BOTTOM)
+    d.line([(0, ROW_H), (W, ROW_H)], fill=BOTTOM_C, width=8)
+    two_line(d, (0, ROW_H, W, H), PUBLIC_BOTTOM[0], PUBLIC_BOTTOM[1], BOTTOM_C, BOTTOM_C)
     return img
 
 
 def staff_image():
-    img = Image.new("RGB", (W, H), BG_PUBLIC)
+    img = Image.new("RGB", (W, H), BG_TOP)
     d = ImageDraw.Draw(img)
-    top_six(d)
-    d.rectangle((0, 2 * ROW_H, W, H), fill=BG_STAFF)
-    sw = W / 4
-    for i, (label, sub) in enumerate(STAFF):
-        x0, x1, y0, y1 = i * sw, (i + 1) * sw, 2 * ROW_H, H
-        if sub:
-            center_text(d, (x0, y0, x1, y1 - 110), label, font(120), ACCENT)
-            center_text(d, (x0, y0 + 130, x1, y1), sub, font(76), ACCENT)
-        else:
-            center_text(d, (x0, y0, x1, y1), label, font(120), ACCENT)
-    for c in (1, 2, 3):
-        d.line([(c * sw, 2 * ROW_H), (c * sw, H)], fill=(160, 200, 170), width=4)
-    d.line([(0, 2 * ROW_H), (W, 2 * ROW_H)], fill=ACCENT, width=8)
+    top_row(d)
+    d.rectangle((0, ROW_H, W, H), fill=BG_STAFF)
+    cw = W / 3
+    for i, (title, sub) in enumerate(STAFF_BOTTOM):
+        two_line(d, (i * cw, ROW_H, (i + 1) * cw, H), title, sub, ACCENT, ACCENT)
+    for c in (1, 2):
+        d.line([(c * cw, ROW_H), (c * cw, H)], fill=(160, 200, 170), width=4)
+    d.line([(0, ROW_H), (W, ROW_H)], fill=ACCENT, width=8)
     return img
 
 
 def template(kind):
     img = Image.new("RGB", (W, H), (255, 255, 255))
     d = ImageDraw.Draw(img)
-    f_big, f_small = font(80), font(44)
+    f_big, f_small = font(90), font(48)
     cw = W / 3
-    for i, label in enumerate(PUBLIC):
-        r, c = divmod(i, 3)
-        x0, y0, x1, y1 = int(c * cw), r * ROW_H, int((c + 1) * cw), (r + 1) * ROW_H
-        d.rectangle((x0, y0, x1 - 1, y1 - 1), fill=(255, 244, 222), outline=(200, 160, 90), width=6)
-        center_text(d, (x0, y0, x1, y1 - 80), label, f_big, TEXT_C)
-        center_text(d, (x0, y0 + 110, x1, y1), f"x {x0}–{x1}　y {y0}–{y1}", f_small, (150, 110, 60))
-    y0, y1 = 2 * ROW_H, H
+
+    def cell(x0, y0, x1, y1, label, fill, outline, color):
+        d.rectangle((x0, y0, x1 - 1, y1 - 1), fill=fill, outline=outline, width=6)
+        center_text(d, (x0, y0, x1, y1 - 90), label, f_big, color)
+        center_text(d, (x0, y0 + 120, x1, y1), f"x {x0}–{x1}　y {y0}–{y1}", f_small, color)
+
+    for i, (title, _) in enumerate(TOP):
+        cell(int(i * cw), 0, int((i + 1) * cw), ROW_H, title, (255, 244, 222), (200, 160, 90), (150, 110, 60))
     if kind == "public":
-        d.rectangle((0, y0, W - 1, y1 - 1), fill=(240, 240, 240), outline=(150, 150, 150), width=6)
-        center_text(d, (0, y0, W, y1 - 80), "橫幅區（不是按鈕）：可放標誌、單位名稱、緊急電話", f_big, (100, 100, 100))
-        center_text(d, (0, y0 + 110, W, y1), f"x 0–2500　y {y0}–{y1}　加乘選單在這一列換成 4 個工作人員按鈕", f_small, (100, 100, 100))
+        cell(0, ROW_H, W, H, "工作人員入口（整列一個按鈕）", (240, 234, 222), BOTTOM_C, BOTTOM_C)
         title = "一般選單設計範本"
     else:
-        sw = W / 4
-        for i, label in enumerate(["掃 QR（開掃描器）", "整備回報", "查詢狀況", "簽退"]):
-            x0, x1 = int(i * sw), int((i + 1) * sw)
-            d.rectangle((x0, y0, x1 - 1, y1 - 1), fill=(214, 240, 220), outline=ACCENT, width=6)
-            center_text(d, (x0, y0, x1, y1 - 80), label, f_small if len(label) > 5 else f_big, ACCENT)
-            center_text(d, (x0, y0 + 110, x1, y1), f"x {x0}–{x1}　y {y0}–{y1}", f_small, ACCENT)
+        for i, (t, _) in enumerate(STAFF_BOTTOM):
+            cell(int(i * cw), ROW_H, int((i + 1) * cw), H, t, (214, 240, 220), ACCENT, ACCENT)
         title = "加乘選單（工作人員）設計範本"
-    d.text((30, 20), f"{title}　2500 × 1686 px　PNG／JPG，1MB 以內　上兩列與另一張選單相同", font=f_small, fill=(120, 120, 120))
+    d.text((30, 20), f"{title}　2500 × 1686 px　上列 3 格兩張共用", font=f_small, fill=(120, 120, 120))
     return img
 
 

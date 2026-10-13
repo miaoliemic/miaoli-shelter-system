@@ -11,6 +11,7 @@ Notion data source ID、Make.com 連線編號和 webhook 編號（說明見 docs
 Make.com 只用連線編號呼叫 LINE 和 Notion，金鑰存在 Make.com 裡。
 """
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -36,6 +37,7 @@ DS_LOG = _ds["現場日誌"]
 DS_TAG = _ds["號碼牌"]
 DS_RES = _ds["收容登記"]
 DS_IO = _ds["進出紀錄"]
+DS_QA = _ds["問答與公告"]
 
 MGR = "管理者（收容所負責人）"
 ROLES_CHECKIN = f"{MGR},門禁組"
@@ -128,7 +130,9 @@ class B:
         mid = self.nid()
         mapper = {"url": url, "method": method, "headers": []}
         if body is not None:
-            mapper["body"] = json.dumps(body, ensure_ascii=False)
+            if not isinstance(body, str):
+                body = json.dumps(body, ensure_ascii=False)
+            mapper["body"] = re.sub(r"\{\{.*?\}\}", lambda m: m.group(0).replace('\\"', '"'), body)
             mapper["headers"] = [{"key": "Content-Type", "value": "application/json"}]
         d = {"id": mid, "module": "line:makeApiCall", "version": 1, "mapper": mapper,
              "metadata": self.meta(name, "account:line2"), "parameters": {"__IMTCONN__": CONN_LINE}}
@@ -150,6 +154,14 @@ class B:
         qr = [{"type": "action", "action": {"type": "message", "label": lb[:20], "text": tx}} for lb, tx in items]
         body = {"replyToken": RT, "messages": [{"type": "text", "text": text, "quickReply": {"items": qr}}]}
         return self.line_api(name, "/v2/bot/message/reply", body=body, f=f)
+
+    def aggregate(self, name, feeder, value, sep="\n"):
+        """把搜尋結果的每一筆組成一段文字，輸出 {{N.text}}。"""
+        mid = self.nid()
+        self.y += 150
+        return {"id": mid, "module": "util:TextAggregator", "version": 1,
+                "parameters": {"feeder": feeder, "rowSeparator": sep}, "mapper": {"value": value},
+                "metadata": {"designer": {"x": 900, "y": self.y, "name": name}}}
 
     def router(self, name, routes):
         """routes: [(filter, [modules...])]；filter 放在每條路線的第一個模組上。"""
@@ -205,7 +217,7 @@ def build_main():
         (flt("簽到碼無效", [[EXIST, EN, c(f"{{{{{O}.id}}}}", "notexist")], [EXIST, EN, NDUTY, c(o_stat, "text:equal", "已撤收")]]), [
             b.reply("回覆簽到碼無效", "⚠ 此簽到碼無效，或該收容所已撤收。請洽現場負責人。")]),
         (flt("不是工作人員", [[NOTEXIST], [NEN]]), [
-            b.reply("回覆請先開通", "您還不是已開通的工作人員。請按選單「工作人員專區」申請開通，由管理者審核後才能簽到。")]),
+            b.reply("回覆請先開通", "您還不是已開通的工作人員。請按選單最下列的「工作人員」申請開通，由管理者審核後才能簽到。")]),
     ])
     # 換選單需要上一步取得的 ID：接在簽到成功路線最後
     link = b.line_api("切換成加乘選單", "/v2/bot/user/" + U + "/richmenu/{{" + str(r1["routes"][0]["flow"][-1]["id"]) + ".body.richMenuId}}")
@@ -229,7 +241,12 @@ def build_main():
         ]),
         (flt("不在班", DENIED), [b.reply("回覆不在班", "您目前不在班，不需要簽退。")]),
     ])
-    routes.append((flt("R2 簽退", [[c(T, "text:equal", "簽退")], [c(T, "text:equal", "我要簽退")]]), [r2]))
+    routes.append((flt("R2 確定簽退", [[c(T, "text:equal", "確定簽退")]]), [r2]))
+    r2c = b.router("簽退確認", [
+        (flt("在班", [ON]), [b.quick("問是否簽退", f"{NAME} 確定要簽退（下班）嗎？", [("確定簽退", "確定簽退"), ("取消", "取消")])]),
+        (flt("不在班", DENIED), [b.reply("回覆不在班（確認）", "您目前不在班，不需要簽退。")]),
+    ])
+    routes.append((flt("R2c 簽退前確認", [[c(T, "text:equal", "簽退")], [c(T, "text:equal", "我要簽退")]]), [r2c]))
 
     # ---------- R3 整備回報 ----------
     items = ["場地清潔", "水電設備", "安全檢查", "寢具", "醫療物資", "其他"]
@@ -379,7 +396,8 @@ def build_main():
 
     # ---------- R5b/c/d 報到的多步驟 ----------
     parts = 'length(split(' + TMP[2:-2] + '; "|"))'
-    cmds = ["簽退", "我要簽退", "我要簽到", "整備完成", "查詢狀況", "申請開通", "工作人員專區", "取消"]
+    cmds = ["簽退", "確定簽退", "我要簽退", "我要簽到", "整備完成", "查詢狀況", "本所狀況", "未結反映", "申請開通", "工作人員",
+            "工作人員專區", "取消", "收容所資訊", "常見問題", "最新公告", "物資領取", "我要反映", "我需要協助", "緊急聯絡"]
     not_cmd = [c(T, "text:notcontain", x) for x in ("SIGN-", "MLS-", "整備", "：")] + [c(T, "text:notequal", x) for x in cmds]
     ages = ["成人", "長者", "兒童", "嬰幼兒"]
     routes.append((flt("R5b 報到：輸入姓名", [[EXIST, EN, c(TMP, "text:contain", "報到|"), c("{{" + parts + "}}", "number:equal", "2"),
@@ -417,24 +435,55 @@ def build_main():
                  f=flt("有特殊關懷", [[c(care, "text:notequal", "無")]])),
     ]))
 
-    # ---------- R7 查詢狀況 ----------
-    g7 = b.get("讀所在開設（查詢）", MY_OPEN)
+    # ---------- R7 本所狀況：先看狀況，再依開設階段跳出該做的事 ----------
+    g7 = b.get("讀所在開設（本所狀況）", MY_OPEN)
     G7 = g7["id"]
+    g7_stat = sp(G7, "開設狀態", ".name")
 
     def num(p):
         return sp(G7, p, ".number")
-    r7 = b.router("查詢權限", [
-        (flt("在班", [ON]), [g7, b.reply("回覆狀況", (
-            f"📊 {sp(G7, '開設名稱', '[].plain_text')}\n"
-            f"狀態：{sp(G7, '開設狀態', '.name')}　燈號：{sp(G7, '狀況燈號', '.string')}\n"
-            f"在所 {num('在所人數')}／容量 {num('容納人數')}\n"
-            f"外出 {num('外出人數')}　未返 {num('未返人數')}\n"
-            f"需關懷 {num('需關懷人數')}\n"
-            f"未結日誌 {num('未結日誌數')}（緊急 {num('緊急未結數')}）\n"
-            f"缺工作人員 {sp(G7, '缺工作人員', '.number')}　缺志工 {sp(G7, '缺志工', '.number')}"))]),
-        (flt("不在班", DENIED), [b.reply("回覆請先簽到", "請先簽到後再查詢本所狀況。")]),
+    status_text = (
+        f"📊 {sp(G7, '開設名稱', '[].plain_text')}\n"
+        f"狀態：{g7_stat}　燈號：{sp(G7, '狀況燈號', '.string')}\n"
+        f"在所 {num('在所人數')}／容量 {num('容納人數')}\n"
+        f"外出 {num('外出人數')}　未返 {num('未返人數')}\n"
+        f"需關懷 {num('需關懷人數')}\n"
+        f"未結日誌 {num('未結日誌數')}（緊急 {num('緊急未結數')}）\n"
+        f"缺工作人員 {sp(G7, '缺工作人員', '.number')}　缺志工 {sp(G7, '缺志工', '.number')}")
+    refresh = ("重新整理", "本所狀況")
+    r7in = b.router("依開設階段", [
+        (flt("整備中", [[c(g7_stat, "text:equal", "整備中")]]), [
+            b.quick("狀況＋整備按鈕", status_text + "\n\n整備階段：請回報整備項目，全部完成後按「整備完成」。",
+                    [("整備回報", "整備回報"), ("整備完成", "整備完成"), refresh])]),
+        (flt("待核准", [[c(g7_stat, "text:equal", "待核准")]]), [
+            b.quick("狀況（待核准）", status_text + "\n\n已送出整備完成，等社會處核准。", [refresh])]),
+        (flt("開設中", [[c(g7_stat, "text:equal", "開設中")]]), [
+            b.quick("狀況＋營運按鈕", status_text, [("未結反映", "未結反映"), refresh])]),
+        (flt("撤收", [[c(g7_stat, "text:equal", "撤收中")], [c(g7_stat, "text:equal", "已撤收")]]), [
+            b.quick("狀況（撤收）", status_text, [refresh])]),
     ])
-    routes.append((flt("R7 查詢狀況", [[c(T, "text:equal", "查詢狀況")]]), [r7]))
+    r7 = b.router("本所狀況權限", [
+        (flt("在班", [ON]), [g7, r7in]),
+        (flt("不在班", DENIED), [b.reply("回覆請先簽到", "請先簽到後再查看本所狀況。")]),
+    ])
+    routes.append((flt("R7 本所狀況", [[c(T, "text:equal", "本所狀況")], [c(T, "text:equal", "查詢狀況")]]), [r7]))
+
+    # ---------- R12 未結反映（工作人員）----------
+    unres = b.search("找本所未結反映", DS_LOG, [
+        c("收容所開設 |&*^%$#@| relation", "relation:contains", MY_OPEN),
+        c("日誌類別 |&*^%$#@| select", "select:equals", "居民反映"),
+        c("處理進度 |&*^%$#@| select", "select:does_not_equal", "已結案"),
+        c("處理進度 |&*^%$#@| select", "select:does_not_equal", "已解決")], sort_created=True)
+    unres["mapper"]["limit"] = "10"
+    UR = unres["id"]
+    unres_agg = b.aggregate("彙整未結反映", UR,
+        "・" + sp(UR, "日誌標題", "[].plain_text") + "（" + sp(UR, "嚴重程度", ".name") + "）" + sp(UR, "內容說明", "[].plain_text"))
+    r12 = b.router("未結反映權限", [
+        (flt("在班", [ON]), [unres, unres_agg, b.reply("回覆未結反映",
+            "📝 本所未結的居民反映（最新 10 筆）：\n" + f"{{{{{unres_agg['id']}.text}}}}" + "\n\n處理完請到 Notion 把處理進度改成「已解決」。")]),
+        (flt("不在班", DENIED), [b.reply("回覆請先簽到（反映）", "請先簽到後再查看。")]),
+    ])
+    routes.append((flt("R12 未結反映", [[c(T, "text:equal", "未結反映")]]), [r12]))
 
     # ---------- R8 申請開通 ----------
     prof = b.line_api("取得 LINE 名稱", "/v2/bot/profile/" + U, method="GET")
@@ -454,23 +503,100 @@ def build_main():
 
     # ---------- R9 工作人員專區：依在班狀態顯示「我要簽到」或「我要簽退」 ----------
     r9 = b.router("專區分流", [
-        (flt("在班", [[EXIST, EN, DUTY]]), [b.quick("專區按鈕（在班）", f"{NAME}（{ROLE}）您好，目前上班中。", [
-            ("整備回報", "整備回報"), ("整備完成", "整備完成"), ("查詢狀況", "查詢狀況"), ("我要簽退", "我要簽退")])]),
+        (flt("在班", [[EXIST, EN, DUTY]]), [b.quick("專區按鈕（在班）", f"{NAME}（{ROLE}）您好，目前上班中。工作功能在下方選單最下列。", [
+            ("本所狀況", "本所狀況"), ("我要簽退", "我要簽退")])]),
         (flt("未在班", [[EXIST, EN, NDUTY]]), [b.quick("專區按鈕（未在班）", f"{NAME}（{ROLE}）您好，目前未上班。到現場後請先簽到。", [
             ("我要簽到", "我要簽到")])]),
         (flt("審核中", [[EXIST, NEN]]), [b.reply("回覆審核中", "您的開通申請審核中，請稍候。")]),
         (flt("未申請", [[NOTEXIST]]), [b.quick("申請按鈕", "工作人員專區：開通後才能使用工作人員功能。", [("申請開通", "申請開通")])]),
     ])
-    routes.append((flt("R9 工作人員專區", [[c(T, "text:equal", "工作人員專區")]]), [r9]))
+    routes.append((flt("R9 工作人員入口", [[c(T, "text:equal", "工作人員")], [c(T, "text:equal", "工作人員專區")]]), [r9]))
 
     # ---------- R11 我要簽到：引導掃服務台 QR ----------
     r11 = b.router("我要簽到分流", [
         (flt("未在班", [[EXIST, EN, NDUTY]]), [b.reply("回覆掃碼方式",
             "請掃服務台張貼的「工作人員簽到」QR Code。\n點下面的連結會直接打開 LINE 掃描器：\nhttps://line.me/R/nv/QRCode")]),
         (flt("已在班", [[EXIST, EN, DUTY]]), [b.reply("回覆已在班（我要簽到）", f"{NAME} 您已在班中。要下班請按「我要簽退」。")]),
-        (flt("不是工作人員", [[NOTEXIST], [NEN]]), [b.reply("回覆請先開通（我要簽到）", "請先按「工作人員專區」申請開通，審核通過後才能簽到。")]),
+        (flt("不是工作人員", [[NOTEXIST], [NEN]]), [b.reply("回覆請先開通（我要簽到）", "請先按選單最下列的「工作人員」申請開通，審核通過後才能簽到。")]),
     ])
     routes.append((flt("R11 我要簽到", [[c(T, "text:equal", "我要簽到")]]), [r11]))
+
+    # ---------- R20 收容所資訊 ----------
+    routes.append((flt("R20 收容所資訊", [[c(T, "text:equal", x)] for x in ("收容所資訊", "常見問題", "最新公告", "物資領取")]), [
+        b.quick("資訊選單", "想知道哪一類資訊？", [
+            ("最新公告", "資訊：最新公告"), ("用餐與物資", "資訊：用餐與物資"),
+            ("生活規定", "資訊：生活規定"), ("開設中的收容所", "資訊：開設中的收容所")])]))
+
+    opens = b.search("找開設中的收容所", DS_OPEN, [c("開設狀態 |&*^%$#@| select", "select:equals", "開設中")])
+    opens["mapper"]["limit"] = "20"
+    OP = opens["id"]
+    opens_agg = b.aggregate("彙整收容所", OP, "・" + sp(OP, "開設名稱", "[].plain_text"))
+    routes.append((flt("R21 開設中的收容所", [[c(T, "text:equal", "資訊：開設中的收容所")]]), [
+        opens, opens_agg,
+        b.reply("回覆收容所清單", "🏠 目前開設中的收容所：\n" + f"{{{{{opens_agg['id']}.text}}}}" + "\n\n地址與交通請洽現場工作人員或縣府服務專線。")]))
+
+    kw = '{{replace(1.events[1].message.text; "資訊："; "")}}'
+    qa = b.search("找問答與公告", DS_QA, [
+        c("關鍵字 |&*^%$#@| rich_text", "text:contains", kw),
+        c("啟用 |&*^%$#@| checkbox", "checkbox:equals", "true")], sort_created=True)
+    qa["mapper"]["limit"] = "3"
+    QA = qa["id"]
+    qa_agg = b.aggregate("彙整問答", QA, "【" + sp(QA, "標題", "[].plain_text") + "】\n" + sp(QA, "內容", "[].plain_text") + "\n")
+    routes.append((flt("R22 資訊內容", [[c(T, "text:contain", "資訊："), c(T, "text:notequal", "資訊：開設中的收容所")]]), [
+        qa, qa_agg, b.reply("回覆資訊", f"{{{{{qa_agg['id']}.text}}}}")]))
+
+    emerg = b.search("找緊急聯絡資料", DS_QA, [
+        c("關鍵字 |&*^%$#@| rich_text", "text:contains", "緊急聯絡"),
+        c("啟用 |&*^%$#@| checkbox", "checkbox:equals", "true")], sort_created=True)
+    EM = emerg["id"]
+    routes.append((flt("R23 緊急聯絡", [[c(T, "text:equal", "緊急聯絡")]]), [
+        emerg, b.reply("回覆緊急聯絡", "📞 " + sp(EM, "內容", "[].plain_text"))]))
+
+    # ---------- R24 我要反映：選類別 → 選收容所 → 記成居民反映日誌 ----------
+    report_cats = ["身體不適", "缺物資", "環境問題", "其他"]
+    routes.append((flt("R24 我要反映", [[c(T, "text:equal", "我要反映")], [c(T, "text:equal", "我需要協助")]]), [
+        b.quick("反映類別", "請選擇要反映的事情：", [(x, f"反映：{x}") for x in report_cats])]))
+
+    rop = b.search("找開設中的收容所（反映）", DS_OPEN, [c("開設狀態 |&*^%$#@| select", "select:equals", "開設中")])
+    rop["mapper"]["limit"] = "12"
+    RO = rop["id"]
+    ro_name = sp(RO, "開設名稱", "[].plain_text")
+    rop_agg = b.aggregate("組收容所按鈕", RO,
+        '{"type": "action", "action": {"type": "message", "label": "{{substring(' + ro_name[2:-2] + '; 0; 20)}}", "text": "'
+        + T + ' @ ' + ro_name + '"}},')
+    other = json.dumps({"type": "action", "action": {"type": "message", "label": "不在收容所", "text": T + " @ 不在收容所"}}, ensure_ascii=False)
+    body = ('{"replyToken": "' + RT + '", "messages": [{"type": "text", "text": "您在哪一個收容所？", "quickReply": {"items": ['
+            + f"{{{{{rop_agg['id']}.text}}}} " + other + ']}}]}')
+    routes.append((flt("R25 反映：選收容所", [[c(T, "text:contain", "反映："), c(T, "text:notcontain", " @ ")]]), [
+        rop, rop_agg, b.line_api("問在哪一所", "/v2/bot/message/reply", body=body)]))
+
+    cat = '{{replace(first(split(1.events[1].message.text; " @ ")); "反映："; "")}}'
+    where = '{{last(split(1.events[1].message.text; " @ "))}}'
+    sick = 'replace(first(split(1.events[1].message.text; " @ ")); "反映："; "") = "身體不適"'
+    rpo = b.search("找反映的收容所", DS_OPEN, [c("開設名稱 |&*^%$#@| title", "text:equals", where)])
+    RP = rpo["id"]
+    rlog = b.create("新增居民反映日誌", DS_LOG, [
+        f_title("日誌標題", f"居民反映：{cat}"), f_sel("日誌類別", "居民反映"), f_sel("協助類別", cat),
+        f_sel("嚴重程度", '{{if(' + sick + '; "高"; "中")}}'), f_sel("處理進度", "待處理"),
+        f_text("反映者 LINE ID", U), f_now("發生時間"), f_sel("來源", "LINE 回報"),
+        f_text("內容說明", f"反映地點：{where}")])
+    rlog_open = b.update("反映掛到收容所", DS_LOG, f"{{{{{rlog['id']}.id}}}}", [f_rel("收容所開設", f"{{{{{RP}.id}}}}")],
+                         f=flt("有對應的收容所", [[c(f"{{{{{RP}.id}}}}", "exist")]]))
+    routes.append((flt("R26 反映：送出", [[c(T, "text:contain", "反映："), c(T, "text:contain", " @ ")]]), [
+        rpo, rlog,
+        b.reply("回覆已收到反映", f"🙋 已收到您的反映（{cat}），現場工作人員會盡快處理。\n"
+                "想補充說明，請輸入「補充：」加上內容，例如：補充：我在 A 區，頭很暈。\n緊急狀況請直接找現場工作人員或撥 119。"),
+        rlog_open]))
+
+    sup = b.search("找最近一筆反映", DS_LOG, [
+        c("反映者 LINE ID |&*^%$#@| rich_text", "text:equals", U),
+        c("日誌類別 |&*^%$#@| select", "select:equals", "居民反映")], sort_created=True)
+    SU = sup["id"]
+    routes.append((flt("R27 反映：補充", [[c(T, "text:contain", "補充：")]]), [
+        sup,
+        b.update("寫入補充說明", DS_LOG, f"{{{{{SU}.id}}}}", [f_text("內容說明",
+            sp(SU, "內容說明", "[].plain_text") + '\n補充：{{replace(1.events[1].message.text; "補充："; "")}}')]),
+        b.reply("回覆已補充", "✅ 已補充，謝謝您。")]))
 
     # ---------- R10 取消 ----------
     routes.append((flt("R10 取消", [[c(T, "text:equal", "取消"), EXIST]]), [
@@ -479,11 +605,11 @@ def build_main():
     ]))
 
     # ---------- R99 其他 ----------
-    base_not = [c(T, "text:notcontain", x) for x in ("SIGN-", "MLS-", "整備", "年齡層：", "關懷：")] + \
-               [c(T, "text:notequal", x) for x in ("簽退", "我要簽退", "我要簽到", "查詢狀況", "申請開通", "工作人員專區", "取消")]
+    base_not = [c(T, "text:notcontain", x) for x in ("SIGN-", "MLS-", "整備", "年齡層：", "關懷：", "資訊：", "反映：", "補充：")] + \
+               [c(T, "text:notequal", x) for x in cmds]
     routes.append((flt("R99 其他訊息", [base_not + [c(TMP, "text:notcontain", "報到|")],
                                        base_not + [c("{{" + parts + "}}", "number:notequal", "2")]]), [
-        b.reply("回覆引導", "您好，這裡是苗栗避難收容所系統。\n請點下方選單使用功能；工作人員請按「工作人員專區」。")]))
+        b.reply("回覆引導", "您好，這裡是苗栗避難收容所系統。\n請點下方選單：收容所資訊、我要反映、緊急聯絡。\n工作人員請按最下列的「工作人員」。")]))
 
     main_router = {"id": 3, "module": "builtin:BasicRouter", "version": 1, "mapper": None,
                    "metadata": {"designer": {"x": 300, "y": 0, "name": "依訊息分流"}}, "routes": []}
@@ -510,25 +636,22 @@ def build_main():
 
 def build_menu():
     """建立兩張圖文選單（一次性；換圖時再執行）。
-    - 一般選單：上兩列 6 個按鈕，最下列是橫幅（不是按鈕）；設為所有人的預設選單。
-    - 加乘選單：上兩列同一般選單，最下列 4 個工作人員按鈕；設定別名 MENU_ALIAS，簽到時依別名綁定給個人。
+    - 一般選單：上列 3 格（收容所資訊、我要反映、緊急聯絡），下列整列「工作人員」入口；設為所有人的預設選單。
+    - 加乘選單：上列同一般選單，下列 3 格（掃 QR、本所狀況、簽退）；設定別名 MENU_ALIAS，簽到時依別名綁定給個人。
     圖片放在 Notion 頁面 MENU_PAGE 的第一組左右兩欄：左欄是一般選單、右欄是加乘選單，各取欄裡「最後一張」圖片。
     每次執行都向 Notion 取得新的下載網址（Notion 檔案網址幾分鐘就過期）。"""
-    ROW = 562
+    # 上下兩列，每列高 843；上列 3 格兩張共用
+    ROW = 843
     cw = [0, 833, 1667, 2500]
-    top = []
-    public = ["常見問題", "最新公告", "物資領取", "我需要協助", "緊急聯絡", "工作人員專區"]
-    for i, t in enumerate(public):
-        r, col = divmod(i, 3)
-        top.append({"bounds": {"x": cw[col], "y": r * ROW, "width": cw[col + 1] - cw[col], "height": ROW},
-                    "action": {"type": "message", "text": t}})
-    staff_row = []
-    sw = 625
-    staff = [("uri", "https://line.me/R/nv/QRCode"), ("message", "整備回報"), ("message", "查詢狀況"), ("message", "簽退")]
-    for i, (typ, v) in enumerate(staff):
-        a = {"type": typ}
-        a["uri" if typ == "uri" else "text"] = v
-        staff_row.append({"bounds": {"x": i * sw, "y": 2 * ROW, "width": sw, "height": 1686 - 2 * ROW}, "action": a})
+
+    def cell(col, row, action):
+        return {"bounds": {"x": cw[col], "y": row * ROW, "width": cw[col + 1] - cw[col], "height": ROW}, "action": action}
+
+    def msg(t):
+        return {"type": "message", "text": t}
+    top = [cell(i, 0, msg(t)) for i, t in enumerate(["收容所資訊", "我要反映", "緊急聯絡"])]
+    public_bottom = [{"bounds": {"x": 0, "y": ROW, "width": 2500, "height": ROW}, "action": msg("工作人員")}]
+    staff_row = [cell(0, 1, {"type": "uri", "uri": "https://line.me/R/nv/QRCode"}), cell(1, 1, msg("本所狀況")), cell(2, 1, msg("簽退"))]
 
     notion_meta = [{"name": "__IMTCONN__", "type": "account:notion2,notion3", "label": "Connection", "required": True}]
     line_meta = [{"name": "__IMTCONN__", "type": "account:line2", "label": "Connection", "required": True}]
@@ -560,7 +683,7 @@ def build_menu():
     flow = [
         children(20, MENU_PAGE, "讀系統素材頁", -900, 150),
         children(21, '{{first(map(20.body.results; "id"; "type"; "column_list"))}}', "讀左右兩欄", -600, 150),
-    ] + menu_steps((10, 11, 12), '{{get(map(21.body.results; "id"); 1)}}', "public", top, "一般選單", 0) + [
+    ] + menu_steps((10, 11, 12), '{{get(map(21.body.results; "id"); 1)}}', "public", top + public_bottom, "一般選單", 0) + [
         {"id": 13, "module": "line:makeApiCall", "version": 1, "parameters": {"__IMTCONN__": CONN_LINE},
          "mapper": {"url": "/v2/bot/user/all/richmenu/{{12.richMenuId}}", "method": "POST", "headers": []},
          "metadata": {"designer": {"x": 900, "y": 0, "name": "設為所有人的預設選單"}, "parameters": line_meta}},

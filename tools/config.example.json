@@ -18,7 +18,8 @@
       "現場日誌": "<現場日誌 的 data source ID>",
       "號碼牌": "<號碼牌 的 data source ID>",
       "收容登記": "<收容登記 的 data source ID>",
-      "進出紀錄": "<進出紀錄 的 data source ID>"
+      "進出紀錄": "<進出紀錄 的 data source ID>",
+      "問答與公告": "<問答與公告 的 data source ID>"
     },
     "richmenu_page_id": "<放選單圖片的 Notion 頁面 ID>"
   }
