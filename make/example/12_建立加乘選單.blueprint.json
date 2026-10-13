@@ -59,7 +59,7 @@
     "__IMTCONN__": 0
    },
    "mapper": {
-    "name": "staff-plus-v1",
+    "name": "staff-plus",
     "chatBarText": "選單",
     "selected": false,
     "height": 1686,
@@ -205,38 +205,123 @@
    }
   },
   {
-   "id": 3,
-   "module": "line:makeApiCall",
+   "id": 8,
+   "module": "builtin:BasicRouter",
    "version": 1,
-   "parameters": {
-    "__IMTCONN__": 0
-   },
-   "mapper": {
-    "url": "/v2/bot/richmenu/alias",
-    "method": "POST",
-    "body": "{\"richMenuAliasId\": \"staff-plus\", \"richMenuId\": \"{{2.richMenuId}}\"}",
-    "headers": [
-     {
-      "key": "Content-Type",
-      "value": "application/json"
-     }
-    ]
-   },
+   "mapper": null,
    "metadata": {
     "designer": {
      "x": 600,
      "y": 0,
-     "name": "設定別名 staff-plus"
+     "name": "設定別名"
+    }
+   },
+   "routes": [
+    {
+     "flow": [
+      {
+       "id": 3,
+       "module": "line:makeApiCall",
+       "version": 1,
+       "parameters": {
+        "__IMTCONN__": 0
+       },
+       "mapper": {
+        "url": "/v2/bot/richmenu/alias/staff-plus",
+        "method": "POST",
+        "body": "{\"richMenuId\": \"{{2.richMenuId}}\"}",
+        "headers": [
+         {
+          "key": "Content-Type",
+          "value": "application/json"
+         }
+        ]
+       },
+       "metadata": {
+        "designer": {
+         "x": 900,
+         "y": -150,
+         "name": "更新別名 staff-plus"
+        },
+        "parameters": [
+         {
+          "name": "__IMTCONN__",
+          "type": "account:line2",
+          "label": "Connection",
+          "required": true
+         }
+        ]
+       },
+       "onerror": [
+        {
+         "id": 6,
+         "module": "builtin:Ignore",
+         "version": 1,
+         "mapper": null,
+         "metadata": {
+          "designer": {
+           "x": 1200,
+           "y": -150
+          }
+         }
+        }
+       ]
+      }
+     ]
     },
-    "parameters": [
-     {
-      "name": "__IMTCONN__",
-      "type": "account:line2",
-      "label": "Connection",
-      "required": true
-     }
-    ]
-   }
+    {
+     "flow": [
+      {
+       "id": 5,
+       "module": "line:makeApiCall",
+       "version": 1,
+       "parameters": {
+        "__IMTCONN__": 0
+       },
+       "mapper": {
+        "url": "/v2/bot/richmenu/alias",
+        "method": "POST",
+        "body": "{\"richMenuAliasId\": \"staff-plus\", \"richMenuId\": \"{{2.richMenuId}}\"}",
+        "headers": [
+         {
+          "key": "Content-Type",
+          "value": "application/json"
+         }
+        ]
+       },
+       "metadata": {
+        "designer": {
+         "x": 900,
+         "y": 150,
+         "name": "新建別名 staff-plus"
+        },
+        "parameters": [
+         {
+          "name": "__IMTCONN__",
+          "type": "account:line2",
+          "label": "Connection",
+          "required": true
+         }
+        ]
+       },
+       "onerror": [
+        {
+         "id": 7,
+         "module": "builtin:Ignore",
+         "version": 1,
+         "mapper": null,
+         "metadata": {
+          "designer": {
+           "x": 1200,
+           "y": 150
+          }
+         }
+        }
+       ]
+      }
+     ]
+    }
+   ]
   }
  ],
  "metadata": {

@@ -96,3 +96,9 @@
 5. Node 24 在 Windows 上遇到中文路徑時，`fs.rmSync` 會崩潰，請改用 `fs.unlinkSync`。
 
 ops 格式寫在 `tools/canvas.mjs` 的檔頭註解。
+
+## 版本庫（GitHub，公開）
+
+- repo：`miaoliemic/miaoli-shelter-system`，專案帳號，之後會移交。commit 作者用 `miaoliemic` 和 GitHub 隱私信箱（已設在本 repo 的 git config）。
+- **公開 repo 不放實際 ID**：Notion、Make.com 的 ID 都放在 `tools/config.local.json`。這個檔案和 `建置紀錄.md`、`make/*.blueprint.json` 都列在 .gitignore。推送前要掃描有沒有 ID、email 或個資。
+- 要推送時，用 `run_in_terminal` 在使用者的終端機執行，讓 GitHub 登入流程能在瀏覽器完成。終端機指令不能含中文路徑，所以先用 `Set-Location D:\CLI\115_*\*\make\example; Set-Location ..\..` 切到專案資料夾，再 `git push`。

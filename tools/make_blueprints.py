@@ -536,14 +536,29 @@ def build_menu():
          "mapper": {"url": "{{4.body.image.file.url}}", "method": "get", "serializeUrl": False, "shareCookies": False},
          "metadata": {"designer": {"x": 0, "y": 0, "name": "下載選單圖片"}}},
         {"id": 2, "module": "line:createARichMenu", "version": 1, "parameters": {"__IMTCONN__": CONN_LINE},
-         "mapper": {"name": "staff-plus-v1", "chatBarText": "選單", "selected": False, "height": 1686,
+         "mapper": {"name": "staff-plus", "chatBarText": "選單", "selected": False, "height": 1686,
                     "areas": areas, "data": "{{1.data}}", "filename": "staff_plus.png"},
          "metadata": {"designer": {"x": 300, "y": 0, "name": "建立加乘選單"}, "parameters": line_meta}},
-        {"id": 3, "module": "line:makeApiCall", "version": 1, "parameters": {"__IMTCONN__": CONN_LINE},
-         "mapper": {"url": "/v2/bot/richmenu/alias", "method": "POST",
-                    "body": json.dumps({"richMenuAliasId": MENU_ALIAS, "richMenuId": "{{2.richMenuId}}"}),
-                    "headers": [{"key": "Content-Type", "value": "application/json"}]},
-         "metadata": {"designer": {"x": 600, "y": 0, "name": f"設定別名 {MENU_ALIAS}"}, "parameters": line_meta}},
+        # 別名：路由同時試「更新」和「新建」，各自出錯就略過。
+        # 已有別名時更新成功、新建失敗；第一次部署時相反。
+        {"id": 8, "module": "builtin:BasicRouter", "version": 1, "mapper": None,
+         "metadata": {"designer": {"x": 600, "y": 0, "name": "設定別名"}},
+         "routes": [
+             {"flow": [{"id": 3, "module": "line:makeApiCall", "version": 1, "parameters": {"__IMTCONN__": CONN_LINE},
+                        "mapper": {"url": f"/v2/bot/richmenu/alias/{MENU_ALIAS}", "method": "POST",
+                                   "body": json.dumps({"richMenuId": "{{2.richMenuId}}"}),
+                                   "headers": [{"key": "Content-Type", "value": "application/json"}]},
+                        "metadata": {"designer": {"x": 900, "y": -150, "name": f"更新別名 {MENU_ALIAS}"}, "parameters": line_meta},
+                        "onerror": [{"id": 6, "module": "builtin:Ignore", "version": 1, "mapper": None,
+                                     "metadata": {"designer": {"x": 1200, "y": -150}}}]}]},
+             {"flow": [{"id": 5, "module": "line:makeApiCall", "version": 1, "parameters": {"__IMTCONN__": CONN_LINE},
+                        "mapper": {"url": "/v2/bot/richmenu/alias", "method": "POST",
+                                   "body": json.dumps({"richMenuAliasId": MENU_ALIAS, "richMenuId": "{{2.richMenuId}}"}),
+                                   "headers": [{"key": "Content-Type", "value": "application/json"}]},
+                        "metadata": {"designer": {"x": 900, "y": 150, "name": f"新建別名 {MENU_ALIAS}"}, "parameters": line_meta},
+                        "onerror": [{"id": 7, "module": "builtin:Ignore", "version": 1, "mapper": None,
+                                     "metadata": {"designer": {"x": 1200, "y": 150}}}]}]},
+         ]},
     ]
     return blueprint("12 建立加乘選單（一次性）", flow, instant=False)
 

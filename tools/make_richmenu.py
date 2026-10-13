@@ -36,8 +36,8 @@ def main():
     img = Image.new("RGB", (W, H), BG_PUBLIC)
     d = ImageDraw.Draw(img)
     big = ImageFont.truetype(FONT, 110)
-    mid = ImageFont.truetype(FONT, 72)
-    small = ImageFont.truetype(FONT, 56)
+    mid = ImageFont.truetype(FONT, 120)
+    small = ImageFont.truetype(FONT, 76)
 
     # 上兩列：一般選單
     cw = W / 3
@@ -53,8 +53,8 @@ def main():
         x0, x1 = i * sw, (i + 1) * sw
         y0, y1 = 2 * ROW_H, H
         if sub:
-            center_text(d, (x0, y0, x1, y1 - 70), label, mid, ACCENT)
-            center_text(d, (x0, y0 + 90, x1, y1), sub, small, ACCENT)
+            center_text(d, (x0, y0, x1, y1 - 110), label, mid, ACCENT)
+            center_text(d, (x0, y0 + 130, x1, y1), sub, small, ACCENT)
         else:
             center_text(d, (x0, y0, x1, y1), label, mid, ACCENT)
 
