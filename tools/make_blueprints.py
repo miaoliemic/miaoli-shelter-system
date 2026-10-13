@@ -26,8 +26,7 @@ HOOK = CFG["make"]["line_webhook_id"]
 CONN_LINE = CFG["make"]["line_connection_id"]
 CONN_NOTION = CFG["make"]["notion_connection_id"]
 MENU_ALIAS = CFG["line"]["staff_menu_alias"]
-MENU_PUBLIC_PAGE = CFG["notion"]["richmenu_public_page_id"]
-MENU_STAFF_PAGE = CFG["notion"]["richmenu_staff_page_id"]
+MENU_PAGE = CFG["notion"]["richmenu_page_id"]
 
 _ds = CFG["notion"]["data_sources"]
 DS_STAFF = _ds["工作人員名冊"]
@@ -513,7 +512,8 @@ def build_menu():
     """建立兩張圖文選單（一次性；換圖時再執行）。
     - 一般選單：上兩列 6 個按鈕，最下列是橫幅（不是按鈕）；設為所有人的預設選單。
     - 加乘選單：上兩列同一般選單，最下列 4 個工作人員按鈕；設定別名 MENU_ALIAS，簽到時依別名綁定給個人。
-    圖片分別放在兩個 Notion 頁面，各取頁面裡「最後一張」圖片；每次執行都向 Notion 取得新的下載網址。"""
+    圖片放在 Notion 頁面 MENU_PAGE 的第一組左右兩欄：左欄是一般選單、右欄是加乘選單，各取欄裡「最後一張」圖片。
+    每次執行都向 Notion 取得新的下載網址（Notion 檔案網址幾分鐘就過期）。"""
     ROW = 562
     cw = [0, 833, 1667, 2500]
     top = []
@@ -537,13 +537,16 @@ def build_menu():
         li = f'last(map({mid}.body.results; "image"; "type"; "image"))'
         return '{{ifempty(get(' + li + '; "file.url"); get(' + li + '; "external.url"))}}'
 
-    def menu_steps(ids, page, name, areas, label, y):
+    def children(mid, block_expr, name, x, y):
+        return {"id": mid, "module": "notion:makeApiCall", "version": 1, "parameters": {"__IMTCONN__": CONN_NOTION},
+                "mapper": {"url": f"/v1/blocks/{block_expr}/children", "method": "GET", "version": "2022-06-28", "headers": [],
+                           "qs": [{"key": "page_size", "value": "100"}]},
+                "metadata": {"designer": {"x": x, "y": y, "name": name}, "parameters": notion_meta}}
+
+    def menu_steps(ids, column_expr, name, areas, label, y):
         n, h, m = ids
         return [
-            {"id": n, "module": "notion:makeApiCall", "version": 1, "parameters": {"__IMTCONN__": CONN_NOTION},
-             "mapper": {"url": f"/v1/blocks/{page}/children", "method": "GET", "version": "2022-06-28", "headers": [],
-                        "qs": [{"key": "page_size", "value": "100"}]},
-             "metadata": {"designer": {"x": 0, "y": y, "name": f"讀{label}頁"}, "parameters": notion_meta}},
+            children(n, column_expr, f"讀{label}欄", 0, y),
             {"id": h, "module": "http:ActionGetFile", "version": 3, "parameters": {"handleErrors": False},
              "mapper": {"url": last_image_url(n), "method": "get", "serializeUrl": False, "shareCookies": False},
              "metadata": {"designer": {"x": 300, "y": y, "name": f"下載{label}圖片"}}},
@@ -553,11 +556,15 @@ def build_menu():
              "metadata": {"designer": {"x": 600, "y": y, "name": f"建立{label}"}, "parameters": line_meta}},
         ]
 
-    flow = menu_steps((10, 11, 12), MENU_PUBLIC_PAGE, "public", top, "一般選單", 0) + [
+    # 頁面 → 第一組左右兩欄 → 左欄、右欄
+    flow = [
+        children(20, MENU_PAGE, "讀系統素材頁", -900, 150),
+        children(21, '{{first(map(20.body.results; "id"; "type"; "column_list"))}}', "讀左右兩欄", -600, 150),
+    ] + menu_steps((10, 11, 12), '{{get(map(21.body.results; "id"); 1)}}', "public", top, "一般選單", 0) + [
         {"id": 13, "module": "line:makeApiCall", "version": 1, "parameters": {"__IMTCONN__": CONN_LINE},
          "mapper": {"url": "/v2/bot/user/all/richmenu/{{12.richMenuId}}", "method": "POST", "headers": []},
          "metadata": {"designer": {"x": 900, "y": 0, "name": "設為所有人的預設選單"}, "parameters": line_meta}},
-    ] + menu_steps((4, 1, 2), MENU_STAFF_PAGE, "staff-plus", top + staff_row, "加乘選單", 300) + [
+    ] + menu_steps((4, 1, 2), '{{get(map(21.body.results; "id"); 2)}}', "staff-plus", top + staff_row, "加乘選單", 300) + [
         # 別名：路由同時試「更新」和「新建」，各自出錯就略過。
         # 已有別名時更新成功、新建失敗；第一次部署時相反。
         {"id": 8, "module": "builtin:BasicRouter", "version": 1, "mapper": None,
