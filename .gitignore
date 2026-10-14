@@ -9,3 +9,4 @@ Thumbs.db
 tools/config.local.json
 建置紀錄.md
 make/*.blueprint.json
+make/舊帳號封存_*/
