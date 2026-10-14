@@ -258,7 +258,7 @@
              {
               "key": "對話暫存",
               "type": "rich_text",
-              "value": ""
+              "value": "－"
              }
             ],
             "select": "map",
@@ -623,7 +623,7 @@
              {
               "key": "對話暫存",
               "type": "rich_text",
-              "value": ""
+              "value": "－"
              }
             ],
             "select": "map",
@@ -4156,7 +4156,7 @@
          {
           "key": "對話暫存",
           "type": "rich_text",
-          "value": ""
+          "value": "－"
          }
         ],
         "select": "map",
@@ -6480,7 +6480,7 @@
          {
           "key": "對話暫存",
           "type": "rich_text",
-          "value": ""
+          "value": "－"
          }
         ],
         "select": "map",

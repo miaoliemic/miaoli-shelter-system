@@ -59,6 +59,8 @@ ROLE = sp(S, "角色", ".name")
 DUTY_V = sp(S, "簽到狀態", ".name")
 EN_V = sp(S, "啟用中")
 TMP = sp(S, "對話暫存", "[].plain_text")
+# Make 的 Notion 更新模組遇到空字串會略過不寫，所以清空暫存改寫成這個佔位符號
+TMP_CLEAR = "－"
 MY_OPEN = sp(S, "派駐開設", "[].id")
 
 
@@ -207,7 +209,7 @@ def build_main():
             b.update("名冊改上班中", DS_STAFF, f"{{{{{S}.id}}}}", [
                 f_sel("簽到狀態", "上班中"), f_rel("派駐開設", f"{{{{{O}.id}}}}"),
                 f_sel("選單狀態", '{{if(' + sp(S, "身分類別", ".name")[2:-2] + ' = "工作人員"; "工作人員加乘"; "一般")}}'),
-                f_text("對話暫存", "")]),
+                f_text("對話暫存", TMP_CLEAR)]),
             b.reply("回覆簽到成功", f"✅ {NAME} 已在【{o_name}】簽到。\n開設狀態：{o_stat}\n工作人員功能在下方選單最後一列。"),
             b.line_api("取得加乘選單 ID", f"/v2/bot/richmenu/alias/{MENU_ALIAS}", method="GET",
                        f=flt("工作人員才換選單", [[c(sp(S, "身分類別", ".name"), "text:equal", "工作人員")]])),
@@ -231,7 +233,7 @@ def build_main():
     r2 = b.router("簽退分流", [
         (flt("可以簽退", [ON]), [
             b.update("名冊改已簽退", DS_STAFF, f"{{{{{S}.id}}}}", [
-                f_sel("簽到狀態", "已簽退"), f_sel("選單狀態", "一般"), f_text("對話暫存", "")]),
+                f_sel("簽到狀態", "已簽退"), f_sel("選單狀態", "一般"), f_text("對話暫存", TMP_CLEAR)]),
             b.reply("回覆簽退", f"👋 {NAME} 已簽退，辛苦了！"),
             b.line_api("解除加乘選單", "/v2/bot/user/" + U + "/richmenu", method="DELETE"),
             att,
@@ -429,7 +431,7 @@ def build_main():
             f_title("摘要", f"{r_name} 報到"), f_sel("類型", "報到"), f_rel("居民", f"{{{{{NR}.id}}}}"),
             f_rel("號碼牌", f"{{{{{T7}.id}}}}"), f_rel("收容所開設", MY_OPEN), f_rel("經手人", f"{{{{{S}.id}}}}"),
             f_now("時間"), f_sel("來源", "工作人員掃描")]),
-        b.update("清空暫存", DS_STAFF, f"{{{{{S}.id}}}}", [f_text("對話暫存", "")]),
+        b.update("清空暫存", DS_STAFF, f"{{{{{S}.id}}}}", [f_text("對話暫存", TMP_CLEAR)]),
         b.reply("回覆報到完成", f"✅ {r_name}（{r_age}）報到完成，號碼牌 {r_code}。\n特殊關懷：{care}\n請掃下一個號碼牌繼續報到。"),
         b.update("寫入特殊關懷", DS_RES, f"{{{{{NR}.id}}}}", [f_multi("特殊關懷", care)],
                  f=flt("有特殊關懷", [[c(care, "text:notequal", "無")]])),
@@ -600,7 +602,7 @@ def build_main():
 
     # ---------- R10 取消 ----------
     routes.append((flt("R10 取消", [[c(T, "text:equal", "取消"), EXIST]]), [
-        b.update("清空暫存（取消）", DS_STAFF, f"{{{{{S}.id}}}}", [f_text("對話暫存", "")]),
+        b.update("清空暫存（取消）", DS_STAFF, f"{{{{{S}.id}}}}", [f_text("對話暫存", TMP_CLEAR)]),
         b.reply("回覆已取消", "已取消。"),
     ]))
 
