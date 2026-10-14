@@ -38,6 +38,8 @@ DS_TAG = _ds["號碼牌"]
 DS_RES = _ds["收容登記"]
 DS_IO = _ds["進出紀錄"]
 DS_QA = _ds["問答與公告"]
+DS_ITEM = _ds["物資品項"]
+DS_MOVE = _ds["物資異動紀錄"]
 
 MGR = "管理者（收容所負責人）"
 ROLES_CHECKIN = f"{MGR},門禁組"
@@ -62,6 +64,8 @@ TMP = sp(S, "對話暫存", "[].plain_text")
 # Make 的 Notion 更新模組遇到空字串會略過不寫，所以清空暫存改寫成這個佔位符號
 TMP_CLEAR = "－"
 MY_OPEN = sp(S, "派駐開設", "[].id")
+# 物資登記：「品名+數量」入庫、「品名-數量」發放，例如 飲用水+20、飲用水-5
+SUPPLY_RE = r"^[^+\-\s：:]+\s*[+\-]\s*[0-9]+\s*$"
 
 
 def c(a, o, b=None):
@@ -134,7 +138,8 @@ class B:
         if body is not None:
             if not isinstance(body, str):
                 body = json.dumps(body, ensure_ascii=False)
-            mapper["body"] = re.sub(r"\{\{.*?\}\}", lambda m: m.group(0).replace('\\"', '"'), body)
+            # {{ }} 裡是 Make 運算式，要還原 JSON 跳脫的引號和反斜線（Make 先代入運算式才送出）
+            mapper["body"] = re.sub(r"\{\{.*?\}\}", lambda m: m.group(0).replace('\\"', '"').replace('\\\\', '\\'), body)
             mapper["headers"] = [{"key": "Content-Type", "value": "application/json"}]
         d = {"id": mid, "module": "line:makeApiCall", "version": 1, "mapper": mapper,
              "metadata": self.meta(name, "account:line2"), "parameters": {"__IMTCONN__": CONN_LINE}}
@@ -399,8 +404,10 @@ def build_main():
     # ---------- R5b/c/d 報到的多步驟 ----------
     parts = 'length(split(' + TMP[2:-2] + '; "|"))'
     cmds = ["簽退", "確定簽退", "我要簽退", "我要簽到", "整備完成", "查詢狀況", "本所狀況", "未結反映", "申請開通", "工作人員",
-            "工作人員專區", "取消", "收容所資訊", "常見問題", "最新公告", "物資領取", "我要反映", "我需要協助", "緊急聯絡"]
-    not_cmd = [c(T, "text:notcontain", x) for x in ("SIGN-", "MLS-", "整備", "：")] + [c(T, "text:notequal", x) for x in cmds]
+            "工作人員專區", "取消", "收容所資訊", "常見問題", "最新公告", "物資領取", "我要反映", "我需要協助", "緊急聯絡",
+            "物資", "現場回報"]
+    not_cmd = [c(T, "text:notcontain", x) for x in ("SIGN-", "MLS-", "整備", "：")] + [c(T, "text:notequal", x) for x in cmds] + \
+              [c(T, "text:notpattern", SUPPLY_RE)]
     ages = ["成人", "長者", "兒童", "嬰幼兒"]
     routes.append((flt("R5b 報到：輸入姓名", [[EXIST, EN, c(TMP, "text:contain", "報到|"), c("{{" + parts + "}}", "number:equal", "2"),
                                            c(T, "exist")] + not_cmd]), [
@@ -456,11 +463,11 @@ def build_main():
     r7in = b.router("依開設階段", [
         (flt("整備中", [[c(g7_stat, "text:equal", "整備中")]]), [
             b.quick("狀況＋整備按鈕", status_text + "\n\n整備階段：請回報整備項目，全部完成後按「整備完成」。",
-                    [("整備回報", "整備回報"), ("整備完成", "整備完成"), refresh])]),
+                    [("整備回報", "整備回報"), ("整備完成", "整備完成"), ("物資", "物資"), refresh])]),
         (flt("待核准", [[c(g7_stat, "text:equal", "待核准")]]), [
             b.quick("狀況（待核准）", status_text + "\n\n已送出整備完成，等社會處核准。", [refresh])]),
         (flt("開設中", [[c(g7_stat, "text:equal", "開設中")]]), [
-            b.quick("狀況＋營運按鈕", status_text, [("未結反映", "未結反映"), refresh])]),
+            b.quick("狀況＋營運按鈕", status_text, [("現場回報", "現場回報"), ("物資", "物資"), ("未結反映", "未結反映"), refresh])]),
         (flt("撤收", [[c(g7_stat, "text:equal", "撤收中")], [c(g7_stat, "text:equal", "已撤收")]]), [
             b.quick("狀況（撤收）", status_text, [refresh])]),
     ])
@@ -486,6 +493,86 @@ def build_main():
         (flt("不在班", DENIED), [b.reply("回覆請先簽到（反映）", "請先簽到後再查看。")]),
     ])
     routes.append((flt("R12 未結反映", [[c(T, "text:equal", "未結反映")]]), [r12]))
+
+    # ---------- R30 物資：列出本所品項和目前庫存 ----------
+    # 物資品項掛在「收容所」底下（庫存跟著實體倉庫走），所以先讀開設，取得它的收容所
+    usage = "登記方式：打「品名+數量」入庫、「品名-數量」發放，例如：飲用水-5"
+    g30 = b.get("讀所在開設（物資）", MY_OPEN)
+    shelter30 = sp(g30["id"], "收容所", "[].id")
+    items = b.search("找本所物資品項", DS_ITEM, [c("收容所 |&*^%$#@| relation", "relation:contains", shelter30)])
+    items["mapper"]["limit"] = "20"
+    I = items["id"]
+    i_stock = sp(I, "目前庫存", ".number")
+    i_safe = sp(I, "安全庫存")
+    items_agg = b.aggregate("彙整物資", I,
+        "・" + sp(I, "品名", "[].plain_text") + " " + i_stock + sp(I, "單位", "[].plain_text")
+        + "{{if(" + i_stock[2:-2] + " <= " + i_safe[2:-2] + '; "　⚠ 低於安全庫存"; "")}}')
+    r30 = b.router("物資權限", [
+        (flt("在班", [ON]), [g30, items, items_agg, b.quick("回覆物資清單",
+            "📦 本所物資（目前庫存）\n" + f"{{{{{items_agg['id']}.text}}}}" + "\n\n" + usage, [refresh])]),
+        (flt("不在班", DENIED), [b.reply("回覆請先簽到（物資）", "請先簽到後再登記物資。")]),
+    ])
+    routes.append((flt("R30 物資", [[c(T, "text:equal", "物資")]]), [r30]))
+
+    # ---------- R31 物資登記：飲用水+20 → 入庫；飲用水-5 → 發放 ----------
+    # 數量一律填正數，增減由異動類型決定（物資異動紀錄的「庫存增減」公式），目前庫存由 Notion 自動算
+    it_name = "{{trim(replace(" + T[2:-2] + "; /\\s*[+-].*$/; \"\"))}}"
+    it_qty = "{{parseNumber(trim(replace(" + T[2:-2] + "; /^.*[+-]/; \"\")))}}"
+    it_kind = "{{if(contains(" + T[2:-2] + '; "+"); "入庫"; "發放")}}'
+    g31 = b.get("讀所在開設（物資登記）", MY_OPEN)
+    shelter31 = sp(g31["id"], "收容所", "[].id")
+    item = b.search("找物資品項（登記）", DS_ITEM, [])
+    item["mapper"]["filter"] = [   # 品名相符，或別名包含（例：杯麵 → 泡麵）
+        [c("品名 |&*^%$#@| title", "text:equals", it_name), c("收容所 |&*^%$#@| relation", "relation:contains", shelter31)],
+        [c("別名 |&*^%$#@| rich_text", "text:contains", it_name), c("收容所 |&*^%$#@| relation", "relation:contains", shelter31)]]
+    IT = item["id"]
+    it_real = sp(IT, "品名", "[].plain_text")
+    it_unit = sp(IT, "單位", "[].plain_text")
+    move = b.create("新增物資異動紀錄", DS_MOVE, [
+        f_title("摘要", f"{it_real} {it_kind} {it_qty}{it_unit}"), f_rel("品項", f"{{{{{IT}.id}}}}"),
+        f_rel("收容所開設", MY_OPEN), f_sel("異動類型", it_kind), {"key": "數量", "type": "number", "value": it_qty},
+        f_rel("經手人", f"{{{{{S}.id}}}}"), f_now("時間"), f_sel("來源", "LINE 表單")])
+    after = b.get("讀物資最新庫存", f"{{{{{IT}.id}}}}")
+    AF = after["id"]
+    af_stock = sp(AF, "目前庫存", ".number")
+    af_safe = sp(AF, "安全庫存")
+    r31in = b.router("有沒有這個品項", [
+        (flt("找到品項", [[c(f"{{{{{IT}.id}}}}", "exist")]]), [
+            move, after,
+            b.reply("回覆已登記物資", f"✅ 已登記：{it_real} {it_kind} {it_qty}{it_unit}\n目前庫存：{af_stock}{it_unit}"
+                    + "{{if(" + af_stock[2:-2] + " <= " + af_safe[2:-2] + '; "\n⚠ 已低於安全庫存，請盡快補貨"; "")}}')]),
+        (flt("沒有這個品項", [[c(f"{{{{{IT}.id}}}}", "notexist")]]), [
+            b.quick("回覆查無品項", f"本所沒有「{it_name}」這個品項。請按「物資」看品名，或請社會處在 Notion 新增。", [("物資", "物資")])]),
+    ])
+    r31 = b.router("物資登記權限", [
+        (flt("在班", [ON]), [g31, item, r31in]),
+        (flt("不在班", DENIED), [b.reply("回覆請先簽到（物資登記）", "請先簽到後再登記物資。")]),
+    ])
+    routes.append((flt("R31 物資登記", [[c(T, "text:pattern", SUPPLY_RE), c(T, "text:notcontain", "MLS-"),
+                                       c(T, "text:notcontain", "SIGN-")]]), [r31]))
+
+    # ---------- R32～R34 現場回報：選類別 → 選嚴重程度 → 記成現場日誌 ----------
+    field_cats = ["緊急事件", "重大事件", "人員相關", "物資相關", "設施環境"]
+    levels = ["緊急", "高", "中", "低"]
+    routes.append((flt("R32 現場回報", [[c(T, "text:equal", "現場回報")] + ON]), [
+        b.quick("現場回報類別", "要回報哪一類事情？", [(x, f"回報：{x}") for x in field_cats])]))
+    routes.append((flt("R33 回報：嚴重程度", [[c(T, "text:contain", "回報："), c(T, "text:notcontain", "｜")] + ON]), [
+        b.quick("現場回報嚴重程度", f"{T}：嚴重程度？\n（緊急：需要立即處理，總覽燈號會變紅）",
+                [(x, f"{T}｜{x}") for x in levels])]))
+    f_cat = '{{replace(first(split(1.events[1].message.text; "｜")); "回報："; "")}}'
+    f_lv = '{{last(split(1.events[1].message.text; "｜"))}}'
+    f_urgent = 'last(split(1.events[1].message.text; "｜")) = "緊急"'
+    routes.append((flt("R34 回報：送出", [[c(T, "text:contain", "回報："), c(T, "text:contain", "｜")] + ON]), [
+        b.create("新增現場日誌", DS_LOG, [
+            f_title("日誌標題", f"現場回報：{f_cat}（{f_lv}）"), f_sel("日誌類別", f_cat), f_sel("嚴重程度", f_lv),
+            f_sel("處理進度", "待處理"), f_rel("收容所開設", MY_OPEN), f_rel("回報人", f"{{{{{S}.id}}}}"),
+            f_text("反映者 LINE ID", U), f_now("發生時間"), f_sel("來源", "LINE 回報"),
+            f_chk("需回報社會處", '{{if(' + f_urgent + '; true; if(' + f'{f_lv[2:-2]} = "高"' + '; true; false))}}')]),
+        b.reply("回覆已記錄現場回報", f"📋 已記錄現場回報：{f_cat}（{f_lv}）。\n請輸入「補充：」加上說明，例如：補充：2 樓廁所漏水。"
+                + '{{if(' + f_urgent + '; "\n🔴 已列為緊急，總覽燈號會變紅。請同時電話通報社會處。"; "")}}')]))
+    is_report = [c(T, "text:equal", "現場回報")], [c(T, "text:contain", "回報：")]
+    routes.append((flt("R35 現場回報：不在班", [t + d for t in is_report for d in DENIED]), [
+        b.reply("回覆請先簽到（現場回報）", "請先簽到後再做現場回報。居民要反映事情，請按「我要反映」。")]))
 
     # ---------- R8 申請開通 ----------
     prof = b.line_api("取得 LINE 名稱", "/v2/bot/profile/" + U, method="GET")
@@ -590,9 +677,9 @@ def build_main():
                 "想補充說明，請輸入「補充：」加上內容，例如：補充：我在 A 區，頭很暈。\n緊急狀況請直接找現場工作人員或撥 119。"),
         rlog_open]))
 
+    # 補充接在這個 LINE 帳號最近一筆日誌：居民反映或工作人員的現場回報都適用
     sup = b.search("找最近一筆反映", DS_LOG, [
-        c("反映者 LINE ID |&*^%$#@| rich_text", "text:equals", U),
-        c("日誌類別 |&*^%$#@| select", "select:equals", "居民反映")], sort_created=True)
+        c("反映者 LINE ID |&*^%$#@| rich_text", "text:equals", U)], sort_created=True)
     SU = sup["id"]
     routes.append((flt("R27 反映：補充", [[c(T, "text:contain", "補充：")]]), [
         sup,
@@ -607,8 +694,8 @@ def build_main():
     ]))
 
     # ---------- R99 其他 ----------
-    base_not = [c(T, "text:notcontain", x) for x in ("SIGN-", "MLS-", "整備", "年齡層：", "關懷：", "資訊：", "反映：", "補充：")] + \
-               [c(T, "text:notequal", x) for x in cmds]
+    base_not = [c(T, "text:notcontain", x) for x in ("SIGN-", "MLS-", "整備", "年齡層：", "關懷：", "資訊：", "反映：", "補充：", "回報：")] + \
+               [c(T, "text:notequal", x) for x in cmds] + [c(T, "text:notpattern", SUPPLY_RE)]
     routes.append((flt("R99 其他訊息", [base_not + [c(TMP, "text:notcontain", "報到|")],
                                        base_not + [c("{{" + parts + "}}", "number:notequal", "2")]]), [
         b.reply("回覆引導", "您好，這裡是苗栗避難收容所系統。\n請點下方選單：收容所資訊、我要反映、緊急聯絡。\n工作人員請按最下列的「工作人員」。")]))
