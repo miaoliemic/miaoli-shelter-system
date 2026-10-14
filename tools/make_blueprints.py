@@ -158,7 +158,9 @@ class B:
 
     def quick(self, name, text, items, f=None):
         """items: [(按鈕文字, 送出的文字)]"""
-        qr = [{"type": "action", "action": {"type": "message", "label": lb[:20], "text": tx}} for lb, tx in items]
+        # LINE 按鈕文字上限 20 字；含運算式的按鈕不能截斷，由內容本身保持夠短（例：單位）
+        qr = [{"type": "action", "action": {"type": "message", "label": lb if "{{" in lb else lb[:20], "text": tx}}
+              for lb, tx in items]
         body = {"replyToken": RT, "messages": [{"type": "text", "text": text, "quickReply": {"items": qr}}]}
         return self.line_api(name, "/v2/bot/message/reply", body=body, f=f)
 
@@ -314,6 +316,8 @@ def build_main():
     # ---------- R5 掃號碼牌 ----------
     # 不用引號：這個值會放進 quickReply 的 JSON 字串裡
     tcode = '{{substring(1.events[1].message.text; 3)}}'
+    # 「領物資」按鈕只帶號碼牌的後半段：文字含「MLS-」會被 R6 外出返回離所接走
+    tcode_short = '{{replace(substring(1.events[1].message.text; 3); "MLS-"; "")}}'
     tag = b.search("找號碼牌", DS_TAG, [c("編號 |&*^%$#@| title", "text:equals", tcode)])
     TG = tag["id"]
     t_stat = sp(TG, "狀態", ".name")
@@ -334,7 +338,8 @@ def build_main():
     r_stat = sp(R, "在所狀態", ".name")
     r5_move = b.router("依在所狀態給按鈕", [
         (flt("在所", [[c(r_stat, "text:equal", "在所")]]), [
-            b.quick("按鈕：外出或離所", f"號碼牌 {tcode}：目前在所", [("外出", f"外出 {tcode}"), ("離所", f"離所 {tcode}")])]),
+            b.quick("按鈕：外出或離所", f"號碼牌 {tcode}：{sp(R, '姓名', '[].plain_text')} 目前在所", [
+                ("外出", f"外出 {tcode}"), ("領物資", f"領物資：{tcode_short}"), ("離所", f"離所 {tcode}")])]),
         (flt("外出或未返", [[c(r_stat, "text:equal", "外出")], [c(r_stat, "text:equal", "未返")]]), [
             b.quick("按鈕：返回或離所", f"號碼牌 {tcode}：目前{r_stat}", [("返回", f"返回 {tcode}"), ("離所", f"離所 {tcode}")])]),
         (flt("已離所", [[c(r_stat, "text:equal", "已離所")]]), [
@@ -405,7 +410,7 @@ def build_main():
     parts = 'length(split(' + TMP[2:-2] + '; "|"))'
     cmds = ["簽退", "確定簽退", "我要簽退", "我要簽到", "整備完成", "查詢狀況", "本所狀況", "未結反映", "申請開通", "工作人員",
             "工作人員專區", "取消", "收容所資訊", "常見問題", "最新公告", "物資領取", "我要反映", "我需要協助", "緊急聯絡",
-            "物資", "現場回報"]
+            "物資", "現場回報", "物資入庫", "物資發放"]
     not_cmd = [c(T, "text:notcontain", x) for x in ("SIGN-", "MLS-", "整備", "：")] + [c(T, "text:notequal", x) for x in cmds] + \
               [c(T, "text:notpattern", SUPPLY_RE)]
     ages = ["成人", "長者", "兒童", "嬰幼兒"]
@@ -495,8 +500,18 @@ def build_main():
     routes.append((flt("R12 未結反映", [[c(T, "text:equal", "未結反映")]]), [r12]))
 
     # ---------- R30 物資：列出本所品項和目前庫存 ----------
-    # 物資品項掛在「收容所」底下（庫存跟著實體倉庫走），所以先讀開設，取得它的收容所
-    usage = "登記方式：打「品名+數量」入庫、「品名-數量」發放，例如：飲用水-5"
+    # 物資品項掛在「收容所」底下（庫存跟著實體倉庫走），所以先讀開設，取得它的收容所。
+    # 庫存一律用最小單位（單位欄）計算；有包裝單位的，另外換算成約幾箱。
+    def stock_text(mod, stock):
+        per = sp(mod, "每包裝數量")[2:-2]
+        cond = per + " > 1"
+        return (stock + sp(mod, "單位", "[].plain_text")
+                + "{{if(" + cond + '; "（約 "; "")}}'
+                + "{{if(" + cond + "; floor(" + stock[2:-2] + " / " + per + '); "")}}'
+                + "{{if(" + cond + "; " + sp(mod, "包裝單位", "[].plain_text")[2:-2] + '; "")}}'
+                + "{{if(" + cond + '; "）"; "")}}')
+
+    usage = "按「入庫」「發放」依序選品項、單位、輸入數量；熟手也可以直接打「品名+數量」入庫、「品名-數量」發放（數量用最小單位）。"
     g30 = b.get("讀所在開設（物資）", MY_OPEN)
     shelter30 = sp(g30["id"], "收容所", "[].id")
     items = b.search("找本所物資品項", DS_ITEM, [c("收容所 |&*^%$#@| relation", "relation:contains", shelter30)])
@@ -505,14 +520,155 @@ def build_main():
     i_stock = sp(I, "目前庫存", ".number")
     i_safe = sp(I, "安全庫存")
     items_agg = b.aggregate("彙整物資", I,
-        "・" + sp(I, "品名", "[].plain_text") + " " + i_stock + sp(I, "單位", "[].plain_text")
+        "・" + sp(I, "品名", "[].plain_text") + " " + stock_text(I, i_stock)
         + "{{if(" + i_stock[2:-2] + " <= " + i_safe[2:-2] + '; "　⚠ 低於安全庫存"; "")}}')
+    supply_btns = [("入庫", "物資入庫"), ("發放", "物資發放"), ("＋新增品項", "物資：新增品項"), refresh]
     r30 = b.router("物資權限", [
         (flt("在班", [ON]), [g30, items, items_agg, b.quick("回覆物資清單",
-            "📦 本所物資（目前庫存）\n" + f"{{{{{items_agg['id']}.text}}}}" + "\n\n" + usage, [refresh])]),
+            "📦 本所物資（目前庫存）\n" + f"{{{{{items_agg['id']}.text}}}}" + "\n\n" + usage, supply_btns)]),
         (flt("不在班", DENIED), [b.reply("回覆請先簽到（物資）", "請先簽到後再登記物資。")]),
     ])
     routes.append((flt("R30 物資", [[c(T, "text:equal", "物資")]]), [r30]))
+
+    # ---------- R36～R40 選單式物資登記 ----------
+    # 按鈕文字一路帶著選好的內容：物資：<入庫|發放>｜<品名>｜<領取人號碼牌或－>｜<單位>
+    # 只有「輸入數量」要打字，才把進度存在對話暫存（物資|…）。
+    BAR = "｜"
+    parts_t = 'length(split(1.events[1].message.text; "｜"))'
+    on_duty = ON
+
+    # R36 選品項：物資入庫、物資發放、領物資：<號碼牌後半段>
+    kind_a = '{{if(contains(1.events[1].message.text; "入庫"); "入庫"; "發放")}}'
+    recip_a = '{{if(contains(1.events[1].message.text; "領物資："); replace(1.events[1].message.text; "領物資："; ""); "－")}}'
+    g36 = b.get("讀所在開設（選品項）", MY_OPEN)
+    its36 = b.search("找本所品項（選品項）", DS_ITEM, [c("收容所 |&*^%$#@| relation", "relation:contains", sp(g36["id"], "收容所", "[].id"))])
+    its36["mapper"]["limit"] = "12"
+    I36 = its36["id"]
+    nm36 = sp(I36, "品名", "[].plain_text")
+    agg36 = b.aggregate("組品項按鈕", I36,
+        '{"type": "action", "action": {"type": "message", "label": "{{substring(' + nm36[2:-2] + '; 0; 20)}}", "text": "物資：'
+        + kind_a + BAR + nm36 + BAR + recip_a + '"}},')
+    newbtn = json.dumps({"type": "action", "action": {"type": "message", "label": "＋新增品項", "text": "物資：新增品項"}}, ensure_ascii=False)
+    body36 = ('{"replyToken": "' + RT + '", "messages": [{"type": "text", "text": "要' + kind_a
+              + '哪一項？", "quickReply": {"items": [' + f"{{{{{agg36['id']}.text}}}} " + newbtn + ']}}]}')
+    routes.append((flt("R36 物資：選品項", [[c(T, "text:equal", "物資入庫")] + on_duty, [c(T, "text:equal", "物資發放")] + on_duty,
+                                         [c(T, "text:contain", "領物資：")] + on_duty]), [
+        g36, its36, agg36, b.line_api("問哪一項物資", "/v2/bot/message/reply", body=body36)]))
+
+    # R37 選單位：物資：入庫｜飲用水｜－
+    nm37 = '{{get(split(1.events[1].message.text; "｜"); 2)}}'
+    g37 = b.get("讀所在開設（選單位）", MY_OPEN)
+    it37 = b.search("找品項（選單位）", DS_ITEM, [c("品名 |&*^%$#@| title", "text:equals", nm37),
+                                             c("收容所 |&*^%$#@| relation", "relation:contains", sp(g37["id"], "收容所", "[].id"))])
+    I37 = it37["id"]
+    u37 = sp(I37, "單位", "[].plain_text")
+    pk37 = sp(I37, "包裝單位", "[].plain_text")
+    per37 = sp(I37, "每包裝數量")
+    r37 = b.router("有沒有包裝單位", [
+        (flt("有包裝單位", [[c(f"{{{{{I37}.id}}}}", "exist"), c(per37, "number:greater", "1")]]), [
+            b.quick("問單位（兩種）", f"{nm37}：要用哪個單位？", [
+                (u37, T + BAR + u37), (f"{pk37}（{per37}{u37}）", T + BAR + pk37)])]),
+        (flt("只有一種單位", [[c(f"{{{{{I37}.id}}}}", "exist"), c(per37, "number:lessorequal", "1")]]), [
+            b.quick("問單位（一種）", f"{nm37}：單位是？", [(u37, T + BAR + u37)])]),
+        (flt("查無品項", [[c(f"{{{{{I37}.id}}}}", "notexist")]]), [
+            b.quick("回覆查無品項（選單位）", f"本所沒有「{nm37}」這個品項。", [("物資", "物資")])]),
+    ])
+    routes.append((flt("R37 物資：選單位", [[c(T, "text:contain", "物資："), c("{{" + parts_t + "}}", "number:equal", "3")] + on_duty]), [
+        g37, it37, r37]))
+
+    # R38 輸入數量：物資：入庫｜飲用水｜－｜箱 → 暫存進度，請對方打數字
+    u38 = '{{get(split(1.events[1].message.text; "｜"); 4)}}'
+    routes.append((flt("R38 物資：問數量", [[c(T, "text:contain", "物資："), c("{{" + parts_t + "}}", "number:equal", "4")] + on_duty]), [
+        b.update("暫存物資進度", DS_STAFF, f"{{{{{S}.id}}}}", [f_text("對話暫存", '物資|{{replace(1.events[1].message.text; "物資："; "")}}')]),
+        b.reply("請輸入數量", f"{nm37}要{{{{replace(get(split(1.events[1].message.text; \"｜\"); 1); \"物資：\"; \"\")}}}}多少{u38}？\n請直接打數字，例如 20（打「取消」可中斷）。")]))
+
+    # R39 確認：在「物資|」進度中打了數字 → 列出內容請對方確認
+    tmp_s = 'replace(' + TMP[2:-2] + '; "物資|"; "")'
+    def tp(n):
+        return "{{get(split(" + tmp_s + '; "｜"); ' + str(n) + ")}}"
+    recip_note = ("{{if(" + tp(3)[2:-2] + ' = "－"; ""; "，領取人號碼牌 MLS-")}}'
+                  "{{if(" + tp(3)[2:-2] + ' = "－"; ""; ' + tp(3)[2:-2] + ")}}")
+    routes.append((flt("R39 物資：確認", [[EXIST, EN, c(TMP, "text:contain", "物資|"), c(T, "text:pattern", "^[0-9]+$")]]), [
+        b.quick("請確認物資", f"請確認：{tp(1)} {tp(2)} {T}{tp(4)}{recip_note}",
+                [("✅ 正確", "物資確認：{{" + tmp_s + "}}" + BAR + T), ("✏️ 取消", "取消")])]))
+    routes.append((flt("R39b 物資：數量不是數字", [[EXIST, EN, c(TMP, "text:contain", "物資|"), c(T, "text:notpattern", "^[0-9]+$"),
+                                                 c(T, "exist")] + not_cmd]), [
+        b.reply("請輸入數字", "請輸入數字，例如 20（打「取消」可中斷）。")]))
+
+    # R40 寫入：物資確認：入庫｜飲用水｜－｜箱｜20
+    cs = 'replace(1.events[1].message.text; "物資確認："; "")'
+    def cp(n):
+        return "{{get(split(" + cs + '; "｜"); ' + str(n) + ")}}"
+    k40, n40, rc40, u40 = cp(1), cp(2), cp(3), cp(4)
+    q40 = "{{parseNumber(get(split(" + cs + '; "｜"); 5))}}'
+    g40 = b.get("讀所在開設（物資寫入）", MY_OPEN)
+    it40 = b.search("找品項（物資寫入）", DS_ITEM, [c("品名 |&*^%$#@| title", "text:equals", n40),
+                                               c("收容所 |&*^%$#@| relation", "relation:contains", sp(g40["id"], "收容所", "[].id"))])
+    I40 = it40["id"]
+    bu40 = sp(I40, "單位", "[].plain_text")
+    base40 = ("{{if(" + u40[2:-2] + " = " + bu40[2:-2] + "; " + q40[2:-2] + "; " + q40[2:-2] + " * "
+              + sp(I40, "每包裝數量")[2:-2] + ")}}")
+    conv40 = "{{if(" + u40[2:-2] + " = " + bu40[2:-2] + '; ""; "（＝")}}' + "{{if(" + u40[2:-2] + " = " + bu40[2:-2] + '; ""; ' \
+             + base40[2:-2] + ")}}" + "{{if(" + u40[2:-2] + " = " + bu40[2:-2] + '; ""; ' + bu40[2:-2] + ")}}" \
+             + "{{if(" + u40[2:-2] + " = " + bu40[2:-2] + '; ""; "）")}}'
+
+    def move_fields(extra=()):
+        return [f_title("摘要", f"{n40} {k40} {base40}{bu40}"), f_rel("品項", f"{{{{{I40}.id}}}}"),
+                f_rel("收容所開設", MY_OPEN), f_sel("異動類型", k40), {"key": "數量", "type": "number", "value": base40},
+                f_rel("經手人", f"{{{{{S}.id}}}}"), f_now("時間"), f_sel("來源", "LINE 表單"),
+                f_text("備註", f"LINE 選單：{q40}{u40}")] + list(extra)
+
+    def finish(name, who=""):
+        af = b.get(f"讀最新庫存（{name}）", f"{{{{{I40}.id}}}}")
+        A = af["id"]
+        a_stock = sp(A, "目前庫存", ".number")
+        msg = (f"✅ 已登記：{n40} {k40} {q40}{u40}{conv40}{who}\n目前庫存：{stock_text(A, a_stock)}"
+               + "{{if(" + a_stock[2:-2] + " <= " + sp(A, "安全庫存")[2:-2] + '; "\n⚠ 已低於安全庫存，請盡快補貨"; "")}}')
+        again = '{{if(' + k40[2:-2] + ' = "入庫"; "物資入庫"; "物資發放")}}'
+        return [af, b.update(f"清空暫存（{name}）", DS_STAFF, f"{{{{{S}.id}}}}", [f_text("對話暫存", TMP_CLEAR)]),
+                b.quick(f"回覆已登記（{name}）", msg, [("再登記一筆", again), ("物資", "物資")])]
+
+    tag40 = b.search("找領取人號碼牌", DS_TAG, [c("編號 |&*^%$#@| title", "text:equals", "MLS-" + rc40)])
+    TG40 = tag40["id"]
+    who40 = b.get("讀領取人", sp(TG40, "綁定居民", "[].id"))
+    WH = who40["id"]
+    r40 = b.router("有沒有指定領取人", [
+        (flt("沒有指定", [[c(rc40, "text:equal", "－")]]), [
+            b.create("新增物資異動（無領取人）", DS_MOVE, move_fields())] + finish("無領取人")),
+        (flt("指定居民", [[c(rc40, "text:notequal", "－")]]), [
+            tag40, who40,
+            b.create("新增物資異動（發給居民）", DS_MOVE, move_fields([f_rel("領取人", f"{{{{{WH}.id}}}}"),
+                                                              f_text("發放區域", sp(WH, "姓名", "[].plain_text"))]))]
+            + finish("發給居民", "\n領取人：" + sp(WH, "姓名", "[].plain_text"))),
+    ])
+    routes.append((flt("R40 物資：寫入", [[c(T, "text:contain", "物資確認：")] + on_duty]), [g40, it40, r40]))
+
+    # ---------- R41～R43 管理者在 LINE 新增品項 ----------
+    units = ["個", "包", "瓶", "盒", "條", "件", "箱", "雙", "片"]
+    routes.append((flt("R41 新增品項", [[c(T, "text:equal", "物資：新增品項")]]), [
+        b.router("新增品項權限", [
+            (flt("在班管理者", [ON + [c(ROLE, "text:contain", "管理者")]]), [
+                b.update("暫存新品", DS_STAFF, f"{{{{{S}.id}}}}", [f_text("對話暫存", "新品|")]),
+                b.reply("請輸入新品名", "請輸入新品項的名稱，例如：暖暖包（打「取消」可中斷）。")]),
+            (flt("不是在班管理者", [[NOTEXIST], [NEN], [NDUTY], [c(ROLE, "text:notcontain", "管理者")]]), [
+                b.reply("回覆只有管理者能新增", "只有在班的收容所管理者可以新增品項，請洽管理者。")]),
+        ])]))
+    routes.append((flt("R42 新增品項：名稱", [[EXIST, EN, c(TMP, "text:equal", "新品|"), c(T, "exist")] + not_cmd]), [
+        b.update("暫存新品名稱", DS_STAFF, f"{{{{{S}.id}}}}", [f_text("對話暫存", f"新品|{T}")]),
+        b.quick("問新品單位", f"「{T}」的單位是？（庫存用這個單位計算）", [(u, f"新品單位：{u}") for u in units])]))
+    nm43 = '{{replace(' + TMP[2:-2] + '; "新品|"; "")}}'
+    u43 = '{{replace(1.events[1].message.text; "新品單位："; "")}}'
+    g43 = b.get("讀所在開設（新增品項）", MY_OPEN)
+    routes.append((flt("R43 新增品項：建立", [[c(T, "text:contain", "新品單位："), c(TMP, "text:contain", "新品|")] + on_duty]), [
+        g43,
+        b.create("新增物資品項", DS_ITEM, [
+            f_title("品名", nm43), f_text("單位", u43), f_text("包裝單位", u43),
+            {"key": "每包裝數量", "type": "number", "value": "1"}, {"key": "期初庫存", "type": "number", "value": "0"},
+            {"key": "安全庫存", "type": "number", "value": "0"}, f_sel("類別", "其他"),
+            f_rel("收容所", sp(g43["id"], "收容所", "[].id")), f_text("備註", f"LINE 新增：{NAME}")]),
+        b.update("清空暫存（新增品項）", DS_STAFF, f"{{{{{S}.id}}}}", [f_text("對話暫存", TMP_CLEAR)]),
+        b.quick("回覆已新增品項", f"✅ 已新增品項「{nm43}」（單位：{u43}）。要現在入庫嗎？",
+                [("現在入庫", f"物資：入庫{BAR}{nm43}{BAR}－"), ("物資", "物資")])]))
 
     # ---------- R31 物資登記：飲用水+20 → 入庫；飲用水-5 → 發放 ----------
     # 數量一律填正數，增減由異動類型決定（物資異動紀錄的「庫存增減」公式），目前庫存由 Notion 自動算
@@ -694,8 +850,10 @@ def build_main():
     ]))
 
     # ---------- R99 其他 ----------
-    base_not = [c(T, "text:notcontain", x) for x in ("SIGN-", "MLS-", "整備", "年齡層：", "關懷：", "資訊：", "反映：", "補充：", "回報：")] + \
-               [c(T, "text:notequal", x) for x in cmds] + [c(T, "text:notpattern", SUPPLY_RE)]
+    base_not = [c(T, "text:notcontain", x) for x in ("SIGN-", "MLS-", "整備", "年齡層：", "關懷：", "資訊：", "反映：", "補充：", "回報：",
+                                                 "物資：", "物資確認：", "新品單位：")] + \
+               [c(T, "text:notequal", x) for x in cmds] + [c(T, "text:notpattern", SUPPLY_RE)] + \
+               [c(TMP, "text:notcontain", "物資|"), c(TMP, "text:notcontain", "新品|")]  # 物資、新增品項進行中由 R39b、R42 回覆
     routes.append((flt("R99 其他訊息", [base_not + [c(TMP, "text:notcontain", "報到|")],
                                        base_not + [c("{{" + parts + "}}", "number:notequal", "2")]]), [
         b.reply("回覆引導", "您好，這裡是苗栗避難收容所系統。\n請點下方選單：收容所資訊、我要反映、緊急聯絡。\n工作人員請按最下列的「工作人員」。")]))

@@ -2435,7 +2435,7 @@
                   "value": "application/json"
                  }
                 ],
-                "body": "{\"replyToken\": \"{{1.events[1].replyToken}}\", \"messages\": [{\"type\": \"text\", \"text\": \"號碼牌 {{substring(1.events[1].message.text; 3)}}：目前在所\", \"quickReply\": {\"items\": [{\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"外出\", \"text\": \"外出 {{substring(1.events[1].message.text; 3)}}\"}}, {\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"離所\", \"text\": \"離所 {{substring(1.events[1].message.text; 3)}}\"}}]}}]}"
+                "body": "{\"replyToken\": \"{{1.events[1].replyToken}}\", \"messages\": [{\"type\": \"text\", \"text\": \"號碼牌 {{substring(1.events[1].message.text; 3)}}：{{55.properties_value.`姓名`[].plain_text}} 目前在所\", \"quickReply\": {\"items\": [{\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"外出\", \"text\": \"外出 {{substring(1.events[1].message.text; 3)}}\"}}, {\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"領物資\", \"text\": \"領物資：{{replace(substring(1.events[1].message.text; 3); \"MLS-\"; \"\")}}\"}}, {\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"離所\", \"text\": \"離所 {{substring(1.events[1].message.text; 3)}}\"}}]}}]}"
                },
                "metadata": {
                 "designer": {
@@ -3754,6 +3754,16 @@
           },
           {
            "a": "{{1.events[1].message.text}}",
+           "o": "text:notequal",
+           "b": "物資入庫"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notequal",
+           "b": "物資發放"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
            "o": "text:notpattern",
            "b": "^[^+\\-\\s：:]+\\s*[+\\-]\\s*[0-9]+\\s*$"
           }
@@ -4998,7 +5008,7 @@
             "rowSeparator": "\n"
            },
            "mapper": {
-            "value": "・{{104.properties_value.`品名`[].plain_text}} {{104.properties_value.`目前庫存`.number}}{{104.properties_value.`單位`[].plain_text}}{{if(104.properties_value.`目前庫存`.number <= 104.properties_value.`安全庫存`; \"　⚠ 低於安全庫存\"; \"\")}}"
+            "value": "・{{104.properties_value.`品名`[].plain_text}} {{104.properties_value.`目前庫存`.number}}{{104.properties_value.`單位`[].plain_text}}{{if(104.properties_value.`每包裝數量` > 1; \"（約 \"; \"\")}}{{if(104.properties_value.`每包裝數量` > 1; floor(104.properties_value.`目前庫存`.number / 104.properties_value.`每包裝數量`); \"\")}}{{if(104.properties_value.`每包裝數量` > 1; 104.properties_value.`包裝單位`[].plain_text; \"\")}}{{if(104.properties_value.`每包裝數量` > 1; \"）\"; \"\")}}{{if(104.properties_value.`目前庫存`.number <= 104.properties_value.`安全庫存`; \"　⚠ 低於安全庫存\"; \"\")}}"
            },
            "metadata": {
             "designer": {
@@ -5021,7 +5031,7 @@
               "value": "application/json"
              }
             ],
-            "body": "{\"replyToken\": \"{{1.events[1].replyToken}}\", \"messages\": [{\"type\": \"text\", \"text\": \"📦 本所物資（目前庫存）\\n{{105.text}}\\n\\n登記方式：打「品名+數量」入庫、「品名-數量」發放，例如：飲用水-5\", \"quickReply\": {\"items\": [{\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"重新整理\", \"text\": \"本所狀況\"}}]}}]}"
+            "body": "{\"replyToken\": \"{{1.events[1].replyToken}}\", \"messages\": [{\"type\": \"text\", \"text\": \"📦 本所物資（目前庫存）\\n{{105.text}}\\n\\n按「入庫」「發放」依序選品項、單位、輸入數量；熟手也可以直接打「品名+數量」入庫、「品名-數量」發放（數量用最小單位）。\", \"quickReply\": {\"items\": [{\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"入庫\", \"text\": \"物資入庫\"}}, {\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"發放\", \"text\": \"物資發放\"}}, {\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"＋新增品項\", \"text\": \"物資：新增品項\"}}, {\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"重新整理\", \"text\": \"本所狀況\"}}]}}]}"
            },
            "metadata": {
             "designer": {
@@ -5125,14 +5135,2089 @@
     {
      "flow": [
       {
-       "id": 117,
+       "id": 109,
+       "module": "notion:getADatabaseItem",
+       "version": 1,
+       "mapper": {
+        "page": "{{2.properties_value.`派駐開設`[].id}}",
+        "getBy": "data_source",
+        "select": "map"
+       },
+       "metadata": {
+        "designer": {
+         "x": 900,
+         "y": 14850,
+         "name": "讀所在開設（選品項）"
+        },
+        "parameters": [
+         {
+          "name": "__IMTCONN__",
+          "type": "account:notion2,notion3",
+          "label": "Connection",
+          "required": true
+         }
+        ]
+       },
+       "parameters": {
+        "__IMTCONN__": 0
+       },
+       "filter": {
+        "name": "R36 物資：選品項",
+        "conditions": [
+         [
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:equal",
+           "b": "物資入庫"
+          },
+          {
+           "a": "{{2.id}}",
+           "o": "exist"
+          },
+          {
+           "a": "{{2.properties_value.`啟用中`}}",
+           "o": "boolean:equal",
+           "b": "true"
+          },
+          {
+           "a": "{{2.properties_value.`簽到狀態`.name}}",
+           "o": "text:equal",
+           "b": "上班中"
+          }
+         ],
+         [
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:equal",
+           "b": "物資發放"
+          },
+          {
+           "a": "{{2.id}}",
+           "o": "exist"
+          },
+          {
+           "a": "{{2.properties_value.`啟用中`}}",
+           "o": "boolean:equal",
+           "b": "true"
+          },
+          {
+           "a": "{{2.properties_value.`簽到狀態`.name}}",
+           "o": "text:equal",
+           "b": "上班中"
+          }
+         ],
+         [
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:contain",
+           "b": "領物資："
+          },
+          {
+           "a": "{{2.id}}",
+           "o": "exist"
+          },
+          {
+           "a": "{{2.properties_value.`啟用中`}}",
+           "o": "boolean:equal",
+           "b": "true"
+          },
+          {
+           "a": "{{2.properties_value.`簽到狀態`.name}}",
+           "o": "text:equal",
+           "b": "上班中"
+          }
+         ]
+        ]
+       }
+      },
+      {
+       "id": 110,
+       "module": "notion:searchObjects1",
+       "version": 1,
+       "mapper": {
+        "limit": "12",
+        "filter": [
+         [
+          {
+           "a": "收容所 |&*^%$#@| relation",
+           "o": "relation:contains",
+           "b": "{{109.properties_value.`收容所`[].id}}"
+          }
+         ]
+        ],
+        "select": "data_source_item",
+        "data_source": "<物資品項 的 data source ID>"
+       },
+       "metadata": {
+        "designer": {
+         "x": 900,
+         "y": 15000,
+         "name": "找本所品項（選品項）"
+        },
+        "parameters": [
+         {
+          "name": "__IMTCONN__",
+          "type": "account:notion2,notion3",
+          "label": "Connection",
+          "required": true
+         }
+        ]
+       },
+       "parameters": {
+        "__IMTCONN__": 0
+       }
+      },
+      {
+       "id": 111,
+       "module": "util:TextAggregator",
+       "version": 1,
+       "parameters": {
+        "feeder": 110,
+        "rowSeparator": "\n"
+       },
+       "mapper": {
+        "value": "{\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"{{substring(110.properties_value.`品名`[].plain_text; 0; 20)}}\", \"text\": \"物資：{{if(contains(1.events[1].message.text; \"入庫\"); \"入庫\"; \"發放\")}}｜{{110.properties_value.`品名`[].plain_text}}｜{{if(contains(1.events[1].message.text; \"領物資：\"); replace(1.events[1].message.text; \"領物資：\"; \"\"); \"－\")}}\"}},"
+       },
+       "metadata": {
+        "designer": {
+         "x": 900,
+         "y": 15150,
+         "name": "組品項按鈕"
+        }
+       }
+      },
+      {
+       "id": 112,
+       "module": "line:makeApiCall",
+       "version": 1,
+       "mapper": {
+        "url": "/v2/bot/message/reply",
+        "method": "POST",
+        "headers": [
+         {
+          "key": "Content-Type",
+          "value": "application/json"
+         }
+        ],
+        "body": "{\"replyToken\": \"{{1.events[1].replyToken}}\", \"messages\": [{\"type\": \"text\", \"text\": \"要{{if(contains(1.events[1].message.text; \"入庫\"); \"入庫\"; \"發放\")}}哪一項？\", \"quickReply\": {\"items\": [{{111.text}} {\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"＋新增品項\", \"text\": \"物資：新增品項\"}}]}}]}"
+       },
+       "metadata": {
+        "designer": {
+         "x": 900,
+         "y": 15300,
+         "name": "問哪一項物資"
+        },
+        "parameters": [
+         {
+          "name": "__IMTCONN__",
+          "type": "account:line2",
+          "label": "Connection",
+          "required": true
+         }
+        ]
+       },
+       "parameters": {
+        "__IMTCONN__": 0
+       }
+      }
+     ]
+    },
+    {
+     "flow": [
+      {
+       "id": 113,
+       "module": "notion:getADatabaseItem",
+       "version": 1,
+       "mapper": {
+        "page": "{{2.properties_value.`派駐開設`[].id}}",
+        "getBy": "data_source",
+        "select": "map"
+       },
+       "metadata": {
+        "designer": {
+         "x": 900,
+         "y": 15450,
+         "name": "讀所在開設（選單位）"
+        },
+        "parameters": [
+         {
+          "name": "__IMTCONN__",
+          "type": "account:notion2,notion3",
+          "label": "Connection",
+          "required": true
+         }
+        ]
+       },
+       "parameters": {
+        "__IMTCONN__": 0
+       },
+       "filter": {
+        "name": "R37 物資：選單位",
+        "conditions": [
+         [
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:contain",
+           "b": "物資："
+          },
+          {
+           "a": "{{length(split(1.events[1].message.text; \"｜\"))}}",
+           "o": "number:equal",
+           "b": "3"
+          },
+          {
+           "a": "{{2.id}}",
+           "o": "exist"
+          },
+          {
+           "a": "{{2.properties_value.`啟用中`}}",
+           "o": "boolean:equal",
+           "b": "true"
+          },
+          {
+           "a": "{{2.properties_value.`簽到狀態`.name}}",
+           "o": "text:equal",
+           "b": "上班中"
+          }
+         ]
+        ]
+       }
+      },
+      {
+       "id": 114,
+       "module": "notion:searchObjects1",
+       "version": 1,
+       "mapper": {
+        "limit": "1",
+        "filter": [
+         [
+          {
+           "a": "品名 |&*^%$#@| title",
+           "o": "text:equals",
+           "b": "{{get(split(1.events[1].message.text; \"｜\"); 2)}}"
+          },
+          {
+           "a": "收容所 |&*^%$#@| relation",
+           "o": "relation:contains",
+           "b": "{{113.properties_value.`收容所`[].id}}"
+          }
+         ]
+        ],
+        "select": "data_source_item",
+        "data_source": "<物資品項 的 data source ID>"
+       },
+       "metadata": {
+        "designer": {
+         "x": 900,
+         "y": 15600,
+         "name": "找品項（選單位）"
+        },
+        "parameters": [
+         {
+          "name": "__IMTCONN__",
+          "type": "account:notion2,notion3",
+          "label": "Connection",
+          "required": true
+         }
+        ]
+       },
+       "parameters": {
+        "__IMTCONN__": 0
+       }
+      },
+      {
+       "id": 118,
        "module": "builtin:BasicRouter",
        "version": 1,
        "mapper": null,
        "metadata": {
         "designer": {
          "x": 600,
-         "y": 16050,
+         "y": 16200,
+         "name": "有沒有包裝單位"
+        }
+       },
+       "routes": [
+        {
+         "flow": [
+          {
+           "id": 115,
+           "module": "line:makeApiCall",
+           "version": 1,
+           "mapper": {
+            "url": "/v2/bot/message/reply",
+            "method": "POST",
+            "headers": [
+             {
+              "key": "Content-Type",
+              "value": "application/json"
+             }
+            ],
+            "body": "{\"replyToken\": \"{{1.events[1].replyToken}}\", \"messages\": [{\"type\": \"text\", \"text\": \"{{get(split(1.events[1].message.text; \"｜\"); 2)}}：要用哪個單位？\", \"quickReply\": {\"items\": [{\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"{{114.properties_value.`單位`[].plain_text}}\", \"text\": \"{{1.events[1].message.text}}｜{{114.properties_value.`單位`[].plain_text}}\"}}, {\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"{{114.properties_value.`包裝單位`[].plain_text}}（{{114.properties_value.`每包裝數量`}}{{114.properties_value.`單位`[].plain_text}}）\", \"text\": \"{{1.events[1].message.text}}｜{{114.properties_value.`包裝單位`[].plain_text}}\"}}]}}]}"
+           },
+           "metadata": {
+            "designer": {
+             "x": 900,
+             "y": 15750,
+             "name": "問單位（兩種）"
+            },
+            "parameters": [
+             {
+              "name": "__IMTCONN__",
+              "type": "account:line2",
+              "label": "Connection",
+              "required": true
+             }
+            ]
+           },
+           "parameters": {
+            "__IMTCONN__": 0
+           },
+           "filter": {
+            "name": "有包裝單位",
+            "conditions": [
+             [
+              {
+               "a": "{{114.id}}",
+               "o": "exist"
+              },
+              {
+               "a": "{{114.properties_value.`每包裝數量`}}",
+               "o": "number:greater",
+               "b": "1"
+              }
+             ]
+            ]
+           }
+          }
+         ]
+        },
+        {
+         "flow": [
+          {
+           "id": 116,
+           "module": "line:makeApiCall",
+           "version": 1,
+           "mapper": {
+            "url": "/v2/bot/message/reply",
+            "method": "POST",
+            "headers": [
+             {
+              "key": "Content-Type",
+              "value": "application/json"
+             }
+            ],
+            "body": "{\"replyToken\": \"{{1.events[1].replyToken}}\", \"messages\": [{\"type\": \"text\", \"text\": \"{{get(split(1.events[1].message.text; \"｜\"); 2)}}：單位是？\", \"quickReply\": {\"items\": [{\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"{{114.properties_value.`單位`[].plain_text}}\", \"text\": \"{{1.events[1].message.text}}｜{{114.properties_value.`單位`[].plain_text}}\"}}]}}]}"
+           },
+           "metadata": {
+            "designer": {
+             "x": 900,
+             "y": 15900,
+             "name": "問單位（一種）"
+            },
+            "parameters": [
+             {
+              "name": "__IMTCONN__",
+              "type": "account:line2",
+              "label": "Connection",
+              "required": true
+             }
+            ]
+           },
+           "parameters": {
+            "__IMTCONN__": 0
+           },
+           "filter": {
+            "name": "只有一種單位",
+            "conditions": [
+             [
+              {
+               "a": "{{114.id}}",
+               "o": "exist"
+              },
+              {
+               "a": "{{114.properties_value.`每包裝數量`}}",
+               "o": "number:lessorequal",
+               "b": "1"
+              }
+             ]
+            ]
+           }
+          }
+         ]
+        },
+        {
+         "flow": [
+          {
+           "id": 117,
+           "module": "line:makeApiCall",
+           "version": 1,
+           "mapper": {
+            "url": "/v2/bot/message/reply",
+            "method": "POST",
+            "headers": [
+             {
+              "key": "Content-Type",
+              "value": "application/json"
+             }
+            ],
+            "body": "{\"replyToken\": \"{{1.events[1].replyToken}}\", \"messages\": [{\"type\": \"text\", \"text\": \"本所沒有「{{get(split(1.events[1].message.text; \"｜\"); 2)}}」這個品項。\", \"quickReply\": {\"items\": [{\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"物資\", \"text\": \"物資\"}}]}}]}"
+           },
+           "metadata": {
+            "designer": {
+             "x": 900,
+             "y": 16050,
+             "name": "回覆查無品項（選單位）"
+            },
+            "parameters": [
+             {
+              "name": "__IMTCONN__",
+              "type": "account:line2",
+              "label": "Connection",
+              "required": true
+             }
+            ]
+           },
+           "parameters": {
+            "__IMTCONN__": 0
+           },
+           "filter": {
+            "name": "查無品項",
+            "conditions": [
+             [
+              {
+               "a": "{{114.id}}",
+               "o": "notexist"
+              }
+             ]
+            ]
+           }
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "flow": [
+      {
+       "id": 119,
+       "module": "notion:updateADatabaseItem",
+       "version": 1,
+       "mapper": {
+        "page": "{{2.id}}",
+        "fields": [
+         {
+          "key": "對話暫存",
+          "type": "rich_text",
+          "value": "物資|{{replace(1.events[1].message.text; \"物資：\"; \"\")}}"
+         }
+        ],
+        "select": "map",
+        "updateBy": "data_source",
+        "data_source": "<工作人員名冊 的 data source ID>"
+       },
+       "metadata": {
+        "designer": {
+         "x": 900,
+         "y": 16350,
+         "name": "暫存物資進度"
+        },
+        "parameters": [
+         {
+          "name": "__IMTCONN__",
+          "type": "account:notion2,notion3",
+          "label": "Connection",
+          "required": true
+         }
+        ]
+       },
+       "parameters": {
+        "__IMTCONN__": 0
+       },
+       "filter": {
+        "name": "R38 物資：問數量",
+        "conditions": [
+         [
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:contain",
+           "b": "物資："
+          },
+          {
+           "a": "{{length(split(1.events[1].message.text; \"｜\"))}}",
+           "o": "number:equal",
+           "b": "4"
+          },
+          {
+           "a": "{{2.id}}",
+           "o": "exist"
+          },
+          {
+           "a": "{{2.properties_value.`啟用中`}}",
+           "o": "boolean:equal",
+           "b": "true"
+          },
+          {
+           "a": "{{2.properties_value.`簽到狀態`.name}}",
+           "o": "text:equal",
+           "b": "上班中"
+          }
+         ]
+        ]
+       }
+      },
+      {
+       "id": 120,
+       "module": "line:sendAReplyMessage",
+       "version": 1,
+       "mapper": {
+        "messages": [
+         {
+          "type": "text",
+          "text": "{{get(split(1.events[1].message.text; \"｜\"); 2)}}要{{replace(get(split(1.events[1].message.text; \"｜\"); 1); \"物資：\"; \"\")}}多少{{get(split(1.events[1].message.text; \"｜\"); 4)}}？\n請直接打數字，例如 20（打「取消」可中斷）。"
+         }
+        ],
+        "replyToken": "{{1.events[1].replyToken}}",
+        "notificationDisabled": false
+       },
+       "metadata": {
+        "designer": {
+         "x": 900,
+         "y": 16500,
+         "name": "請輸入數量"
+        },
+        "parameters": [
+         {
+          "name": "__IMTCONN__",
+          "type": "account:line2",
+          "label": "Connection",
+          "required": true
+         }
+        ]
+       },
+       "parameters": {
+        "__IMTCONN__": 0
+       }
+      }
+     ]
+    },
+    {
+     "flow": [
+      {
+       "id": 121,
+       "module": "line:makeApiCall",
+       "version": 1,
+       "mapper": {
+        "url": "/v2/bot/message/reply",
+        "method": "POST",
+        "headers": [
+         {
+          "key": "Content-Type",
+          "value": "application/json"
+         }
+        ],
+        "body": "{\"replyToken\": \"{{1.events[1].replyToken}}\", \"messages\": [{\"type\": \"text\", \"text\": \"請確認：{{get(split(replace(2.properties_value.`對話暫存`[].plain_text; \"物資|\"; \"\"); \"｜\"); 1)}} {{get(split(replace(2.properties_value.`對話暫存`[].plain_text; \"物資|\"; \"\"); \"｜\"); 2)}} {{1.events[1].message.text}}{{get(split(replace(2.properties_value.`對話暫存`[].plain_text; \"物資|\"; \"\"); \"｜\"); 4)}}{{if(get(split(replace(2.properties_value.`對話暫存`[].plain_text; \"物資|\"; \"\"); \"｜\"); 3) = \"－\"; \"\"; \"，領取人號碼牌 MLS-\")}}{{if(get(split(replace(2.properties_value.`對話暫存`[].plain_text; \"物資|\"; \"\"); \"｜\"); 3) = \"－\"; \"\"; get(split(replace(2.properties_value.`對話暫存`[].plain_text; \"物資|\"; \"\"); \"｜\"); 3))}}\", \"quickReply\": {\"items\": [{\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"✅ 正確\", \"text\": \"物資確認：{{replace(2.properties_value.`對話暫存`[].plain_text; \"物資|\"; \"\")}}｜{{1.events[1].message.text}}\"}}, {\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"✏️ 取消\", \"text\": \"取消\"}}]}}]}"
+       },
+       "metadata": {
+        "designer": {
+         "x": 900,
+         "y": 16650,
+         "name": "請確認物資"
+        },
+        "parameters": [
+         {
+          "name": "__IMTCONN__",
+          "type": "account:line2",
+          "label": "Connection",
+          "required": true
+         }
+        ]
+       },
+       "parameters": {
+        "__IMTCONN__": 0
+       },
+       "filter": {
+        "name": "R39 物資：確認",
+        "conditions": [
+         [
+          {
+           "a": "{{2.id}}",
+           "o": "exist"
+          },
+          {
+           "a": "{{2.properties_value.`啟用中`}}",
+           "o": "boolean:equal",
+           "b": "true"
+          },
+          {
+           "a": "{{2.properties_value.`對話暫存`[].plain_text}}",
+           "o": "text:contain",
+           "b": "物資|"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:pattern",
+           "b": "^[0-9]+$"
+          }
+         ]
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "flow": [
+      {
+       "id": 122,
+       "module": "line:sendAReplyMessage",
+       "version": 1,
+       "mapper": {
+        "messages": [
+         {
+          "type": "text",
+          "text": "請輸入數字，例如 20（打「取消」可中斷）。"
+         }
+        ],
+        "replyToken": "{{1.events[1].replyToken}}",
+        "notificationDisabled": false
+       },
+       "metadata": {
+        "designer": {
+         "x": 900,
+         "y": 16800,
+         "name": "請輸入數字"
+        },
+        "parameters": [
+         {
+          "name": "__IMTCONN__",
+          "type": "account:line2",
+          "label": "Connection",
+          "required": true
+         }
+        ]
+       },
+       "parameters": {
+        "__IMTCONN__": 0
+       },
+       "filter": {
+        "name": "R39b 物資：數量不是數字",
+        "conditions": [
+         [
+          {
+           "a": "{{2.id}}",
+           "o": "exist"
+          },
+          {
+           "a": "{{2.properties_value.`啟用中`}}",
+           "o": "boolean:equal",
+           "b": "true"
+          },
+          {
+           "a": "{{2.properties_value.`對話暫存`[].plain_text}}",
+           "o": "text:contain",
+           "b": "物資|"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notpattern",
+           "b": "^[0-9]+$"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "exist"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notcontain",
+           "b": "SIGN-"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notcontain",
+           "b": "MLS-"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notcontain",
+           "b": "整備"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notcontain",
+           "b": "："
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notequal",
+           "b": "簽退"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notequal",
+           "b": "確定簽退"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notequal",
+           "b": "我要簽退"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notequal",
+           "b": "我要簽到"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notequal",
+           "b": "整備完成"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notequal",
+           "b": "查詢狀況"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notequal",
+           "b": "本所狀況"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notequal",
+           "b": "未結反映"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notequal",
+           "b": "申請開通"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notequal",
+           "b": "工作人員"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notequal",
+           "b": "工作人員專區"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notequal",
+           "b": "取消"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notequal",
+           "b": "收容所資訊"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notequal",
+           "b": "常見問題"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notequal",
+           "b": "最新公告"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notequal",
+           "b": "物資領取"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notequal",
+           "b": "我要反映"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notequal",
+           "b": "我需要協助"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notequal",
+           "b": "緊急聯絡"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notequal",
+           "b": "物資"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notequal",
+           "b": "現場回報"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notequal",
+           "b": "物資入庫"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notequal",
+           "b": "物資發放"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notpattern",
+           "b": "^[^+\\-\\s：:]+\\s*[+\\-]\\s*[0-9]+\\s*$"
+          }
+         ]
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "flow": [
+      {
+       "id": 123,
+       "module": "notion:getADatabaseItem",
+       "version": 1,
+       "mapper": {
+        "page": "{{2.properties_value.`派駐開設`[].id}}",
+        "getBy": "data_source",
+        "select": "map"
+       },
+       "metadata": {
+        "designer": {
+         "x": 900,
+         "y": 16950,
+         "name": "讀所在開設（物資寫入）"
+        },
+        "parameters": [
+         {
+          "name": "__IMTCONN__",
+          "type": "account:notion2,notion3",
+          "label": "Connection",
+          "required": true
+         }
+        ]
+       },
+       "parameters": {
+        "__IMTCONN__": 0
+       },
+       "filter": {
+        "name": "R40 物資：寫入",
+        "conditions": [
+         [
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:contain",
+           "b": "物資確認："
+          },
+          {
+           "a": "{{2.id}}",
+           "o": "exist"
+          },
+          {
+           "a": "{{2.properties_value.`啟用中`}}",
+           "o": "boolean:equal",
+           "b": "true"
+          },
+          {
+           "a": "{{2.properties_value.`簽到狀態`.name}}",
+           "o": "text:equal",
+           "b": "上班中"
+          }
+         ]
+        ]
+       }
+      },
+      {
+       "id": 124,
+       "module": "notion:searchObjects1",
+       "version": 1,
+       "mapper": {
+        "limit": "1",
+        "filter": [
+         [
+          {
+           "a": "品名 |&*^%$#@| title",
+           "o": "text:equals",
+           "b": "{{get(split(replace(1.events[1].message.text; \"物資確認：\"; \"\"); \"｜\"); 2)}}"
+          },
+          {
+           "a": "收容所 |&*^%$#@| relation",
+           "o": "relation:contains",
+           "b": "{{123.properties_value.`收容所`[].id}}"
+          }
+         ]
+        ],
+        "select": "data_source_item",
+        "data_source": "<物資品項 的 data source ID>"
+       },
+       "metadata": {
+        "designer": {
+         "x": 900,
+         "y": 17100,
+         "name": "找品項（物資寫入）"
+        },
+        "parameters": [
+         {
+          "name": "__IMTCONN__",
+          "type": "account:notion2,notion3",
+          "label": "Connection",
+          "required": true
+         }
+        ]
+       },
+       "parameters": {
+        "__IMTCONN__": 0
+       }
+      },
+      {
+       "id": 135,
+       "module": "builtin:BasicRouter",
+       "version": 1,
+       "mapper": null,
+       "metadata": {
+        "designer": {
+         "x": 600,
+         "y": 18750,
+         "name": "有沒有指定領取人"
+        }
+       },
+       "routes": [
+        {
+         "flow": [
+          {
+           "id": 127,
+           "module": "notion:createDataSourceItem",
+           "version": 1,
+           "mapper": {
+            "fields": [
+             {
+              "key": "摘要",
+              "type": "title",
+              "value": "{{get(split(replace(1.events[1].message.text; \"物資確認：\"; \"\"); \"｜\"); 2)}} {{get(split(replace(1.events[1].message.text; \"物資確認：\"; \"\"); \"｜\"); 1)}} {{if(get(split(replace(1.events[1].message.text; \"物資確認：\"; \"\"); \"｜\"); 4) = 124.properties_value.`單位`[].plain_text; parseNumber(get(split(replace(1.events[1].message.text; \"物資確認：\"; \"\"); \"｜\"); 5)); parseNumber(get(split(replace(1.events[1].message.text; \"物資確認：\"; \"\"); \"｜\"); 5)) * 124.properties_value.`每包裝數量`)}}{{124.properties_value.`單位`[].plain_text}}"
+             },
+             {
+              "key": "品項",
+              "type": "relation",
+              "value": [
+               "{{124.id}}"
+              ]
+             },
+             {
+              "key": "收容所開設",
+              "type": "relation",
+              "value": [
+               "{{2.properties_value.`派駐開設`[].id}}"
+              ]
+             },
+             {
+              "key": "異動類型",
+              "type": "select",
+              "value": "{{get(split(replace(1.events[1].message.text; \"物資確認：\"; \"\"); \"｜\"); 1)}}"
+             },
+             {
+              "key": "數量",
+              "type": "number",
+              "value": "{{if(get(split(replace(1.events[1].message.text; \"物資確認：\"; \"\"); \"｜\"); 4) = 124.properties_value.`單位`[].plain_text; parseNumber(get(split(replace(1.events[1].message.text; \"物資確認：\"; \"\"); \"｜\"); 5)); parseNumber(get(split(replace(1.events[1].message.text; \"物資確認：\"; \"\"); \"｜\"); 5)) * 124.properties_value.`每包裝數量`)}}"
+             },
+             {
+              "key": "經手人",
+              "type": "relation",
+              "value": [
+               "{{2.id}}"
+              ]
+             },
+             {
+              "key": "時間",
+              "type": "date",
+              "date": {
+               "start": "{{now}}",
+               "includeTime": true
+              }
+             },
+             {
+              "key": "來源",
+              "type": "select",
+              "value": "LINE 表單"
+             },
+             {
+              "key": "備註",
+              "type": "rich_text",
+              "value": "LINE 選單：{{parseNumber(get(split(replace(1.events[1].message.text; \"物資確認：\"; \"\"); \"｜\"); 5))}}{{get(split(replace(1.events[1].message.text; \"物資確認：\"; \"\"); \"｜\"); 4)}}"
+             }
+            ],
+            "select": "map",
+            "data_source": "<物資異動紀錄 的 data source ID>"
+           },
+           "metadata": {
+            "designer": {
+             "x": 900,
+             "y": 17550,
+             "name": "新增物資異動（無領取人）"
+            },
+            "parameters": [
+             {
+              "name": "__IMTCONN__",
+              "type": "account:notion2,notion3",
+              "label": "Connection",
+              "required": true
+             }
+            ]
+           },
+           "parameters": {
+            "__IMTCONN__": 0
+           },
+           "filter": {
+            "name": "沒有指定",
+            "conditions": [
+             [
+              {
+               "a": "{{get(split(replace(1.events[1].message.text; \"物資確認：\"; \"\"); \"｜\"); 3)}}",
+               "o": "text:equal",
+               "b": "－"
+              }
+             ]
+            ]
+           }
+          },
+          {
+           "id": 128,
+           "module": "notion:getADatabaseItem",
+           "version": 1,
+           "mapper": {
+            "page": "{{124.id}}",
+            "getBy": "data_source",
+            "select": "map"
+           },
+           "metadata": {
+            "designer": {
+             "x": 900,
+             "y": 17700,
+             "name": "讀最新庫存（無領取人）"
+            },
+            "parameters": [
+             {
+              "name": "__IMTCONN__",
+              "type": "account:notion2,notion3",
+              "label": "Connection",
+              "required": true
+             }
+            ]
+           },
+           "parameters": {
+            "__IMTCONN__": 0
+           }
+          },
+          {
+           "id": 129,
+           "module": "notion:updateADatabaseItem",
+           "version": 1,
+           "mapper": {
+            "page": "{{2.id}}",
+            "fields": [
+             {
+              "key": "對話暫存",
+              "type": "rich_text",
+              "value": "－"
+             }
+            ],
+            "select": "map",
+            "updateBy": "data_source",
+            "data_source": "<工作人員名冊 的 data source ID>"
+           },
+           "metadata": {
+            "designer": {
+             "x": 900,
+             "y": 17850,
+             "name": "清空暫存（無領取人）"
+            },
+            "parameters": [
+             {
+              "name": "__IMTCONN__",
+              "type": "account:notion2,notion3",
+              "label": "Connection",
+              "required": true
+             }
+            ]
+           },
+           "parameters": {
+            "__IMTCONN__": 0
+           }
+          },
+          {
+           "id": 130,
+           "module": "line:makeApiCall",
+           "version": 1,
+           "mapper": {
+            "url": "/v2/bot/message/reply",
+            "method": "POST",
+            "headers": [
+             {
+              "key": "Content-Type",
+              "value": "application/json"
+             }
+            ],
+            "body": "{\"replyToken\": \"{{1.events[1].replyToken}}\", \"messages\": [{\"type\": \"text\", \"text\": \"✅ 已登記：{{get(split(replace(1.events[1].message.text; \"物資確認：\"; \"\"); \"｜\"); 2)}} {{get(split(replace(1.events[1].message.text; \"物資確認：\"; \"\"); \"｜\"); 1)}} {{parseNumber(get(split(replace(1.events[1].message.text; \"物資確認：\"; \"\"); \"｜\"); 5))}}{{get(split(replace(1.events[1].message.text; \"物資確認：\"; \"\"); \"｜\"); 4)}}{{if(get(split(replace(1.events[1].message.text; \"物資確認：\"; \"\"); \"｜\"); 4) = 124.properties_value.`單位`[].plain_text; \"\"; \"（＝\")}}{{if(get(split(replace(1.events[1].message.text; \"物資確認：\"; \"\"); \"｜\"); 4) = 124.properties_value.`單位`[].plain_text; \"\"; if(get(split(replace(1.events[1].message.text; \"物資確認：\"; \"\"); \"｜\"); 4) = 124.properties_value.`單位`[].plain_text; parseNumber(get(split(replace(1.events[1].message.text; \"物資確認：\"; \"\"); \"｜\"); 5)); parseNumber(get(split(replace(1.events[1].message.text; \"物資確認：\"; \"\"); \"｜\"); 5)) * 124.properties_value.`每包裝數量`))}}{{if(get(split(replace(1.events[1].message.text; \"物資確認：\"; \"\"); \"｜\"); 4) = 124.properties_value.`單位`[].plain_text; \"\"; 124.properties_value.`單位`[].plain_text)}}{{if(get(split(replace(1.events[1].message.text; \"物資確認：\"; \"\"); \"｜\"); 4) = 124.properties_value.`單位`[].plain_text; \"\"; \"）\")}}\\n目前庫存：{{128.properties_value.`目前庫存`.number}}{{128.properties_value.`單位`[].plain_text}}{{if(128.properties_value.`每包裝數量` > 1; \"（約 \"; \"\")}}{{if(128.properties_value.`每包裝數量` > 1; floor(128.properties_value.`目前庫存`.number / 128.properties_value.`每包裝數量`); \"\")}}{{if(128.properties_value.`每包裝數量` > 1; 128.properties_value.`包裝單位`[].plain_text; \"\")}}{{if(128.properties_value.`每包裝數量` > 1; \"）\"; \"\")}}{{if(128.properties_value.`目前庫存`.number <= 128.properties_value.`安全庫存`; \"\\n⚠ 已低於安全庫存，請盡快補貨\"; \"\")}}\", \"quickReply\": {\"items\": [{\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"再登記一筆\", \"text\": \"{{if(get(split(replace(1.events[1].message.text; \"物資確認：\"; \"\"); \"｜\"); 1) = \"入庫\"; \"物資入庫\"; \"物資發放\")}}\"}}, {\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"物資\", \"text\": \"物資\"}}]}}]}"
+           },
+           "metadata": {
+            "designer": {
+             "x": 900,
+             "y": 18000,
+             "name": "回覆已登記（無領取人）"
+            },
+            "parameters": [
+             {
+              "name": "__IMTCONN__",
+              "type": "account:line2",
+              "label": "Connection",
+              "required": true
+             }
+            ]
+           },
+           "parameters": {
+            "__IMTCONN__": 0
+           }
+          }
+         ]
+        },
+        {
+         "flow": [
+          {
+           "id": 125,
+           "module": "notion:searchObjects1",
+           "version": 1,
+           "mapper": {
+            "limit": "1",
+            "filter": [
+             [
+              {
+               "a": "編號 |&*^%$#@| title",
+               "o": "text:equals",
+               "b": "MLS-{{get(split(replace(1.events[1].message.text; \"物資確認：\"; \"\"); \"｜\"); 3)}}"
+              }
+             ]
+            ],
+            "select": "data_source_item",
+            "data_source": "<號碼牌 的 data source ID>"
+           },
+           "metadata": {
+            "designer": {
+             "x": 900,
+             "y": 17250,
+             "name": "找領取人號碼牌"
+            },
+            "parameters": [
+             {
+              "name": "__IMTCONN__",
+              "type": "account:notion2,notion3",
+              "label": "Connection",
+              "required": true
+             }
+            ]
+           },
+           "parameters": {
+            "__IMTCONN__": 0
+           },
+           "filter": {
+            "name": "指定居民",
+            "conditions": [
+             [
+              {
+               "a": "{{get(split(replace(1.events[1].message.text; \"物資確認：\"; \"\"); \"｜\"); 3)}}",
+               "o": "text:notequal",
+               "b": "－"
+              }
+             ]
+            ]
+           }
+          },
+          {
+           "id": 126,
+           "module": "notion:getADatabaseItem",
+           "version": 1,
+           "mapper": {
+            "page": "{{125.properties_value.`綁定居民`[].id}}",
+            "getBy": "data_source",
+            "select": "map"
+           },
+           "metadata": {
+            "designer": {
+             "x": 900,
+             "y": 17400,
+             "name": "讀領取人"
+            },
+            "parameters": [
+             {
+              "name": "__IMTCONN__",
+              "type": "account:notion2,notion3",
+              "label": "Connection",
+              "required": true
+             }
+            ]
+           },
+           "parameters": {
+            "__IMTCONN__": 0
+           }
+          },
+          {
+           "id": 131,
+           "module": "notion:createDataSourceItem",
+           "version": 1,
+           "mapper": {
+            "fields": [
+             {
+              "key": "摘要",
+              "type": "title",
+              "value": "{{get(split(replace(1.events[1].message.text; \"物資確認：\"; \"\"); \"｜\"); 2)}} {{get(split(replace(1.events[1].message.text; \"物資確認：\"; \"\"); \"｜\"); 1)}} {{if(get(split(replace(1.events[1].message.text; \"物資確認：\"; \"\"); \"｜\"); 4) = 124.properties_value.`單位`[].plain_text; parseNumber(get(split(replace(1.events[1].message.text; \"物資確認：\"; \"\"); \"｜\"); 5)); parseNumber(get(split(replace(1.events[1].message.text; \"物資確認：\"; \"\"); \"｜\"); 5)) * 124.properties_value.`每包裝數量`)}}{{124.properties_value.`單位`[].plain_text}}"
+             },
+             {
+              "key": "品項",
+              "type": "relation",
+              "value": [
+               "{{124.id}}"
+              ]
+             },
+             {
+              "key": "收容所開設",
+              "type": "relation",
+              "value": [
+               "{{2.properties_value.`派駐開設`[].id}}"
+              ]
+             },
+             {
+              "key": "異動類型",
+              "type": "select",
+              "value": "{{get(split(replace(1.events[1].message.text; \"物資確認：\"; \"\"); \"｜\"); 1)}}"
+             },
+             {
+              "key": "數量",
+              "type": "number",
+              "value": "{{if(get(split(replace(1.events[1].message.text; \"物資確認：\"; \"\"); \"｜\"); 4) = 124.properties_value.`單位`[].plain_text; parseNumber(get(split(replace(1.events[1].message.text; \"物資確認：\"; \"\"); \"｜\"); 5)); parseNumber(get(split(replace(1.events[1].message.text; \"物資確認：\"; \"\"); \"｜\"); 5)) * 124.properties_value.`每包裝數量`)}}"
+             },
+             {
+              "key": "經手人",
+              "type": "relation",
+              "value": [
+               "{{2.id}}"
+              ]
+             },
+             {
+              "key": "時間",
+              "type": "date",
+              "date": {
+               "start": "{{now}}",
+               "includeTime": true
+              }
+             },
+             {
+              "key": "來源",
+              "type": "select",
+              "value": "LINE 表單"
+             },
+             {
+              "key": "備註",
+              "type": "rich_text",
+              "value": "LINE 選單：{{parseNumber(get(split(replace(1.events[1].message.text; \"物資確認：\"; \"\"); \"｜\"); 5))}}{{get(split(replace(1.events[1].message.text; \"物資確認：\"; \"\"); \"｜\"); 4)}}"
+             },
+             {
+              "key": "領取人",
+              "type": "relation",
+              "value": [
+               "{{126.id}}"
+              ]
+             },
+             {
+              "key": "發放區域",
+              "type": "rich_text",
+              "value": "{{126.properties_value.`姓名`[].plain_text}}"
+             }
+            ],
+            "select": "map",
+            "data_source": "<物資異動紀錄 的 data source ID>"
+           },
+           "metadata": {
+            "designer": {
+             "x": 900,
+             "y": 18150,
+             "name": "新增物資異動（發給居民）"
+            },
+            "parameters": [
+             {
+              "name": "__IMTCONN__",
+              "type": "account:notion2,notion3",
+              "label": "Connection",
+              "required": true
+             }
+            ]
+           },
+           "parameters": {
+            "__IMTCONN__": 0
+           }
+          },
+          {
+           "id": 132,
+           "module": "notion:getADatabaseItem",
+           "version": 1,
+           "mapper": {
+            "page": "{{124.id}}",
+            "getBy": "data_source",
+            "select": "map"
+           },
+           "metadata": {
+            "designer": {
+             "x": 900,
+             "y": 18300,
+             "name": "讀最新庫存（發給居民）"
+            },
+            "parameters": [
+             {
+              "name": "__IMTCONN__",
+              "type": "account:notion2,notion3",
+              "label": "Connection",
+              "required": true
+             }
+            ]
+           },
+           "parameters": {
+            "__IMTCONN__": 0
+           }
+          },
+          {
+           "id": 133,
+           "module": "notion:updateADatabaseItem",
+           "version": 1,
+           "mapper": {
+            "page": "{{2.id}}",
+            "fields": [
+             {
+              "key": "對話暫存",
+              "type": "rich_text",
+              "value": "－"
+             }
+            ],
+            "select": "map",
+            "updateBy": "data_source",
+            "data_source": "<工作人員名冊 的 data source ID>"
+           },
+           "metadata": {
+            "designer": {
+             "x": 900,
+             "y": 18450,
+             "name": "清空暫存（發給居民）"
+            },
+            "parameters": [
+             {
+              "name": "__IMTCONN__",
+              "type": "account:notion2,notion3",
+              "label": "Connection",
+              "required": true
+             }
+            ]
+           },
+           "parameters": {
+            "__IMTCONN__": 0
+           }
+          },
+          {
+           "id": 134,
+           "module": "line:makeApiCall",
+           "version": 1,
+           "mapper": {
+            "url": "/v2/bot/message/reply",
+            "method": "POST",
+            "headers": [
+             {
+              "key": "Content-Type",
+              "value": "application/json"
+             }
+            ],
+            "body": "{\"replyToken\": \"{{1.events[1].replyToken}}\", \"messages\": [{\"type\": \"text\", \"text\": \"✅ 已登記：{{get(split(replace(1.events[1].message.text; \"物資確認：\"; \"\"); \"｜\"); 2)}} {{get(split(replace(1.events[1].message.text; \"物資確認：\"; \"\"); \"｜\"); 1)}} {{parseNumber(get(split(replace(1.events[1].message.text; \"物資確認：\"; \"\"); \"｜\"); 5))}}{{get(split(replace(1.events[1].message.text; \"物資確認：\"; \"\"); \"｜\"); 4)}}{{if(get(split(replace(1.events[1].message.text; \"物資確認：\"; \"\"); \"｜\"); 4) = 124.properties_value.`單位`[].plain_text; \"\"; \"（＝\")}}{{if(get(split(replace(1.events[1].message.text; \"物資確認：\"; \"\"); \"｜\"); 4) = 124.properties_value.`單位`[].plain_text; \"\"; if(get(split(replace(1.events[1].message.text; \"物資確認：\"; \"\"); \"｜\"); 4) = 124.properties_value.`單位`[].plain_text; parseNumber(get(split(replace(1.events[1].message.text; \"物資確認：\"; \"\"); \"｜\"); 5)); parseNumber(get(split(replace(1.events[1].message.text; \"物資確認：\"; \"\"); \"｜\"); 5)) * 124.properties_value.`每包裝數量`))}}{{if(get(split(replace(1.events[1].message.text; \"物資確認：\"; \"\"); \"｜\"); 4) = 124.properties_value.`單位`[].plain_text; \"\"; 124.properties_value.`單位`[].plain_text)}}{{if(get(split(replace(1.events[1].message.text; \"物資確認：\"; \"\"); \"｜\"); 4) = 124.properties_value.`單位`[].plain_text; \"\"; \"）\")}}\\n領取人：{{126.properties_value.`姓名`[].plain_text}}\\n目前庫存：{{132.properties_value.`目前庫存`.number}}{{132.properties_value.`單位`[].plain_text}}{{if(132.properties_value.`每包裝數量` > 1; \"（約 \"; \"\")}}{{if(132.properties_value.`每包裝數量` > 1; floor(132.properties_value.`目前庫存`.number / 132.properties_value.`每包裝數量`); \"\")}}{{if(132.properties_value.`每包裝數量` > 1; 132.properties_value.`包裝單位`[].plain_text; \"\")}}{{if(132.properties_value.`每包裝數量` > 1; \"）\"; \"\")}}{{if(132.properties_value.`目前庫存`.number <= 132.properties_value.`安全庫存`; \"\\n⚠ 已低於安全庫存，請盡快補貨\"; \"\")}}\", \"quickReply\": {\"items\": [{\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"再登記一筆\", \"text\": \"{{if(get(split(replace(1.events[1].message.text; \"物資確認：\"; \"\"); \"｜\"); 1) = \"入庫\"; \"物資入庫\"; \"物資發放\")}}\"}}, {\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"物資\", \"text\": \"物資\"}}]}}]}"
+           },
+           "metadata": {
+            "designer": {
+             "x": 900,
+             "y": 18600,
+             "name": "回覆已登記（發給居民）"
+            },
+            "parameters": [
+             {
+              "name": "__IMTCONN__",
+              "type": "account:line2",
+              "label": "Connection",
+              "required": true
+             }
+            ]
+           },
+           "parameters": {
+            "__IMTCONN__": 0
+           }
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "flow": [
+      {
+       "id": 139,
+       "module": "builtin:BasicRouter",
+       "version": 1,
+       "mapper": null,
+       "metadata": {
+        "designer": {
+         "x": 600,
+         "y": 19350,
+         "name": "新增品項權限"
+        }
+       },
+       "routes": [
+        {
+         "flow": [
+          {
+           "id": 136,
+           "module": "notion:updateADatabaseItem",
+           "version": 1,
+           "mapper": {
+            "page": "{{2.id}}",
+            "fields": [
+             {
+              "key": "對話暫存",
+              "type": "rich_text",
+              "value": "新品|"
+             }
+            ],
+            "select": "map",
+            "updateBy": "data_source",
+            "data_source": "<工作人員名冊 的 data source ID>"
+           },
+           "metadata": {
+            "designer": {
+             "x": 900,
+             "y": 18900,
+             "name": "暫存新品"
+            },
+            "parameters": [
+             {
+              "name": "__IMTCONN__",
+              "type": "account:notion2,notion3",
+              "label": "Connection",
+              "required": true
+             }
+            ]
+           },
+           "parameters": {
+            "__IMTCONN__": 0
+           },
+           "filter": {
+            "name": "在班管理者",
+            "conditions": [
+             [
+              {
+               "a": "{{2.id}}",
+               "o": "exist"
+              },
+              {
+               "a": "{{2.properties_value.`啟用中`}}",
+               "o": "boolean:equal",
+               "b": "true"
+              },
+              {
+               "a": "{{2.properties_value.`簽到狀態`.name}}",
+               "o": "text:equal",
+               "b": "上班中"
+              },
+              {
+               "a": "{{2.properties_value.`角色`.name}}",
+               "o": "text:contain",
+               "b": "管理者"
+              }
+             ]
+            ]
+           }
+          },
+          {
+           "id": 137,
+           "module": "line:sendAReplyMessage",
+           "version": 1,
+           "mapper": {
+            "messages": [
+             {
+              "type": "text",
+              "text": "請輸入新品項的名稱，例如：暖暖包（打「取消」可中斷）。"
+             }
+            ],
+            "replyToken": "{{1.events[1].replyToken}}",
+            "notificationDisabled": false
+           },
+           "metadata": {
+            "designer": {
+             "x": 900,
+             "y": 19050,
+             "name": "請輸入新品名"
+            },
+            "parameters": [
+             {
+              "name": "__IMTCONN__",
+              "type": "account:line2",
+              "label": "Connection",
+              "required": true
+             }
+            ]
+           },
+           "parameters": {
+            "__IMTCONN__": 0
+           }
+          }
+         ]
+        },
+        {
+         "flow": [
+          {
+           "id": 138,
+           "module": "line:sendAReplyMessage",
+           "version": 1,
+           "mapper": {
+            "messages": [
+             {
+              "type": "text",
+              "text": "只有在班的收容所管理者可以新增品項，請洽管理者。"
+             }
+            ],
+            "replyToken": "{{1.events[1].replyToken}}",
+            "notificationDisabled": false
+           },
+           "metadata": {
+            "designer": {
+             "x": 900,
+             "y": 19200,
+             "name": "回覆只有管理者能新增"
+            },
+            "parameters": [
+             {
+              "name": "__IMTCONN__",
+              "type": "account:line2",
+              "label": "Connection",
+              "required": true
+             }
+            ]
+           },
+           "parameters": {
+            "__IMTCONN__": 0
+           },
+           "filter": {
+            "name": "不是在班管理者",
+            "conditions": [
+             [
+              {
+               "a": "{{2.id}}",
+               "o": "notexist"
+              }
+             ],
+             [
+              {
+               "a": "{{2.properties_value.`啟用中`}}",
+               "o": "boolean:notequal",
+               "b": "true"
+              }
+             ],
+             [
+              {
+               "a": "{{2.properties_value.`簽到狀態`.name}}",
+               "o": "text:notequal",
+               "b": "上班中"
+              }
+             ],
+             [
+              {
+               "a": "{{2.properties_value.`角色`.name}}",
+               "o": "text:notcontain",
+               "b": "管理者"
+              }
+             ]
+            ]
+           }
+          }
+         ]
+        }
+       ],
+       "filter": {
+        "name": "R41 新增品項",
+        "conditions": [
+         [
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:equal",
+           "b": "物資：新增品項"
+          }
+         ]
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "flow": [
+      {
+       "id": 140,
+       "module": "notion:updateADatabaseItem",
+       "version": 1,
+       "mapper": {
+        "page": "{{2.id}}",
+        "fields": [
+         {
+          "key": "對話暫存",
+          "type": "rich_text",
+          "value": "新品|{{1.events[1].message.text}}"
+         }
+        ],
+        "select": "map",
+        "updateBy": "data_source",
+        "data_source": "<工作人員名冊 的 data source ID>"
+       },
+       "metadata": {
+        "designer": {
+         "x": 900,
+         "y": 19500,
+         "name": "暫存新品名稱"
+        },
+        "parameters": [
+         {
+          "name": "__IMTCONN__",
+          "type": "account:notion2,notion3",
+          "label": "Connection",
+          "required": true
+         }
+        ]
+       },
+       "parameters": {
+        "__IMTCONN__": 0
+       },
+       "filter": {
+        "name": "R42 新增品項：名稱",
+        "conditions": [
+         [
+          {
+           "a": "{{2.id}}",
+           "o": "exist"
+          },
+          {
+           "a": "{{2.properties_value.`啟用中`}}",
+           "o": "boolean:equal",
+           "b": "true"
+          },
+          {
+           "a": "{{2.properties_value.`對話暫存`[].plain_text}}",
+           "o": "text:equal",
+           "b": "新品|"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "exist"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notcontain",
+           "b": "SIGN-"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notcontain",
+           "b": "MLS-"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notcontain",
+           "b": "整備"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notcontain",
+           "b": "："
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notequal",
+           "b": "簽退"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notequal",
+           "b": "確定簽退"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notequal",
+           "b": "我要簽退"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notequal",
+           "b": "我要簽到"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notequal",
+           "b": "整備完成"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notequal",
+           "b": "查詢狀況"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notequal",
+           "b": "本所狀況"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notequal",
+           "b": "未結反映"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notequal",
+           "b": "申請開通"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notequal",
+           "b": "工作人員"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notequal",
+           "b": "工作人員專區"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notequal",
+           "b": "取消"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notequal",
+           "b": "收容所資訊"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notequal",
+           "b": "常見問題"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notequal",
+           "b": "最新公告"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notequal",
+           "b": "物資領取"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notequal",
+           "b": "我要反映"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notequal",
+           "b": "我需要協助"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notequal",
+           "b": "緊急聯絡"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notequal",
+           "b": "物資"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notequal",
+           "b": "現場回報"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notequal",
+           "b": "物資入庫"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notequal",
+           "b": "物資發放"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notpattern",
+           "b": "^[^+\\-\\s：:]+\\s*[+\\-]\\s*[0-9]+\\s*$"
+          }
+         ]
+        ]
+       }
+      },
+      {
+       "id": 141,
+       "module": "line:makeApiCall",
+       "version": 1,
+       "mapper": {
+        "url": "/v2/bot/message/reply",
+        "method": "POST",
+        "headers": [
+         {
+          "key": "Content-Type",
+          "value": "application/json"
+         }
+        ],
+        "body": "{\"replyToken\": \"{{1.events[1].replyToken}}\", \"messages\": [{\"type\": \"text\", \"text\": \"「{{1.events[1].message.text}}」的單位是？（庫存用這個單位計算）\", \"quickReply\": {\"items\": [{\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"個\", \"text\": \"新品單位：個\"}}, {\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"包\", \"text\": \"新品單位：包\"}}, {\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"瓶\", \"text\": \"新品單位：瓶\"}}, {\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"盒\", \"text\": \"新品單位：盒\"}}, {\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"條\", \"text\": \"新品單位：條\"}}, {\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"件\", \"text\": \"新品單位：件\"}}, {\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"箱\", \"text\": \"新品單位：箱\"}}, {\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"雙\", \"text\": \"新品單位：雙\"}}, {\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"片\", \"text\": \"新品單位：片\"}}]}}]}"
+       },
+       "metadata": {
+        "designer": {
+         "x": 900,
+         "y": 19650,
+         "name": "問新品單位"
+        },
+        "parameters": [
+         {
+          "name": "__IMTCONN__",
+          "type": "account:line2",
+          "label": "Connection",
+          "required": true
+         }
+        ]
+       },
+       "parameters": {
+        "__IMTCONN__": 0
+       }
+      }
+     ]
+    },
+    {
+     "flow": [
+      {
+       "id": 142,
+       "module": "notion:getADatabaseItem",
+       "version": 1,
+       "mapper": {
+        "page": "{{2.properties_value.`派駐開設`[].id}}",
+        "getBy": "data_source",
+        "select": "map"
+       },
+       "metadata": {
+        "designer": {
+         "x": 900,
+         "y": 19800,
+         "name": "讀所在開設（新增品項）"
+        },
+        "parameters": [
+         {
+          "name": "__IMTCONN__",
+          "type": "account:notion2,notion3",
+          "label": "Connection",
+          "required": true
+         }
+        ]
+       },
+       "parameters": {
+        "__IMTCONN__": 0
+       },
+       "filter": {
+        "name": "R43 新增品項：建立",
+        "conditions": [
+         [
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:contain",
+           "b": "新品單位："
+          },
+          {
+           "a": "{{2.properties_value.`對話暫存`[].plain_text}}",
+           "o": "text:contain",
+           "b": "新品|"
+          },
+          {
+           "a": "{{2.id}}",
+           "o": "exist"
+          },
+          {
+           "a": "{{2.properties_value.`啟用中`}}",
+           "o": "boolean:equal",
+           "b": "true"
+          },
+          {
+           "a": "{{2.properties_value.`簽到狀態`.name}}",
+           "o": "text:equal",
+           "b": "上班中"
+          }
+         ]
+        ]
+       }
+      },
+      {
+       "id": 143,
+       "module": "notion:createDataSourceItem",
+       "version": 1,
+       "mapper": {
+        "fields": [
+         {
+          "key": "品名",
+          "type": "title",
+          "value": "{{replace(2.properties_value.`對話暫存`[].plain_text; \"新品|\"; \"\")}}"
+         },
+         {
+          "key": "單位",
+          "type": "rich_text",
+          "value": "{{replace(1.events[1].message.text; \"新品單位：\"; \"\")}}"
+         },
+         {
+          "key": "包裝單位",
+          "type": "rich_text",
+          "value": "{{replace(1.events[1].message.text; \"新品單位：\"; \"\")}}"
+         },
+         {
+          "key": "每包裝數量",
+          "type": "number",
+          "value": "1"
+         },
+         {
+          "key": "期初庫存",
+          "type": "number",
+          "value": "0"
+         },
+         {
+          "key": "安全庫存",
+          "type": "number",
+          "value": "0"
+         },
+         {
+          "key": "類別",
+          "type": "select",
+          "value": "其他"
+         },
+         {
+          "key": "收容所",
+          "type": "relation",
+          "value": [
+           "{{142.properties_value.`收容所`[].id}}"
+          ]
+         },
+         {
+          "key": "備註",
+          "type": "rich_text",
+          "value": "LINE 新增：{{2.properties_value.`姓名`[].plain_text}}"
+         }
+        ],
+        "select": "map",
+        "data_source": "<物資品項 的 data source ID>"
+       },
+       "metadata": {
+        "designer": {
+         "x": 900,
+         "y": 19950,
+         "name": "新增物資品項"
+        },
+        "parameters": [
+         {
+          "name": "__IMTCONN__",
+          "type": "account:notion2,notion3",
+          "label": "Connection",
+          "required": true
+         }
+        ]
+       },
+       "parameters": {
+        "__IMTCONN__": 0
+       }
+      },
+      {
+       "id": 144,
+       "module": "notion:updateADatabaseItem",
+       "version": 1,
+       "mapper": {
+        "page": "{{2.id}}",
+        "fields": [
+         {
+          "key": "對話暫存",
+          "type": "rich_text",
+          "value": "－"
+         }
+        ],
+        "select": "map",
+        "updateBy": "data_source",
+        "data_source": "<工作人員名冊 的 data source ID>"
+       },
+       "metadata": {
+        "designer": {
+         "x": 900,
+         "y": 20100,
+         "name": "清空暫存（新增品項）"
+        },
+        "parameters": [
+         {
+          "name": "__IMTCONN__",
+          "type": "account:notion2,notion3",
+          "label": "Connection",
+          "required": true
+         }
+        ]
+       },
+       "parameters": {
+        "__IMTCONN__": 0
+       }
+      },
+      {
+       "id": 145,
+       "module": "line:makeApiCall",
+       "version": 1,
+       "mapper": {
+        "url": "/v2/bot/message/reply",
+        "method": "POST",
+        "headers": [
+         {
+          "key": "Content-Type",
+          "value": "application/json"
+         }
+        ],
+        "body": "{\"replyToken\": \"{{1.events[1].replyToken}}\", \"messages\": [{\"type\": \"text\", \"text\": \"✅ 已新增品項「{{replace(2.properties_value.`對話暫存`[].plain_text; \"新品|\"; \"\")}}」（單位：{{replace(1.events[1].message.text; \"新品單位：\"; \"\")}}）。要現在入庫嗎？\", \"quickReply\": {\"items\": [{\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"現在入庫\", \"text\": \"物資：入庫｜{{replace(2.properties_value.`對話暫存`[].plain_text; \"新品|\"; \"\")}}｜－\"}}, {\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"物資\", \"text\": \"物資\"}}]}}]}"
+       },
+       "metadata": {
+        "designer": {
+         "x": 900,
+         "y": 20250,
+         "name": "回覆已新增品項"
+        },
+        "parameters": [
+         {
+          "name": "__IMTCONN__",
+          "type": "account:line2",
+          "label": "Connection",
+          "required": true
+         }
+        ]
+       },
+       "parameters": {
+        "__IMTCONN__": 0
+       }
+      }
+     ]
+    },
+    {
+     "flow": [
+      {
+       "id": 154,
+       "module": "builtin:BasicRouter",
+       "version": 1,
+       "mapper": null,
+       "metadata": {
+        "designer": {
+         "x": 600,
+         "y": 21600,
          "name": "物資登記權限"
         }
        },
@@ -5140,7 +7225,7 @@
         {
          "flow": [
           {
-           "id": 109,
+           "id": 146,
            "module": "notion:getADatabaseItem",
            "version": 1,
            "mapper": {
@@ -5151,7 +7236,7 @@
            "metadata": {
             "designer": {
              "x": 900,
-             "y": 14850,
+             "y": 20400,
              "name": "讀所在開設（物資登記）"
             },
             "parameters": [
@@ -5189,7 +7274,7 @@
            }
           },
           {
-           "id": 110,
+           "id": 147,
            "module": "notion:searchObjects1",
            "version": 1,
            "mapper": {
@@ -5204,7 +7289,7 @@
               {
                "a": "收容所 |&*^%$#@| relation",
                "o": "relation:contains",
-               "b": "{{109.properties_value.`收容所`[].id}}"
+               "b": "{{146.properties_value.`收容所`[].id}}"
               }
              ],
              [
@@ -5216,7 +7301,7 @@
               {
                "a": "收容所 |&*^%$#@| relation",
                "o": "relation:contains",
-               "b": "{{109.properties_value.`收容所`[].id}}"
+               "b": "{{146.properties_value.`收容所`[].id}}"
               }
              ]
             ],
@@ -5226,7 +7311,7 @@
            "metadata": {
             "designer": {
              "x": 900,
-             "y": 15000,
+             "y": 20550,
              "name": "找物資品項（登記）"
             },
             "parameters": [
@@ -5243,14 +7328,14 @@
            }
           },
           {
-           "id": 115,
+           "id": 152,
            "module": "builtin:BasicRouter",
            "version": 1,
            "mapper": null,
            "metadata": {
             "designer": {
              "x": 600,
-             "y": 15750,
+             "y": 21300,
              "name": "有沒有這個品項"
             }
            },
@@ -5258,7 +7343,7 @@
             {
              "flow": [
               {
-               "id": 111,
+               "id": 148,
                "module": "notion:createDataSourceItem",
                "version": 1,
                "mapper": {
@@ -5266,13 +7351,13 @@
                  {
                   "key": "摘要",
                   "type": "title",
-                  "value": "{{110.properties_value.`品名`[].plain_text}} {{if(contains(1.events[1].message.text; \"+\"); \"入庫\"; \"發放\")}} {{parseNumber(trim(replace(1.events[1].message.text; /^.*[+-]/; \"\")))}}{{110.properties_value.`單位`[].plain_text}}"
+                  "value": "{{147.properties_value.`品名`[].plain_text}} {{if(contains(1.events[1].message.text; \"+\"); \"入庫\"; \"發放\")}} {{parseNumber(trim(replace(1.events[1].message.text; /^.*[+-]/; \"\")))}}{{147.properties_value.`單位`[].plain_text}}"
                  },
                  {
                   "key": "品項",
                   "type": "relation",
                   "value": [
-                   "{{110.id}}"
+                   "{{147.id}}"
                   ]
                  },
                  {
@@ -5319,7 +7404,7 @@
                "metadata": {
                 "designer": {
                  "x": 900,
-                 "y": 15150,
+                 "y": 20700,
                  "name": "新增物資異動紀錄"
                 },
                 "parameters": [
@@ -5339,7 +7424,7 @@
                 "conditions": [
                  [
                   {
-                   "a": "{{110.id}}",
+                   "a": "{{147.id}}",
                    "o": "exist"
                   }
                  ]
@@ -5347,18 +7432,18 @@
                }
               },
               {
-               "id": 112,
+               "id": 149,
                "module": "notion:getADatabaseItem",
                "version": 1,
                "mapper": {
-                "page": "{{110.id}}",
+                "page": "{{147.id}}",
                 "getBy": "data_source",
                 "select": "map"
                },
                "metadata": {
                 "designer": {
                  "x": 900,
-                 "y": 15300,
+                 "y": 20850,
                  "name": "讀物資最新庫存"
                 },
                 "parameters": [
@@ -5375,14 +7460,14 @@
                }
               },
               {
-               "id": 113,
+               "id": 150,
                "module": "line:sendAReplyMessage",
                "version": 1,
                "mapper": {
                 "messages": [
                  {
                   "type": "text",
-                  "text": "✅ 已登記：{{110.properties_value.`品名`[].plain_text}} {{if(contains(1.events[1].message.text; \"+\"); \"入庫\"; \"發放\")}} {{parseNumber(trim(replace(1.events[1].message.text; /^.*[+-]/; \"\")))}}{{110.properties_value.`單位`[].plain_text}}\n目前庫存：{{112.properties_value.`目前庫存`.number}}{{110.properties_value.`單位`[].plain_text}}{{if(112.properties_value.`目前庫存`.number <= 112.properties_value.`安全庫存`; \"\n⚠ 已低於安全庫存，請盡快補貨\"; \"\")}}"
+                  "text": "✅ 已登記：{{147.properties_value.`品名`[].plain_text}} {{if(contains(1.events[1].message.text; \"+\"); \"入庫\"; \"發放\")}} {{parseNumber(trim(replace(1.events[1].message.text; /^.*[+-]/; \"\")))}}{{147.properties_value.`單位`[].plain_text}}\n目前庫存：{{149.properties_value.`目前庫存`.number}}{{147.properties_value.`單位`[].plain_text}}{{if(149.properties_value.`目前庫存`.number <= 149.properties_value.`安全庫存`; \"\n⚠ 已低於安全庫存，請盡快補貨\"; \"\")}}"
                  }
                 ],
                 "replyToken": "{{1.events[1].replyToken}}",
@@ -5391,7 +7476,7 @@
                "metadata": {
                 "designer": {
                  "x": 900,
-                 "y": 15450,
+                 "y": 21000,
                  "name": "回覆已登記物資"
                 },
                 "parameters": [
@@ -5412,7 +7497,7 @@
             {
              "flow": [
               {
-               "id": 114,
+               "id": 151,
                "module": "line:makeApiCall",
                "version": 1,
                "mapper": {
@@ -5429,7 +7514,7 @@
                "metadata": {
                 "designer": {
                  "x": 900,
-                 "y": 15600,
+                 "y": 21150,
                  "name": "回覆查無品項"
                 },
                 "parameters": [
@@ -5449,7 +7534,7 @@
                 "conditions": [
                  [
                   {
-                   "a": "{{110.id}}",
+                   "a": "{{147.id}}",
                    "o": "notexist"
                   }
                  ]
@@ -5465,7 +7550,7 @@
         {
          "flow": [
           {
-           "id": 116,
+           "id": 153,
            "module": "line:sendAReplyMessage",
            "version": 1,
            "mapper": {
@@ -5481,7 +7566,7 @@
            "metadata": {
             "designer": {
              "x": 900,
-             "y": 15900,
+             "y": 21450,
              "name": "回覆請先簽到（物資登記）"
             },
             "parameters": [
@@ -5553,7 +7638,7 @@
     {
      "flow": [
       {
-       "id": 118,
+       "id": 155,
        "module": "line:makeApiCall",
        "version": 1,
        "mapper": {
@@ -5570,7 +7655,7 @@
        "metadata": {
         "designer": {
          "x": 900,
-         "y": 16200,
+         "y": 21750,
          "name": "現場回報類別"
         },
         "parameters": [
@@ -5617,7 +7702,7 @@
     {
      "flow": [
       {
-       "id": 119,
+       "id": 156,
        "module": "line:makeApiCall",
        "version": 1,
        "mapper": {
@@ -5634,7 +7719,7 @@
        "metadata": {
         "designer": {
          "x": 900,
-         "y": 16350,
+         "y": 21900,
          "name": "現場回報嚴重程度"
         },
         "parameters": [
@@ -5686,7 +7771,7 @@
     {
      "flow": [
       {
-       "id": 120,
+       "id": 157,
        "module": "notion:createDataSourceItem",
        "version": 1,
        "mapper": {
@@ -5755,7 +7840,7 @@
        "metadata": {
         "designer": {
          "x": 900,
-         "y": 16500,
+         "y": 22050,
          "name": "新增現場日誌"
         },
         "parameters": [
@@ -5803,7 +7888,7 @@
        }
       },
       {
-       "id": 121,
+       "id": 158,
        "module": "line:sendAReplyMessage",
        "version": 1,
        "mapper": {
@@ -5819,7 +7904,7 @@
        "metadata": {
         "designer": {
          "x": 900,
-         "y": 16650,
+         "y": 22200,
          "name": "回覆已記錄現場回報"
         },
         "parameters": [
@@ -5840,7 +7925,7 @@
     {
      "flow": [
       {
-       "id": 122,
+       "id": 159,
        "module": "line:sendAReplyMessage",
        "version": 1,
        "mapper": {
@@ -5856,7 +7941,7 @@
        "metadata": {
         "designer": {
          "x": 900,
-         "y": 16800,
+         "y": 22350,
          "name": "回覆請先簽到（現場回報）"
         },
         "parameters": [
@@ -5952,14 +8037,14 @@
     {
      "flow": [
       {
-       "id": 127,
+       "id": 164,
        "module": "builtin:BasicRouter",
        "version": 1,
        "mapper": null,
        "metadata": {
         "designer": {
          "x": 600,
-         "y": 17550,
+         "y": 23100,
          "name": "申請分流"
         }
        },
@@ -5967,7 +8052,7 @@
         {
          "flow": [
           {
-           "id": 123,
+           "id": 160,
            "module": "line:makeApiCall",
            "version": 1,
            "mapper": {
@@ -5978,7 +8063,7 @@
            "metadata": {
             "designer": {
              "x": 900,
-             "y": 16950,
+             "y": 22500,
              "name": "取得 LINE 名稱"
             },
             "parameters": [
@@ -6006,7 +8091,7 @@
            }
           },
           {
-           "id": 124,
+           "id": 161,
            "module": "notion:createDataSourceItem",
            "version": 1,
            "mapper": {
@@ -6014,7 +8099,7 @@
              {
               "key": "姓名",
               "type": "title",
-              "value": "（待審）{{123.body.displayName}}"
+              "value": "（待審）{{160.body.displayName}}"
              },
              {
               "key": "LINE User ID",
@@ -6024,7 +8109,7 @@
              {
               "key": "LINE 顯示名稱",
               "type": "rich_text",
-              "value": "{{123.body.displayName}}"
+              "value": "{{160.body.displayName}}"
              },
              {
               "key": "申請時間",
@@ -6056,7 +8141,7 @@
            "metadata": {
             "designer": {
              "x": 900,
-             "y": 17100,
+             "y": 22650,
              "name": "新增名冊（待審）"
             },
             "parameters": [
@@ -6073,7 +8158,7 @@
            }
           },
           {
-           "id": 125,
+           "id": 162,
            "module": "line:sendAReplyMessage",
            "version": 1,
            "mapper": {
@@ -6089,7 +8174,7 @@
            "metadata": {
             "designer": {
              "x": 900,
-             "y": 17250,
+             "y": 22800,
              "name": "回覆已申請"
             },
             "parameters": [
@@ -6110,7 +8195,7 @@
         {
          "flow": [
           {
-           "id": 126,
+           "id": 163,
            "module": "line:sendAReplyMessage",
            "version": 1,
            "mapper": {
@@ -6126,7 +8211,7 @@
            "metadata": {
             "designer": {
              "x": 900,
-             "y": 17400,
+             "y": 22950,
              "name": "回覆已申請過"
             },
             "parameters": [
@@ -6174,14 +8259,14 @@
     {
      "flow": [
       {
-       "id": 132,
+       "id": 169,
        "module": "builtin:BasicRouter",
        "version": 1,
        "mapper": null,
        "metadata": {
         "designer": {
          "x": 600,
-         "y": 18300,
+         "y": 23850,
          "name": "專區分流"
         }
        },
@@ -6189,7 +8274,7 @@
         {
          "flow": [
           {
-           "id": 128,
+           "id": 165,
            "module": "line:makeApiCall",
            "version": 1,
            "mapper": {
@@ -6206,7 +8291,7 @@
            "metadata": {
             "designer": {
              "x": 900,
-             "y": 17700,
+             "y": 23250,
              "name": "專區按鈕（在班）"
             },
             "parameters": [
@@ -6248,7 +8333,7 @@
         {
          "flow": [
           {
-           "id": 129,
+           "id": 166,
            "module": "line:makeApiCall",
            "version": 1,
            "mapper": {
@@ -6265,7 +8350,7 @@
            "metadata": {
             "designer": {
              "x": 900,
-             "y": 17850,
+             "y": 23400,
              "name": "專區按鈕（未在班）"
             },
             "parameters": [
@@ -6307,7 +8392,7 @@
         {
          "flow": [
           {
-           "id": 130,
+           "id": 167,
            "module": "line:sendAReplyMessage",
            "version": 1,
            "mapper": {
@@ -6323,7 +8408,7 @@
            "metadata": {
             "designer": {
              "x": 900,
-             "y": 18000,
+             "y": 23550,
              "name": "回覆審核中"
             },
             "parameters": [
@@ -6360,7 +8445,7 @@
         {
          "flow": [
           {
-           "id": 131,
+           "id": 168,
            "module": "line:makeApiCall",
            "version": 1,
            "mapper": {
@@ -6377,7 +8462,7 @@
            "metadata": {
             "designer": {
              "x": 900,
-             "y": 18150,
+             "y": 23700,
              "name": "申請按鈕"
             },
             "parameters": [
@@ -6432,14 +8517,14 @@
     {
      "flow": [
       {
-       "id": 136,
+       "id": 173,
        "module": "builtin:BasicRouter",
        "version": 1,
        "mapper": null,
        "metadata": {
         "designer": {
          "x": 600,
-         "y": 18900,
+         "y": 24450,
          "name": "我要簽到分流"
         }
        },
@@ -6447,7 +8532,7 @@
         {
          "flow": [
           {
-           "id": 133,
+           "id": 170,
            "module": "line:sendAReplyMessage",
            "version": 1,
            "mapper": {
@@ -6463,7 +8548,7 @@
            "metadata": {
             "designer": {
              "x": 900,
-             "y": 18450,
+             "y": 24000,
              "name": "回覆掃碼方式"
             },
             "parameters": [
@@ -6505,7 +8590,7 @@
         {
          "flow": [
           {
-           "id": 134,
+           "id": 171,
            "module": "line:sendAReplyMessage",
            "version": 1,
            "mapper": {
@@ -6521,7 +8606,7 @@
            "metadata": {
             "designer": {
              "x": 900,
-             "y": 18600,
+             "y": 24150,
              "name": "回覆已在班（我要簽到）"
             },
             "parameters": [
@@ -6563,7 +8648,7 @@
         {
          "flow": [
           {
-           "id": 135,
+           "id": 172,
            "module": "line:sendAReplyMessage",
            "version": 1,
            "mapper": {
@@ -6579,7 +8664,7 @@
            "metadata": {
             "designer": {
              "x": 900,
-             "y": 18750,
+             "y": 24300,
              "name": "回覆請先開通（我要簽到）"
             },
             "parameters": [
@@ -6634,7 +8719,7 @@
     {
      "flow": [
       {
-       "id": 137,
+       "id": 174,
        "module": "line:makeApiCall",
        "version": 1,
        "mapper": {
@@ -6651,7 +8736,7 @@
        "metadata": {
         "designer": {
          "x": 900,
-         "y": 19050,
+         "y": 24600,
          "name": "資訊選單"
         },
         "parameters": [
@@ -6705,7 +8790,7 @@
     {
      "flow": [
       {
-       "id": 138,
+       "id": 175,
        "module": "notion:searchObjects1",
        "version": 1,
        "mapper": {
@@ -6725,7 +8810,7 @@
        "metadata": {
         "designer": {
          "x": 900,
-         "y": 19200,
+         "y": 24750,
          "name": "找開設中的收容所"
         },
         "parameters": [
@@ -6754,33 +8839,33 @@
        }
       },
       {
-       "id": 139,
+       "id": 176,
        "module": "util:TextAggregator",
        "version": 1,
        "parameters": {
-        "feeder": 138,
+        "feeder": 175,
         "rowSeparator": "\n"
        },
        "mapper": {
-        "value": "・{{138.properties_value.`開設名稱`[].plain_text}}"
+        "value": "・{{175.properties_value.`開設名稱`[].plain_text}}"
        },
        "metadata": {
         "designer": {
          "x": 900,
-         "y": 19350,
+         "y": 24900,
          "name": "彙整收容所"
         }
        }
       },
       {
-       "id": 140,
+       "id": 177,
        "module": "line:sendAReplyMessage",
        "version": 1,
        "mapper": {
         "messages": [
          {
           "type": "text",
-          "text": "🏠 目前開設中的收容所：\n{{139.text}}\n\n地址與交通請洽現場工作人員或縣府服務專線。"
+          "text": "🏠 目前開設中的收容所：\n{{176.text}}\n\n地址與交通請洽現場工作人員或縣府服務專線。"
          }
         ],
         "replyToken": "{{1.events[1].replyToken}}",
@@ -6789,7 +8874,7 @@
        "metadata": {
         "designer": {
          "x": 900,
-         "y": 19500,
+         "y": 25050,
          "name": "回覆收容所清單"
         },
         "parameters": [
@@ -6810,7 +8895,7 @@
     {
      "flow": [
       {
-       "id": 141,
+       "id": 178,
        "module": "notion:searchObjects1",
        "version": 1,
        "mapper": {
@@ -6842,7 +8927,7 @@
        "metadata": {
         "designer": {
          "x": 900,
-         "y": 19650,
+         "y": 25200,
          "name": "找問答與公告"
         },
         "parameters": [
@@ -6876,33 +8961,33 @@
        }
       },
       {
-       "id": 142,
+       "id": 179,
        "module": "util:TextAggregator",
        "version": 1,
        "parameters": {
-        "feeder": 141,
+        "feeder": 178,
         "rowSeparator": "\n"
        },
        "mapper": {
-        "value": "【{{141.properties_value.`標題`[].plain_text}}】\n{{141.properties_value.`內容`[].plain_text}}\n"
+        "value": "【{{178.properties_value.`標題`[].plain_text}}】\n{{178.properties_value.`內容`[].plain_text}}\n"
        },
        "metadata": {
         "designer": {
          "x": 900,
-         "y": 19800,
+         "y": 25350,
          "name": "彙整問答"
         }
        }
       },
       {
-       "id": 143,
+       "id": 180,
        "module": "line:sendAReplyMessage",
        "version": 1,
        "mapper": {
         "messages": [
          {
           "type": "text",
-          "text": "{{142.text}}"
+          "text": "{{179.text}}"
          }
         ],
         "replyToken": "{{1.events[1].replyToken}}",
@@ -6911,7 +8996,7 @@
        "metadata": {
         "designer": {
          "x": 900,
-         "y": 19950,
+         "y": 25500,
          "name": "回覆資訊"
         },
         "parameters": [
@@ -6932,7 +9017,7 @@
     {
      "flow": [
       {
-       "id": 144,
+       "id": 181,
        "module": "notion:searchObjects1",
        "version": 1,
        "mapper": {
@@ -6964,7 +9049,7 @@
        "metadata": {
         "designer": {
          "x": 900,
-         "y": 20100,
+         "y": 25650,
          "name": "找緊急聯絡資料"
         },
         "parameters": [
@@ -6993,14 +9078,14 @@
        }
       },
       {
-       "id": 145,
+       "id": 182,
        "module": "line:sendAReplyMessage",
        "version": 1,
        "mapper": {
         "messages": [
          {
           "type": "text",
-          "text": "📞 {{144.properties_value.`內容`[].plain_text}}"
+          "text": "📞 {{181.properties_value.`內容`[].plain_text}}"
          }
         ],
         "replyToken": "{{1.events[1].replyToken}}",
@@ -7009,7 +9094,7 @@
        "metadata": {
         "designer": {
          "x": 900,
-         "y": 20250,
+         "y": 25800,
          "name": "回覆緊急聯絡"
         },
         "parameters": [
@@ -7030,7 +9115,7 @@
     {
      "flow": [
       {
-       "id": 146,
+       "id": 183,
        "module": "line:makeApiCall",
        "version": 1,
        "mapper": {
@@ -7047,7 +9132,7 @@
        "metadata": {
         "designer": {
          "x": 900,
-         "y": 20400,
+         "y": 25950,
          "name": "反映類別"
         },
         "parameters": [
@@ -7087,7 +9172,7 @@
     {
      "flow": [
       {
-       "id": 147,
+       "id": 184,
        "module": "notion:searchObjects1",
        "version": 1,
        "mapper": {
@@ -7107,7 +9192,7 @@
        "metadata": {
         "designer": {
          "x": 900,
-         "y": 20550,
+         "y": 26100,
          "name": "找開設中的收容所（反映）"
         },
         "parameters": [
@@ -7141,26 +9226,26 @@
        }
       },
       {
-       "id": 148,
+       "id": 185,
        "module": "util:TextAggregator",
        "version": 1,
        "parameters": {
-        "feeder": 147,
+        "feeder": 184,
         "rowSeparator": "\n"
        },
        "mapper": {
-        "value": "{\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"{{substring(147.properties_value.`開設名稱`[].plain_text; 0; 20)}}\", \"text\": \"{{1.events[1].message.text}} @ {{147.properties_value.`開設名稱`[].plain_text}}\"}},"
+        "value": "{\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"{{substring(184.properties_value.`開設名稱`[].plain_text; 0; 20)}}\", \"text\": \"{{1.events[1].message.text}} @ {{184.properties_value.`開設名稱`[].plain_text}}\"}},"
        },
        "metadata": {
         "designer": {
          "x": 900,
-         "y": 20700,
+         "y": 26250,
          "name": "組收容所按鈕"
         }
        }
       },
       {
-       "id": 149,
+       "id": 186,
        "module": "line:makeApiCall",
        "version": 1,
        "mapper": {
@@ -7172,12 +9257,12 @@
           "value": "application/json"
          }
         ],
-        "body": "{\"replyToken\": \"{{1.events[1].replyToken}}\", \"messages\": [{\"type\": \"text\", \"text\": \"您在哪一個收容所？\", \"quickReply\": {\"items\": [{{148.text}} {\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"不在收容所\", \"text\": \"{{1.events[1].message.text}} @ 不在收容所\"}}]}}]}"
+        "body": "{\"replyToken\": \"{{1.events[1].replyToken}}\", \"messages\": [{\"type\": \"text\", \"text\": \"您在哪一個收容所？\", \"quickReply\": {\"items\": [{{185.text}} {\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"不在收容所\", \"text\": \"{{1.events[1].message.text}} @ 不在收容所\"}}]}}]}"
        },
        "metadata": {
         "designer": {
          "x": 900,
-         "y": 20850,
+         "y": 26400,
          "name": "問在哪一所"
         },
         "parameters": [
@@ -7198,7 +9283,7 @@
     {
      "flow": [
       {
-       "id": 150,
+       "id": 187,
        "module": "notion:searchObjects1",
        "version": 1,
        "mapper": {
@@ -7218,7 +9303,7 @@
        "metadata": {
         "designer": {
          "x": 900,
-         "y": 21000,
+         "y": 26550,
          "name": "找反映的收容所"
         },
         "parameters": [
@@ -7252,7 +9337,7 @@
        }
       },
       {
-       "id": 151,
+       "id": 188,
        "module": "notion:createDataSourceItem",
        "version": 1,
        "mapper": {
@@ -7312,7 +9397,7 @@
        "metadata": {
         "designer": {
          "x": 900,
-         "y": 21150,
+         "y": 26700,
          "name": "新增居民反映日誌"
         },
         "parameters": [
@@ -7329,7 +9414,7 @@
        }
       },
       {
-       "id": 153,
+       "id": 190,
        "module": "line:sendAReplyMessage",
        "version": 1,
        "mapper": {
@@ -7345,7 +9430,7 @@
        "metadata": {
         "designer": {
          "x": 900,
-         "y": 21450,
+         "y": 27000,
          "name": "回覆已收到反映"
         },
         "parameters": [
@@ -7362,17 +9447,17 @@
        }
       },
       {
-       "id": 152,
+       "id": 189,
        "module": "notion:updateADatabaseItem",
        "version": 1,
        "mapper": {
-        "page": "{{151.id}}",
+        "page": "{{188.id}}",
         "fields": [
          {
           "key": "收容所開設",
           "type": "relation",
           "value": [
-           "{{150.id}}"
+           "{{187.id}}"
           ]
          }
         ],
@@ -7383,7 +9468,7 @@
        "metadata": {
         "designer": {
          "x": 900,
-         "y": 21300,
+         "y": 26850,
          "name": "反映掛到收容所"
         },
         "parameters": [
@@ -7403,7 +9488,7 @@
         "conditions": [
          [
           {
-           "a": "{{150.id}}",
+           "a": "{{187.id}}",
            "o": "exist"
           }
          ]
@@ -7415,7 +9500,7 @@
     {
      "flow": [
       {
-       "id": 154,
+       "id": 191,
        "module": "notion:searchObjects1",
        "version": 1,
        "mapper": {
@@ -7442,7 +9527,7 @@
        "metadata": {
         "designer": {
          "x": 900,
-         "y": 21600,
+         "y": 27150,
          "name": "找最近一筆反映"
         },
         "parameters": [
@@ -7471,16 +9556,16 @@
        }
       },
       {
-       "id": 155,
+       "id": 192,
        "module": "notion:updateADatabaseItem",
        "version": 1,
        "mapper": {
-        "page": "{{154.id}}",
+        "page": "{{191.id}}",
         "fields": [
          {
           "key": "內容說明",
           "type": "rich_text",
-          "value": "{{154.properties_value.`內容說明`[].plain_text}}\n補充：{{replace(1.events[1].message.text; \"補充：\"; \"\")}}"
+          "value": "{{191.properties_value.`內容說明`[].plain_text}}\n補充：{{replace(1.events[1].message.text; \"補充：\"; \"\")}}"
          }
         ],
         "select": "map",
@@ -7490,7 +9575,7 @@
        "metadata": {
         "designer": {
          "x": 900,
-         "y": 21750,
+         "y": 27300,
          "name": "寫入補充說明"
         },
         "parameters": [
@@ -7507,7 +9592,7 @@
        }
       },
       {
-       "id": 156,
+       "id": 193,
        "module": "line:sendAReplyMessage",
        "version": 1,
        "mapper": {
@@ -7523,7 +9608,7 @@
        "metadata": {
         "designer": {
          "x": 900,
-         "y": 21900,
+         "y": 27450,
          "name": "回覆已補充"
         },
         "parameters": [
@@ -7544,7 +9629,7 @@
     {
      "flow": [
       {
-       "id": 157,
+       "id": 194,
        "module": "notion:updateADatabaseItem",
        "version": 1,
        "mapper": {
@@ -7563,7 +9648,7 @@
        "metadata": {
         "designer": {
          "x": 900,
-         "y": 22050,
+         "y": 27600,
          "name": "清空暫存（取消）"
         },
         "parameters": [
@@ -7596,7 +9681,7 @@
        }
       },
       {
-       "id": 158,
+       "id": 195,
        "module": "line:sendAReplyMessage",
        "version": 1,
        "mapper": {
@@ -7612,7 +9697,7 @@
        "metadata": {
         "designer": {
          "x": 900,
-         "y": 22200,
+         "y": 27750,
          "name": "回覆已取消"
         },
         "parameters": [
@@ -7633,7 +9718,7 @@
     {
      "flow": [
       {
-       "id": 159,
+       "id": 196,
        "module": "line:sendAReplyMessage",
        "version": 1,
        "mapper": {
@@ -7649,7 +9734,7 @@
        "metadata": {
         "designer": {
          "x": 900,
-         "y": 22350,
+         "y": 27900,
          "name": "回覆引導"
         },
         "parameters": [
@@ -7715,6 +9800,21 @@
           },
           {
            "a": "{{1.events[1].message.text}}",
+           "o": "text:notcontain",
+           "b": "物資："
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notcontain",
+           "b": "物資確認："
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notcontain",
+           "b": "新品單位："
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
            "o": "text:notequal",
            "b": "簽退"
           },
@@ -7820,8 +9920,28 @@
           },
           {
            "a": "{{1.events[1].message.text}}",
+           "o": "text:notequal",
+           "b": "物資入庫"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notequal",
+           "b": "物資發放"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
            "o": "text:notpattern",
            "b": "^[^+\\-\\s：:]+\\s*[+\\-]\\s*[0-9]+\\s*$"
+          },
+          {
+           "a": "{{2.properties_value.`對話暫存`[].plain_text}}",
+           "o": "text:notcontain",
+           "b": "物資|"
+          },
+          {
+           "a": "{{2.properties_value.`對話暫存`[].plain_text}}",
+           "o": "text:notcontain",
+           "b": "新品|"
           },
           {
            "a": "{{2.properties_value.`對話暫存`[].plain_text}}",
@@ -7877,6 +9997,21 @@
           },
           {
            "a": "{{1.events[1].message.text}}",
+           "o": "text:notcontain",
+           "b": "物資："
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notcontain",
+           "b": "物資確認："
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notcontain",
+           "b": "新品單位："
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
            "o": "text:notequal",
            "b": "簽退"
           },
@@ -7982,8 +10117,28 @@
           },
           {
            "a": "{{1.events[1].message.text}}",
+           "o": "text:notequal",
+           "b": "物資入庫"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
+           "o": "text:notequal",
+           "b": "物資發放"
+          },
+          {
+           "a": "{{1.events[1].message.text}}",
            "o": "text:notpattern",
            "b": "^[^+\\-\\s：:]+\\s*[+\\-]\\s*[0-9]+\\s*$"
+          },
+          {
+           "a": "{{2.properties_value.`對話暫存`[].plain_text}}",
+           "o": "text:notcontain",
+           "b": "物資|"
+          },
+          {
+           "a": "{{2.properties_value.`對話暫存`[].plain_text}}",
+           "o": "text:notcontain",
+           "b": "新品|"
           },
           {
            "a": "{{length(split(2.properties_value.`對話暫存`[].plain_text; \"|\"))}}",
