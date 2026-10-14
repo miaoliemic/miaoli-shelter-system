@@ -5031,7 +5031,7 @@
               "value": "application/json"
              }
             ],
-            "body": "{\"replyToken\": \"{{1.events[1].replyToken}}\", \"messages\": [{\"type\": \"text\", \"text\": \"📦 本所物資（目前庫存）\\n{{105.text}}\\n\\n按「入庫」「發放」依序選品項、單位、輸入數量；熟手也可以直接打「品名+數量」入庫、「品名-數量」發放（數量用最小單位）。\", \"quickReply\": {\"items\": [{\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"入庫\", \"text\": \"物資入庫\"}}, {\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"發放\", \"text\": \"物資發放\"}}, {\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"＋新增品項\", \"text\": \"物資：新增品項\"}}, {\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"重新整理\", \"text\": \"本所狀況\"}}]}}]}"
+            "body": "{\"replyToken\": \"{{1.events[1].replyToken}}\", \"messages\": [{\"type\": \"text\", \"text\": \"📦 本所物資（目前庫存）\\n{{replace(105.text; newline; \"\\n\")}}\\n\\n按「入庫」「發放」依序選品項、單位、輸入數量；熟手也可以直接打「品名+數量」入庫、「品名-數量」發放（數量用最小單位）。\", \"quickReply\": {\"items\": [{\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"入庫\", \"text\": \"物資入庫\"}}, {\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"發放\", \"text\": \"物資發放\"}}, {\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"＋新增品項\", \"text\": \"物資：新增品項\"}}, {\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"重新整理\", \"text\": \"本所狀況\"}}]}}]}"
            },
            "metadata": {
             "designer": {

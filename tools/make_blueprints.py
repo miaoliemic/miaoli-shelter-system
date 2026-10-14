@@ -525,7 +525,9 @@ def build_main():
     supply_btns = [("入庫", "物資入庫"), ("發放", "物資發放"), ("＋新增品項", "物資：新增品項"), refresh]
     r30 = b.router("物資權限", [
         (flt("在班", [ON]), [g30, items, items_agg, b.quick("回覆物資清單",
-            "📦 本所物資（目前庫存）\n" + f"{{{{{items_agg['id']}.text}}}}" + "\n\n" + usage, supply_btns)]),
+            # 彙整結果的分行是真正的換行字元，放進 JSON 字串會不合法（LINE 拒收），要換成 \n 兩個字元
+            "📦 本所物資（目前庫存）\n" + f"{{{{replace({items_agg['id']}.text; newline; \"\\n\")}}}}" + "\n\n" + usage,
+            supply_btns)]),
         (flt("不在班", DENIED), [b.reply("回覆請先簽到（物資）", "請先簽到後再登記物資。")]),
     ])
     routes.append((flt("R30 物資", [[c(T, "text:equal", "物資")]]), [r30]))
