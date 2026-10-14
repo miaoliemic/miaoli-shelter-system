@@ -723,14 +723,30 @@ def build_main():
     f_cat = '{{replace(first(split(1.events[1].message.text; "｜")); "回報："; "")}}'
     f_lv = '{{last(split(1.events[1].message.text; "｜"))}}'
     f_urgent = 'last(split(1.events[1].message.text; "｜")) = "緊急"'
+    new_log = b.create("新增現場日誌", DS_LOG, [
+        f_title("日誌標題", f"現場回報：{f_cat}（{f_lv}）"), f_sel("日誌類別", f_cat), f_sel("嚴重程度", f_lv),
+        f_sel("處理進度", "待處理"), f_rel("收容所開設", MY_OPEN), f_rel("回報人", f"{{{{{S}.id}}}}"),
+        f_text("反映者 LINE ID", U), f_now("發生時間"), f_sel("來源", "LINE 回報"),
+        f_chk("需回報社會處", '{{if(' + f_urgent + '; true; if(' + f'{f_lv[2:-2]} = "高"' + '; true; false))}}')])
+    # 記住剛建立的日誌，下一句一般文字直接當補充說明（不用打「補充：」），見 R34b
     routes.append((flt("R34 回報：送出", [[c(T, "text:contain", "回報："), c(T, "text:contain", "｜")] + ON]), [
-        b.create("新增現場日誌", DS_LOG, [
-            f_title("日誌標題", f"現場回報：{f_cat}（{f_lv}）"), f_sel("日誌類別", f_cat), f_sel("嚴重程度", f_lv),
-            f_sel("處理進度", "待處理"), f_rel("收容所開設", MY_OPEN), f_rel("回報人", f"{{{{{S}.id}}}}"),
-            f_text("反映者 LINE ID", U), f_now("發生時間"), f_sel("來源", "LINE 回報"),
-            f_chk("需回報社會處", '{{if(' + f_urgent + '; true; if(' + f'{f_lv[2:-2]} = "高"' + '; true; false))}}')]),
-        b.reply("回覆已記錄現場回報", f"📋 已記錄現場回報：{f_cat}（{f_lv}）。\n請輸入「補充：」加上說明，例如：補充：2 樓廁所漏水。"
+        new_log,
+        b.update("暫存待補充的日誌", DS_STAFF, f"{{{{{S}.id}}}}", [f_text("對話暫存", f"補充|{{{{{new_log['id']}.id}}}}")]),
+        b.reply("回覆已記錄現場回報", f"📋 已記錄現場回報：{f_cat}（{f_lv}）。\n請直接輸入狀況說明，例如：2 樓廁所漏水（打「取消」可略過）。"
                 + '{{if(' + f_urgent + '; "\n🔴 已列為緊急，總覽燈號會變紅。請同時電話通報社會處。"; "")}}')]))
+
+    # ---------- R34b 現場回報後的下一句文字 → 寫進那筆日誌的內容說明 ----------
+    # 不能沿用 not_cmd：它排除含「：」的文字，但說明裡常有冒號（例如「時間：下午三點」）
+    free_text = [c(T, "exist")] + [c(T, "text:notcontain", x) for x in (
+        "SIGN-", "MLS-", "回報：", "反映：", "補充：", "資訊：", "物資：", "物資確認：", "新品單位：", "年齡層：", "關懷：", "整備：")] + \
+        [c(T, "text:notequal", x) for x in cmds] + [c(T, "text:notpattern", SUPPLY_RE)]
+    log34 = b.get("讀待補充的日誌", '{{replace(' + TMP[2:-2] + '; "補充|"; "")}}')
+    L34 = log34["id"]
+    routes.append((flt("R34b 回報：補充說明", [[EXIST, EN, c(TMP, "text:contain", "補充|")] + free_text]), [
+        log34,
+        b.update("寫入現場回報說明", DS_LOG, f"{{{{{L34}.id}}}}", [f_text("內容說明", sp(L34, "內容說明", "[].plain_text") + f"\n{T}")]),
+        b.update("清空暫存（補充完成）", DS_STAFF, f"{{{{{S}.id}}}}", [f_text("對話暫存", TMP_CLEAR)]),
+        b.reply("回覆已補充現場回報", "✅ 已補充到「" + sp(L34, "日誌標題", "[].plain_text") + "」。\n還要補充的話，請輸入「補充：」加上內容。")]))
     is_report = [c(T, "text:equal", "現場回報")], [c(T, "text:contain", "回報：")]
     routes.append((flt("R35 現場回報：不在班", [t + d for t in is_report for d in DENIED]), [
         b.reply("回覆請先簽到（現場回報）", "請先簽到後再做現場回報。居民要反映事情，請按「我要反映」。")]))
@@ -846,7 +862,10 @@ def build_main():
         sup,
         b.update("寫入補充說明", DS_LOG, f"{{{{{SU}.id}}}}", [f_text("內容說明",
             sp(SU, "內容說明", "[].plain_text") + '\n補充：{{replace(1.events[1].message.text; "補充："; "")}}')]),
-        b.reply("回覆已補充", "✅ 已補充，謝謝您。")]))
+        b.reply("回覆已補充", "✅ 已補充，謝謝您。"),
+        # 工作人員現場回報後若仍打「補充：」，也要清掉 R34 的暫存，免得下一句又被當成補充（放最後：篩選不過會擋住後面的模組）
+        b.update("清空暫存（補充：）", DS_STAFF, f"{{{{{S}.id}}}}", [f_text("對話暫存", TMP_CLEAR)],
+                 f=flt("待補充中", [[EXIST, c(TMP, "text:contain", "補充|")]]))]))
 
     # ---------- R10 取消 ----------
     routes.append((flt("R10 取消", [[c(T, "text:equal", "取消"), EXIST]]), [
@@ -858,7 +877,8 @@ def build_main():
     base_not = [c(T, "text:notcontain", x) for x in ("SIGN-", "MLS-", "整備", "年齡層：", "關懷：", "資訊：", "反映：", "補充：", "回報：",
                                                  "物資：", "物資確認：", "新品單位：")] + \
                [c(T, "text:notequal", x) for x in cmds] + [c(T, "text:notpattern", SUPPLY_RE)] + \
-               [c(TMP, "text:notcontain", "物資|"), c(TMP, "text:notcontain", "新品|")]  # 物資、新增品項進行中由 R39b、R42 回覆
+               [c(TMP, "text:notcontain", "物資|"), c(TMP, "text:notcontain", "新品|"),
+                c(TMP, "text:notcontain", "補充|")]  # 物資、新增品項、現場回報補充進行中由 R39b、R42、R34b 回覆
     routes.append((flt("R99 其他訊息", [base_not + [c(TMP, "text:notcontain", "報到|")],
                                        base_not + [c("{{" + parts + "}}", "number:notequal", "2")]]), [
         b.reply("回覆引導", "您好，這裡是苗栗避難收容所系統。\n請點下方選單：收容所資訊、我要反映、緊急聯絡。\n工作人員請按最下列的「工作人員」。")]))
