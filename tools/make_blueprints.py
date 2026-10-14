@@ -672,8 +672,10 @@ def build_main():
 
     # ---------- R31 物資登記：飲用水+20 → 入庫；飲用水-5 → 發放 ----------
     # 數量一律填正數，增減由異動類型決定（物資異動紀錄的「庫存增減」公式），目前庫存由 Notion 自動算
-    it_name = "{{trim(replace(" + T[2:-2] + "; /\\s*[+-].*$/; \"\"))}}"
-    it_qty = "{{parseNumber(trim(replace(" + T[2:-2] + "; /^.*[+-]/; \"\")))}}"
+    # Make 運算式不接受正則字面值（/…/），整個情境會初始化失敗；改用 split 依「+」或「-」切開
+    it_sign = "if(contains(" + T[2:-2] + '; "+"); "+"; "-")'
+    it_name = "{{trim(get(split(" + T[2:-2] + "; " + it_sign + "); 1))}}"
+    it_qty = "{{parseNumber(trim(get(split(" + T[2:-2] + "; " + it_sign + "); 2)))}}"
     it_kind = "{{if(contains(" + T[2:-2] + '; "+"); "入庫"; "發放")}}'
     g31 = b.get("讀所在開設（物資登記）", MY_OPEN)
     shelter31 = sp(g31["id"], "收容所", "[].id")

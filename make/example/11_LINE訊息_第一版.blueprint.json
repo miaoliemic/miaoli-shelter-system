@@ -7284,7 +7284,7 @@
               {
                "a": "品名 |&*^%$#@| title",
                "o": "text:equals",
-               "b": "{{trim(replace(1.events[1].message.text; /\\s*[+-].*$/; \"\"))}}"
+               "b": "{{trim(get(split(1.events[1].message.text; if(contains(1.events[1].message.text; \"+\"); \"+\"; \"-\")); 1))}}"
               },
               {
                "a": "收容所 |&*^%$#@| relation",
@@ -7296,7 +7296,7 @@
               {
                "a": "別名 |&*^%$#@| rich_text",
                "o": "text:contains",
-               "b": "{{trim(replace(1.events[1].message.text; /\\s*[+-].*$/; \"\"))}}"
+               "b": "{{trim(get(split(1.events[1].message.text; if(contains(1.events[1].message.text; \"+\"); \"+\"; \"-\")); 1))}}"
               },
               {
                "a": "收容所 |&*^%$#@| relation",
@@ -7351,7 +7351,7 @@
                  {
                   "key": "摘要",
                   "type": "title",
-                  "value": "{{147.properties_value.`品名`[].plain_text}} {{if(contains(1.events[1].message.text; \"+\"); \"入庫\"; \"發放\")}} {{parseNumber(trim(replace(1.events[1].message.text; /^.*[+-]/; \"\")))}}{{147.properties_value.`單位`[].plain_text}}"
+                  "value": "{{147.properties_value.`品名`[].plain_text}} {{if(contains(1.events[1].message.text; \"+\"); \"入庫\"; \"發放\")}} {{parseNumber(trim(get(split(1.events[1].message.text; if(contains(1.events[1].message.text; \"+\"); \"+\"; \"-\")); 2)))}}{{147.properties_value.`單位`[].plain_text}}"
                  },
                  {
                   "key": "品項",
@@ -7375,7 +7375,7 @@
                  {
                   "key": "數量",
                   "type": "number",
-                  "value": "{{parseNumber(trim(replace(1.events[1].message.text; /^.*[+-]/; \"\")))}}"
+                  "value": "{{parseNumber(trim(get(split(1.events[1].message.text; if(contains(1.events[1].message.text; \"+\"); \"+\"; \"-\")); 2)))}}"
                  },
                  {
                   "key": "經手人",
@@ -7467,7 +7467,7 @@
                 "messages": [
                  {
                   "type": "text",
-                  "text": "✅ 已登記：{{147.properties_value.`品名`[].plain_text}} {{if(contains(1.events[1].message.text; \"+\"); \"入庫\"; \"發放\")}} {{parseNumber(trim(replace(1.events[1].message.text; /^.*[+-]/; \"\")))}}{{147.properties_value.`單位`[].plain_text}}\n目前庫存：{{149.properties_value.`目前庫存`.number}}{{147.properties_value.`單位`[].plain_text}}{{if(149.properties_value.`目前庫存`.number <= 149.properties_value.`安全庫存`; \"\n⚠ 已低於安全庫存，請盡快補貨\"; \"\")}}"
+                  "text": "✅ 已登記：{{147.properties_value.`品名`[].plain_text}} {{if(contains(1.events[1].message.text; \"+\"); \"入庫\"; \"發放\")}} {{parseNumber(trim(get(split(1.events[1].message.text; if(contains(1.events[1].message.text; \"+\"); \"+\"; \"-\")); 2)))}}{{147.properties_value.`單位`[].plain_text}}\n目前庫存：{{149.properties_value.`目前庫存`.number}}{{147.properties_value.`單位`[].plain_text}}{{if(149.properties_value.`目前庫存`.number <= 149.properties_value.`安全庫存`; \"\n⚠ 已低於安全庫存，請盡快補貨\"; \"\")}}"
                  }
                 ],
                 "replyToken": "{{1.events[1].replyToken}}",
@@ -7509,7 +7509,7 @@
                   "value": "application/json"
                  }
                 ],
-                "body": "{\"replyToken\": \"{{1.events[1].replyToken}}\", \"messages\": [{\"type\": \"text\", \"text\": \"本所沒有「{{trim(replace(1.events[1].message.text; /\\s*[+-].*$/; \"\"))}}」這個品項。請按「物資」看品名，或請社會處在 Notion 新增。\", \"quickReply\": {\"items\": [{\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"物資\", \"text\": \"物資\"}}]}}]}"
+                "body": "{\"replyToken\": \"{{1.events[1].replyToken}}\", \"messages\": [{\"type\": \"text\", \"text\": \"本所沒有「{{trim(get(split(1.events[1].message.text; if(contains(1.events[1].message.text; \"+\"); \"+\"; \"-\")); 1))}}」這個品項。請按「物資」看品名，或請社會處在 Notion 新增。\", \"quickReply\": {\"items\": [{\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"物資\", \"text\": \"物資\"}}]}}]}"
                },
                "metadata": {
                 "designer": {
