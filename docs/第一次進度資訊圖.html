@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="zh-Hant"><head><meta charset="utf-8"><title>第一次進度資訊圖</title>
+<style>
+:root{--ink:#1f2933;--sub:#52606d;--line:#e4e7eb;--bg:#f5f7fa;--card:#fff;
+--ok:#2f9e44;--ok-bg:#ebfbee;--todo:#adb5bd;--next:#e8590c;--next-bg:#fff4e6;
+--line-c:#06c755;--make:#6d00cc;--notion:#2f3437;--gov:#1f4e79}
+*{box-sizing:border-box;margin:0;padding:0}
+body{width:1200px;background:var(--bg);font-family:"Microsoft JhengHei","微軟正黑體","Noto Sans TC",sans-serif;color:var(--ink);padding:40px 48px 36px}
+h1{font-size:34px;letter-spacing:1px}
+.kicker{color:var(--sub);font-size:16px;margin-top:6px}
+.hero{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:24px}
+.big{border-radius:18px;padding:22px 26px;color:#fff}
+.big.a{background:linear-gradient(135deg,#2b8a3e,#40c057)}
+.big.b{background:linear-gradient(135deg,#1f4e79,#2f80c0)}
+.big.c{background:linear-gradient(135deg,#343a40,#5c6770)}
+.big .t{font-size:17px;opacity:.92}
+.big .n{font-size:54px;font-weight:800;margin:2px 0}
+.big .n small{font-size:22px;font-weight:600;margin-left:6px}
+.big .d{font-size:15px;opacity:.95;line-height:1.55}
+.sec{margin-top:28px}
+.sec h2{font-size:22px;display:flex;align-items:center;gap:10px;margin-bottom:14px}
+.sec h2 .no{background:var(--ink);color:#fff;border-radius:50%;width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;font-size:17px}
+.panel{background:var(--card);border-radius:16px;padding:22px 24px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+/* 架構 */
+.arch{display:grid;grid-template-columns:1.25fr 28px 1fr 28px 1.15fr 28px 1.15fr 28px 1fr;align-items:center}
+.node{border-radius:14px;padding:14px 14px;text-align:center;border:2px solid;background:#fff;min-height:118px;display:flex;flex-direction:column;justify-content:center}
+.node .h{font-size:18px;font-weight:800}
+.node .s{font-size:13.5px;color:var(--sub);margin-top:6px;line-height:1.5}
+.node.people{border-color:#f59f00;background:#fff9db}
+.node.line{border-color:var(--line-c);background:#ebfbee}
+.node.make{border-color:var(--make);background:#f3effc}
+.node.notion{border-color:var(--notion);background:#f1f3f5}
+.node.gov{border-color:var(--gov);background:#e7f1fb}
+.ar{text-align:center;color:#868e96;font-size:24px;font-weight:700}
+.who{display:flex;flex-direction:column;gap:8px}
+.who .node{min-height:0;padding:10px 12px}
+/* 流程 */
+.steps{display:grid;grid-template-columns:repeat(6,1fr);gap:10px}
+.st{display:flex;flex-direction:column;align-items:flex-start;border-radius:14px;padding:14px 12px 12px;background:#fff;border-top:6px solid var(--ok);box-shadow:0 1px 3px rgba(0,0,0,.06);position:relative}
+.st .k{font-size:13px;color:var(--sub);font-weight:700}
+.st .h{font-size:17px;font-weight:800;margin-top:2px;line-height:1.35}
+.st .s{font-size:13px;color:#323f4b;margin:6px 0 10px;line-height:1.5}
+.st .chip{display:inline-block;margin-top:auto;font-size:13px;font-weight:700;border-radius:999px;padding:3px 10px;background:var(--ok-bg);color:var(--ok)}
+.st.part .chip{background:#fff9db;color:#e67700}
+.st.next{border-top-color:var(--next);background:var(--next-bg)}
+.st.next .chip{background:#ffe8cc;color:var(--next)}
+/* 驗證 */
+.two{display:grid;grid-template-columns:1.25fr 1fr;gap:20px}
+.cap{font-size:14px;color:var(--sub);margin-bottom:10px}
+.row{display:grid;grid-template-columns:150px 1fr 64px;align-items:center;gap:10px;margin:9px 0;font-size:15.5px}
+.track{display:flex;gap:4px}
+.seg{height:22px;flex:0 0 30px;border-radius:5px;background:var(--ok)}
+.seg.todo{background:#fff;border:2px dashed var(--todo)}
+.row .v{font-size:15px;text-align:right;color:var(--sub)}
+.row .v b{color:var(--ink)}
+.legend{display:flex;gap:18px;font-size:13.5px;color:var(--sub);margin-top:12px}
+.legend i{display:inline-block;width:16px;height:12px;border-radius:3px;vertical-align:-1px;margin-right:6px}
+ul.nx{list-style:none}
+ul.nx li{font-size:15.5px;line-height:1.5;padding:9px 0 9px 30px;border-bottom:1px dashed var(--line);position:relative}
+ul.nx li:last-child{border-bottom:0}
+ul.nx li:before{content:attr(data-n);position:absolute;left:0;top:9px;width:22px;height:22px;border-radius:50%;background:var(--next);color:#fff;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center}
+ul.nx li small{display:block;color:var(--sub);font-size:13.5px}
+.foot{margin-top:24px;display:grid;grid-template-columns:auto 1fr;gap:18px;align-items:center;background:#212529;color:#fff;border-radius:16px;padding:18px 24px}
+.foot .gh{font-size:20px;font-weight:800;letter-spacing:.3px}
+.foot .gh small{display:block;font-size:13px;font-weight:400;opacity:.75;margin-bottom:2px}
+.foot .pts{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end}
+.foot .pts span{background:rgba(255,255,255,.12);border-radius:999px;padding:5px 12px;font-size:14px}
+</style></head><body>
+
+<h1>苗栗縣避難收容所管理系統　第一次進度報告</h1>
+<div class="kicker">數位發展部「公民協力場」｜需求單位：苗栗縣政府社會處｜2026 年 10 月 15 日</div>
+
+<div class="hero">
+  <div class="big a"><div class="t">LINE 實機測試</div><div class="n">26<small>項通過</small></div>
+    <div class="d">兩支手機逐項操作，每一步都到後台確認資料已寫入；另有 4 項排入下一輪測試</div></div>
+  <div class="big b"><div class="t">現場操作方式</div><div class="n">LINE<small>不用裝 App</small></div>
+    <div class="d">居民與工作人員都用同一個官方帳號；工作人員簽到後，選單才多出管理功能</div></div>
+  <div class="big c"><div class="t">程式與文件</div><div class="n">開源<small>GitHub 公開</small></div>
+    <div class="d">可直接進行資安弱點掃描；版本庫不含金鑰、帳號與個資</div></div>
+</div>
+
+<div class="sec">
+  <h2><span class="no">1</span>系統怎麼運作</h2>
+  <div class="panel">
+    <div class="arch">
+      <div class="who">
+        <div class="node people"><div class="h">居民・民眾</div><div class="s">查資訊、反映需求</div></div>
+        <div class="node people"><div class="h">工作人員</div><div class="s">簽到、報到、物資、回報</div></div>
+      </div>
+      <div class="ar">→</div>
+      <div class="node line"><div class="h">LINE<br>官方帳號</div><div class="s">按選單、掃 QR<br>打幾個字</div></div>
+      <div class="ar">→</div>
+      <div class="node make"><div class="h">Make.com</div><div class="s">每則訊息都再檢查<br>身分、在班、角色</div></div>
+      <div class="ar">→</div>
+      <div class="node notion"><div class="h">Notion 後台</div><div class="s">以「災害事件」為單位<br>13 張資料表自動計算</div></div>
+      <div class="ar">→</div>
+      <div class="node gov"><div class="h">社會處</div><div class="s">核准開設、看燈號<br>人數、缺人、缺物資</div></div>
+    </div>
+  </div>
+</div>
+
+<div class="sec">
+  <h2><span class="no">2</span>一次收容所開設的完整流程：目前做到哪裡</h2>
+  <div class="steps">
+    <div class="st"><div class="k">STEP 1</div><div class="h">啟動開設</div><div class="s">社會處在後台建立災害事件、選定收容所、派駐人員</div><span class="chip">✓ 完成</span></div>
+    <div class="st"><div class="k">STEP 2</div><div class="h">簽到・整備</div><div class="s">工作人員掃 QR 簽到，逐項回報整備狀況</div><span class="chip">✓ 完成</span></div>
+    <div class="st"><div class="k">STEP 3</div><div class="h">核准開放</div><div class="s">負責人送出「整備完成」，社會處核准後才開放進駐</div><span class="chip">✓ 完成</span></div>
+    <div class="st"><div class="k">STEP 4</div><div class="h">居民報到</div><div class="s">掃號碼牌登記姓名、年齡層、特殊關懷</div><span class="chip">✓ 完成</span></div>
+    <div class="st part"><div class="k">STEP 5</div><div class="h">營運管理</div><div class="s">外出返回、物資入庫發放、現場回報、居民反映</div><span class="chip">◐ 4 項待測</span></div>
+    <div class="st next"><div class="k">STEP 6</div><div class="h">撤收・結案</div><div class="s">全員離所、物資盤點、結案統計、個資處理</div><span class="chip">→ 下一階段</span></div>
+  </div>
+</div>
+
+<div class="sec two">
+  <div class="panel">
+    <h2 style="font-size:20px;margin-bottom:4px">功能驗證結果</h2>
+    <div class="cap">每一格是一個測試項目</div>
+    <div class="row"><span>民眾與居民</span><div class="track"><i class="seg"></i><i class="seg"></i><i class="seg"></i><i class="seg"></i><i class="seg"></i></div><span class="v"><b>5</b> / 5</span></div>
+    <div class="row"><span>工作人員簽到簽退</span><div class="track"><i class="seg"></i><i class="seg"></i><i class="seg"></i><i class="seg"></i></div><span class="v"><b>4</b> / 4</span></div>
+    <div class="row"><span>開設流程</span><div class="track"><i class="seg"></i><i class="seg"></i><i class="seg"></i><i class="seg"></i></div><span class="v"><b>4</b> / 4</span></div>
+    <div class="row"><span>居民報到與進出</span><div class="track"><i class="seg"></i><i class="seg"></i><i class="seg"></i><i class="seg"></i></div><span class="v"><b>4</b> / 4</span></div>
+    <div class="row"><span>本所狀況・反映追蹤</span><div class="track"><i class="seg"></i><i class="seg"></i></div><span class="v"><b>2</b> / 2</span></div>
+    <div class="row"><span>物資管理</span><div class="track"><i class="seg"></i><i class="seg"></i><i class="seg"></i><i class="seg"></i><i class="seg todo"></i><i class="seg todo"></i><i class="seg todo"></i></div><span class="v"><b>4</b> / 7</span></div>
+    <div class="row"><span>現場事件回報</span><div class="track"><i class="seg"></i><i class="seg"></i><i class="seg"></i><i class="seg todo"></i></div><span class="v"><b>3</b> / 4</span></div>
+    <div class="legend"><span><i style="background:var(--ok)"></i>已測試通過（26）</span><span><i style="border:2px dashed var(--todo)"></i>下一輪測試（4）</span></div>
+  </div>
+  <div class="panel">
+    <h2 style="font-size:20px;margin-bottom:6px">下一步</h2>
+    <ul class="nx">
+      <li data-n="1">完成 4 項待測功能<small>快速登記、權限阻擋、低庫存與緊急燈號</small></li>
+      <li data-n="2">撤收與結案流程<small>全員離所後撤收，結案統計自動填入</small></li>
+      <li data-n="3">完整演練<small>3 所收容所、30 位居民、3 天，從開設到結案</small></li>
+      <li data-n="4">長官總覽儀表板<small>一頁看到各所人數、缺人、缺物資、緊急狀況</small></li>
+    </ul>
+  </div>
+</div>
+
+<div class="foot">
+  <div class="gh"><small>原始碼（公開，供資安弱點掃描）</small>github.com/miaoliemic/miaoli-shelter-system</div>
+  <div class="pts"><span>不含金鑰與密碼</span><span>不含實際 ID</span><span>身分證只存後四碼</span><span>號碼牌不印姓名</span></div>
+</div>
+
+</body></html>
