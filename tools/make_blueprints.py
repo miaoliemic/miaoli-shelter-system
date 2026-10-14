@@ -665,8 +665,9 @@ def build_main():
         g43,
         b.create("新增物資品項", DS_ITEM, [
             f_title("品名", nm43), f_text("單位", u43), f_text("包裝單位", u43),
-            {"key": "每包裝數量", "type": "number", "value": "1"}, {"key": "期初庫存", "type": "number", "value": "0"},
-            {"key": "安全庫存", "type": "number", "value": "0"}, f_sel("類別", "其他"),
+            # 數字欄位寫固定值要包成運算式，否則 Make 送出文字 "1"，Notion 會拒收
+            {"key": "每包裝數量", "type": "number", "value": "{{1}}"}, {"key": "期初庫存", "type": "number", "value": "{{0}}"},
+            {"key": "安全庫存", "type": "number", "value": "{{0}}"}, f_sel("類別", "其他"),
             f_rel("收容所", sp(g43["id"], "收容所", "[].id")), f_text("備註", f"LINE 新增：{NAME}")]),
         b.update("清空暫存（新增品項）", DS_STAFF, f"{{{{{S}.id}}}}", [f_text("對話暫存", TMP_CLEAR)]),
         b.quick("回覆已新增品項", f"✅ 已新增品項「{nm43}」（單位：{u43}）。要現在入庫嗎？",

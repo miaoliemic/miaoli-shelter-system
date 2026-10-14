@@ -7083,17 +7083,17 @@
          {
           "key": "每包裝數量",
           "type": "number",
-          "value": "1"
+          "value": "{{1}}"
          },
          {
           "key": "期初庫存",
           "type": "number",
-          "value": "0"
+          "value": "{{0}}"
          },
          {
           "key": "安全庫存",
           "type": "number",
-          "value": "0"
+          "value": "{{0}}"
          },
          {
           "key": "類別",
