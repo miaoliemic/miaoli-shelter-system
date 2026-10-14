@@ -1,7 +1,7 @@
 {
   "type": "excalidraw",
   "version": 2,
-  "source": "http://localhost:52953",
+  "source": "http://localhost:5178",
   "elements": [
     {
       "id": "24wGsUncR1OmgDeJXQjZ",
@@ -1918,8 +1918,8 @@
     {
       "id": "n0G0W6F9xEwPi0j5xcsk",
       "type": "rectangle",
-      "x": 1140,
-      "y": -2710,
+      "x": 1134.666748046875,
+      "y": -2699.3334452311196,
       "width": 280,
       "height": 96,
       "angle": 0,
@@ -1936,8 +1936,8 @@
         "type": 3
       },
       "seed": 2003114651,
-      "version": 4,
-      "versionNonce": 1798155111,
+      "version": 271,
+      "versionNonce": 2040103833,
       "isDeleted": false,
       "boundElements": [
         {
@@ -1953,7 +1953,7 @@
           "id": "1SB9U5YN4E55ySirPcyW"
         }
       ],
-      "updated": 1791771356280,
+      "updated": 1791961708125,
       "link": null,
       "locked": false,
       "index": "ac"
@@ -1961,8 +1961,8 @@
     {
       "id": "dW3kcntvD25bXIjBrEOF",
       "type": "text",
-      "x": 1145,
-      "y": -2692,
+      "x": 1139.666748046875,
+      "y": -2681.3334452311196,
       "width": 224,
       "height": 60,
       "angle": 0,
@@ -1977,11 +1977,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 1543029409,
-      "version": 3,
-      "versionNonce": 44145138,
+      "version": 270,
+      "versionNonce": 850897017,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1791771356279,
+      "updated": 1791961708125,
       "link": null,
       "locked": false,
       "text": "工作人員\n\n行政／門禁組、生活／醫療組。",
@@ -1998,10 +1998,10 @@
     {
       "id": "Fhql8oDWPTxw4MRGRzxZ",
       "type": "arrow",
-      "x": 1046,
-      "y": -2468,
-      "width": 88,
-      "height": 194,
+      "x": 1040,
+      "y": -2467.9864,
+      "width": 94.666748046875,
+      "height": 183.33744523112,
       "angle": 0,
       "strokeColor": "#1e1e1e",
       "backgroundColor": "transparent",
@@ -2014,11 +2014,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 2022266083,
-      "version": 2,
-      "versionNonce": 1951354112,
+      "version": 270,
+      "versionNonce": 1920872793,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1791771356280,
+      "updated": 1791961708126,
       "link": null,
       "locked": false,
       "points": [
@@ -2027,16 +2027,16 @@
           0
         ],
         [
-          44,
+          47.3333740234375,
           0
         ],
         [
-          44,
-          -194
+          47.3333740234375,
+          -183.33744523112
         ],
         [
-          88,
-          -194
+          94.666748046875,
+          -183.33744523112
         ]
       ],
       "lastCommittedPoint": null,
@@ -2145,10 +2145,10 @@
     {
       "id": "1SB9U5YN4E55ySirPcyW",
       "type": "arrow",
-      "x": 1426,
-      "y": -2662,
-      "width": 88,
-      "height": 0,
+      "x": 1414.666748046875,
+      "y": -2651.32384523112,
+      "width": 105.333251953125,
+      "height": 10.652554768880236,
       "angle": 0,
       "strokeColor": "#1e1e1e",
       "backgroundColor": "transparent",
@@ -2161,11 +2161,11 @@
       "frameId": null,
       "roundness": null,
       "seed": 1146601001,
-      "version": 2,
-      "versionNonce": 1944936129,
+      "version": 270,
+      "versionNonce": 239115833,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1791771356280,
+      "updated": 1791961708128,
       "link": null,
       "locked": false,
       "points": [
@@ -2174,8 +2174,16 @@
           0
         ],
         [
-          88,
+          52.6666259765625,
           0
+        ],
+        [
+          52.6666259765625,
+          -10.652554768880236
+        ],
+        [
+          105.333251953125,
+          -10.652554768880236
         ]
       ],
       "lastCommittedPoint": null,
@@ -12779,7 +12787,7 @@
       "version": 2,
       "versionNonce": 884102617,
       "isDeleted": false,
-      "boundElements": null,
+      "boundElements": [],
       "updated": 1791884462386,
       "link": null,
       "locked": false,
