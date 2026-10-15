@@ -20,6 +20,7 @@ from PIL import Image, ImageDraw, ImageFont
 OA_ID = "@796juukk"  # 官方帳號 Basic ID；換帳號時要改這裡並重印所有 QR
 OUT = os.path.join(os.path.dirname(__file__), "..", "output", "qr")
 
+LOGO = os.path.join(os.path.dirname(__file__), "..", "assets", "logo.png")  # 苗栗縣徽，與官方帳號頭像相同
 FONT = "C:/Windows/Fonts/msjh.ttc"
 FONT_BOLD = "C:/Windows/Fonts/msjhbd.ttc"
 
@@ -42,6 +43,20 @@ def qr_image(data, box):
     return q.make_image(fill_color="black", back_color="white").convert("RGB").resize((box, box), Image.NEAREST)
 
 
+def paste_logo(img, x, y, size):
+    """在 (x, y) 貼縣徽，底下墊白色圓形，避免和色帶顏色糊在一起。"""
+    if not os.path.exists(LOGO):
+        return
+    pad = max(4, size // 14)
+    ImageDraw.Draw(img).ellipse([x - pad, y - pad, x + size + pad, y + size + pad], fill="white")
+    logo = Image.open(LOGO).convert("RGBA").resize((size, size), Image.LANCZOS)
+    # 原圖四角是白底，用圓形遮罩只取縣徽本身
+    mask = Image.new("L", (size * 4, size * 4), 0)
+    ImageDraw.Draw(mask).ellipse([0, 0, size * 4 - 1, size * 4 - 1], fill=255)
+    mask = mask.resize((size, size), Image.LANCZOS)
+    img.paste(logo, (x, y), mask)
+
+
 def center(draw, y, text, f, fill, width):
     w = draw.textlength(text, font=f)
     draw.text(((width - w) / 2, y), text, font=f, fill=fill)
@@ -62,12 +77,14 @@ def card(title, event, place, url, code, lines, color, w=1240, h=1754):
     img = Image.new("RGB", (w, h), "white")
     d = ImageDraw.Draw(img)
     d.rectangle([0, 0, w, 470], fill=color)
-    center(d, 36, title, font(92, True), "white", w)
+    paste_logo(img, 44, 40, 130)
     if event:
+        center(d, 36, title, font(92, True), "white", w)
         pill(d, 168, event, font(44, True), "white", color, w)
         center(d, 280, place, font(88, True), "white", w)
     else:
-        center(d, 220, place, font(64, True), "white", w)
+        center(d, 110, title, font(92, True), "white", w)
+        center(d, 270, place, font(64, True), "white", w)
     img.paste(qr_image(url, 720), ((w - 720) // 2, 520))
     center(d, 1275, code, font(60, True), "#1f2933", w)
     y = 1385
@@ -85,6 +102,7 @@ def tag_sheet(tags, event, place):
     img = Image.new("RGB", (w, h), "white")
     d = ImageDraw.Draw(img)
     d.rectangle([0, 0, w, 165], fill=color)
+    paste_logo(img, 34, 22, 120)
     center(d, 18, "居民號碼牌（由工作人員掃描）", font(46, True), "white", w)
     center(d, 92, f"{event}｜{place}", font(40), "white", w)
     cw, ch = 560, 505
@@ -93,6 +111,7 @@ def tag_sheet(tags, event, place):
         y = 185 + (i // 2) * (ch + 15)
         d.rounded_rectangle([x, y, x + cw, y + ch], radius=24, fill="white", outline=color, width=6)
         d.rounded_rectangle([x + 6, y + 6, x + cw - 6, y + 82], radius=18, fill=light)
+        paste_logo(img, x + 22, y + 15, 58)
         for txt, f, fill, yy in ((event, font(24, True), color, y + 12), (place, font(30, True), "#1f2933", y + 42)):
             tw = d.textlength(txt, font=f)
             d.text((x + (cw - tw) / 2, yy), txt, font=f, fill=fill)
