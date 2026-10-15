@@ -849,7 +849,7 @@
             "messages": [
              {
               "type": "text",
-              "text": "您目前不在班，不需要簽退。"
+              "text": "您目前不在班，不需要簽退。下方選單已恢復成一般版。"
              }
             ],
             "replyToken": "{{1.events[1].replyToken}}",
@@ -898,6 +898,40 @@
              ]
             ]
            }
+          },
+          {
+           "id": 203,
+           "module": "line:makeApiCall",
+           "version": 1,
+           "mapper": {
+            "url": "/v2/bot/user/{{1.events[1].source.userId}}/richmenu",
+            "method": "DELETE",
+            "headers": []
+           },
+           "metadata": {
+            "designer": {
+             "x": 1200,
+             "y": 2400,
+             "name": "解除加乘選單（不在班）"
+            }
+           },
+           "parameters": {
+            "__IMTCONN__": 0
+           },
+           "onerror": [
+            {
+             "id": 204,
+             "module": "builtin:Ignore",
+             "version": 1,
+             "mapper": null,
+             "metadata": {
+              "designer": {
+               "x": 1500,
+               "y": 2400
+              }
+             }
+            }
+           ]
           }
          ]
         }
@@ -1001,7 +1035,7 @@
             "messages": [
              {
               "type": "text",
-              "text": "您目前不在班，不需要簽退。"
+              "text": "您目前不在班，不需要簽退。下方選單已恢復成一般版。"
              }
             ],
             "replyToken": "{{1.events[1].replyToken}}",
@@ -1050,6 +1084,40 @@
              ]
             ]
            }
+          },
+          {
+           "id": 205,
+           "module": "line:makeApiCall",
+           "version": 1,
+           "mapper": {
+            "url": "/v2/bot/user/{{1.events[1].source.userId}}/richmenu",
+            "method": "DELETE",
+            "headers": []
+           },
+           "metadata": {
+            "designer": {
+             "x": 1200,
+             "y": 2850,
+             "name": "解除加乘選單（不在班）"
+            }
+           },
+           "parameters": {
+            "__IMTCONN__": 0
+           },
+           "onerror": [
+            {
+             "id": 206,
+             "module": "builtin:Ignore",
+             "version": 1,
+             "mapper": null,
+             "metadata": {
+              "designer": {
+               "x": 1500,
+               "y": 2850
+              }
+             }
+            }
+           ]
           }
          ]
         }

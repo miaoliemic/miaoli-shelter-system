@@ -236,6 +236,17 @@ def build_main():
     routes.append((flt("R1 簽到", [[c(T, "text:contain", "SIGN-")]]), [op, r1]))
 
     # ---------- R2 簽退 ----------
+    # 不在班卻按到簽退：代表名冊和 LINE 選單狀態對不上（例如後台直接改了簽到狀態），順手解除加乘選單讓它自己恢復。
+    # 用固定編號接在最後，避免後面所有模組的編號位移；沒有綁選單時 LINE 可能回錯誤，用 Ignore 吃掉。
+    NOT_ON_DUTY = "您目前不在班，不需要簽退。下方選單已恢復成一般版。"
+
+    def unlink_menu(mid):
+        return {"id": mid, "module": "line:makeApiCall", "version": 1,
+                "mapper": {"url": "/v2/bot/user/" + U + "/richmenu", "method": "DELETE", "headers": []},
+                "metadata": {"designer": {"x": 1200, "y": 2400 if mid == 203 else 2850, "name": "解除加乘選單（不在班）"}},
+                "parameters": {"__IMTCONN__": CONN_LINE},
+                "onerror": [{"id": mid + 1, "module": "builtin:Ignore", "version": 1, "mapper": None,
+                             "metadata": {"designer": {"x": 1500, "y": 2400 if mid == 203 else 2850}}}]}
     att = b.search("找未簽退的出勤", DS_ATT, [
         c("人員 |&*^%$#@| relation", "relation:contains", f"{{{{{S}.id}}}}"),
         c("簽退時間 |&*^%$#@| date", "date:is_empty", "true")], sort_created=True)
@@ -250,12 +261,12 @@ def build_main():
                 f_now("簽退時間"), f_sel("簽退方式", "自行簽退")],
                 f=flt("有找到出勤", [[c(f"{{{{{att['id']}.id}}}}", "exist")]])),
         ]),
-        (flt("不在班", DENIED), [b.reply("回覆不在班", "您目前不在班，不需要簽退。")]),
+        (flt("不在班", DENIED), [b.reply("回覆不在班", NOT_ON_DUTY), unlink_menu(203)]),
     ])
     routes.append((flt("R2 確定簽退", [[c(T, "text:equal", "確定簽退")]]), [r2]))
     r2c = b.router("簽退確認", [
         (flt("在班", [ON]), [b.quick("問是否簽退", f"{NAME} 確定要簽退（下班）嗎？", [("確定簽退", "確定簽退"), ("取消", "取消")])]),
-        (flt("不在班", DENIED), [b.reply("回覆不在班（確認）", "您目前不在班，不需要簽退。")]),
+        (flt("不在班", DENIED), [b.reply("回覆不在班（確認）", NOT_ON_DUTY), unlink_menu(205)]),
     ])
     routes.append((flt("R2c 簽退前確認", [[c(T, "text:equal", "簽退")], [c(T, "text:equal", "我要簽退")]]), [r2c]))
 
