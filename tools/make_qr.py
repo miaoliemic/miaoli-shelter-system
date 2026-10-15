@@ -93,7 +93,8 @@ def main():
     a = ap.parse_args()
     os.makedirs(OUT, exist_ok=True)
 
-    card("工作人員簽到", a.shelter, oa_message_url(f"簽到 {a.sign}"), a.sign,
+    # 簽到 QR 是整個收容所共用的（系統用 LINE 帳號認人），不印代碼，避免被誤認為個人專用
+    card("工作人員簽到", a.shelter, oa_message_url(f"簽到 {a.sign}"), "本所工作人員共用",
          ["用 LINE 掃描 → 按「傳送」", "沒在班：直接簽到；已在班：選要做的事"], "#2f9e44"
          ).save(os.path.join(OUT, "01_工作人員簽到QR.png"))
     card("加入官方帳號", "苗栗避難所系統", f"https://line.me/R/ti/p/{OA_ID}", OA_ID,
