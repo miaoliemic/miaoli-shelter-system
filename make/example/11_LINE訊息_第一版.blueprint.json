@@ -286,17 +286,18 @@
           },
           {
            "id": 14,
-           "module": "line:sendAReplyMessage",
+           "module": "line:makeApiCall",
            "version": 1,
            "mapper": {
-            "messages": [
+            "url": "/v2/bot/message/reply",
+            "method": "POST",
+            "headers": [
              {
-              "type": "text",
-              "text": "✅ {{2.properties_value.`姓名`[].plain_text}} 已在【{{11.properties_value.`開設名稱`[].plain_text}}】簽到。\n開設狀態：{{11.properties_value.`開設狀態`.name}}\n工作人員功能在下方選單最後一列。"
+              "key": "Content-Type",
+              "value": "application/json"
              }
             ],
-            "replyToken": "{{1.events[1].replyToken}}",
-            "notificationDisabled": false
+            "body": "{\"replyToken\": \"{{1.events[1].replyToken}}\", \"messages\": [{\"type\": \"text\", \"text\": \"✅ {{2.properties_value.`姓名`[].plain_text}} 已在【{{11.properties_value.`開設名稱`[].plain_text}}】簽到。\\n開設狀態：{{11.properties_value.`開設狀態`.name}}\\n要做什麼？也可以用下方選單最後一列。\", \"quickReply\": {\"items\": [{\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"本所狀況\", \"text\": \"本所狀況\"}}, {\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"現場回報\", \"text\": \"現場回報\"}}, {\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"物資\", \"text\": \"物資\"}}, {\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"簽退\", \"text\": \"簽退\"}}]}}]}"
            },
            "metadata": {
             "designer": {
@@ -391,17 +392,18 @@
          "flow": [
           {
            "id": 16,
-           "module": "line:sendAReplyMessage",
+           "module": "line:makeApiCall",
            "version": 1,
            "mapper": {
-            "messages": [
+            "url": "/v2/bot/message/reply",
+            "method": "POST",
+            "headers": [
              {
-              "type": "text",
-              "text": "{{2.properties_value.`姓名`[].plain_text}} 您已在班中，不用重複簽到。要下班請按「我要簽退」。"
+              "key": "Content-Type",
+              "value": "application/json"
              }
             ],
-            "replyToken": "{{1.events[1].replyToken}}",
-            "notificationDisabled": false
+            "body": "{\"replyToken\": \"{{1.events[1].replyToken}}\", \"messages\": [{\"type\": \"text\", \"text\": \"{{2.properties_value.`姓名`[].plain_text}} 您目前在班中，要做什麼？\", \"quickReply\": {\"items\": [{\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"本所狀況\", \"text\": \"本所狀況\"}}, {\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"現場回報\", \"text\": \"現場回報\"}}, {\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"物資\", \"text\": \"物資\"}}, {\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"簽退\", \"text\": \"簽退\"}}]}}]}"
            },
            "metadata": {
             "designer": {

@@ -201,6 +201,8 @@ def build_main():
     routes = []
 
     # ---------- R1 簽到 ----------
+    # 掃簽到 QR：沒在班就直接簽到（少一步），在班就問要做什麼；兩種都附同一組常用功能按鈕
+    DUTY_BTNS = [("本所狀況", "本所狀況"), ("現場回報", "現場回報"), ("物資", "物資"), ("簽退", "簽退")]
     code = '{{trim(replace(1.events[1].message.text; "簽到"; ""))}}'
     op = b.search("找簽到碼對應的開設", DS_OPEN, [c("簽到代碼 |&*^%$#@| rich_text", "text:equals", code)])
     O = op["id"]
@@ -217,12 +219,12 @@ def build_main():
                 f_sel("簽到狀態", "上班中"), f_rel("派駐開設", f"{{{{{O}.id}}}}"),
                 f_sel("選單狀態", '{{if(' + sp(S, "身分類別", ".name")[2:-2] + ' = "工作人員"; "工作人員加乘"; "一般")}}'),
                 f_text("對話暫存", TMP_CLEAR)]),
-            b.reply("回覆簽到成功", f"✅ {NAME} 已在【{o_name}】簽到。\n開設狀態：{o_stat}\n工作人員功能在下方選單最後一列。"),
+            b.quick("回覆簽到成功", f"✅ {NAME} 已在【{o_name}】簽到。\n開設狀態：{o_stat}\n要做什麼？也可以用下方選單最後一列。", DUTY_BTNS),
             b.line_api("取得加乘選單 ID", f"/v2/bot/richmenu/alias/{MENU_ALIAS}", method="GET",
                        f=flt("工作人員才換選單", [[c(sp(S, "身分類別", ".name"), "text:equal", "工作人員")]])),
         ]),
         (flt("已在班", [[EXIST, EN, DUTY, o_ok]]), [
-            b.reply("回覆已在班", f"{NAME} 您已在班中，不用重複簽到。要下班請按「我要簽退」。")]),
+            b.quick("回覆已在班", f"{NAME} 您目前在班中，要做什麼？", DUTY_BTNS)]),
         (flt("簽到碼無效", [[EXIST, EN, c(f"{{{{{O}.id}}}}", "notexist")], [EXIST, EN, NDUTY, c(o_stat, "text:equal", "已撤收")]]), [
             b.reply("回覆簽到碼無效", "⚠ 此簽到碼無效，或該收容所已撤收。請洽現場負責人。")]),
         (flt("不是工作人員", [[NOTEXIST], [NEN]]), [
