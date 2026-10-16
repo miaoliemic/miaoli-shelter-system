@@ -134,7 +134,9 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
 // ===== 正式後端：Make 情境 13（物資 API）。用表單格式送出，瀏覽器不會先送 CORS 預檢 =====
 class ApiError extends Error { constructor(code) { super(code); this.code = code; } }
 async function post(fields) {
-  const body = new URLSearchParams({ ...fields, t: liff.getIDToken() || "" });
+  const token = liff.getIDToken();
+  if (!token) throw new ApiError("no_token");   // LIFF 沒給 ID Token（通常是 Scope 沒勾 openid），不要送出
+  const body = new URLSearchParams({ ...fields, t: token });
   const res = await fetch(CONFIG.apiUrl, { method: "POST", body });
   let data;
   try { data = await res.json(); } catch (e) { throw new ApiError("server"); }
@@ -422,9 +424,31 @@ let PROFILE = null;
 // 驗證失敗就重新登入；不在班就顯示限制畫面。處理過回傳 true
 function handleApiError(e) {
   if (!(e instanceof ApiError)) return false;
-  if (e.code === "auth") { liff.login({ redirectUri: location.href }); return true; }
+  if (e.code === "auth" || e.code === "no_token") {
+    // 只自動重新登入一次；兩分鐘內又失敗就停下來顯示原因，避免無限重新整理、一直消耗 Make 額度
+    let last = 0;
+    try { last = +sessionStorage.getItem("relogin") || 0; } catch (x) {}
+    if (e.code === "auth" && Date.now() - last > 120000) {
+      try { sessionStorage.setItem("relogin", String(Date.now())); } catch (x) {}
+      if (liff.isInClient()) location.reload(); else { liff.logout(); liff.login({ redirectUri: location.href }); }
+      return true;
+    }
+    showAuthProblem(e.code); return true;
+  }
   if (e.code === "not_on_duty") { S.me = { ...(S.me || {}), onDuty: false }; render(); return true; }
   return false;
+}
+function showAuthProblem(code) {
+  let info = "";
+  try {
+    const d = liff.getDecodedIDToken();
+    if (d) info = `頻道 ${d.aud}，到期 ${new Date(d.exp * 1000).toLocaleString("zh-TW")}，現在 ${new Date().toLocaleString("zh-TW")}`;
+  } catch (x) {}
+  const why = code === "no_token" ? "LINE 沒有提供身分憑證（ID Token）。請管理者確認 LIFF 設定的 Scope 有勾選 openid。"
+                                  : "LINE 身分驗證沒有通過。";
+  $("#bar").hidden = true;
+  $("#app").innerHTML = `<div class="blocked"><h2>無法確認您的身分</h2><p>${esc(why)}</p>
+    <p style="margin-top:12px;font-size:13px">請截圖給管理者。${esc(info || "沒有取得憑證內容")}（${esc(code)}）</p></div>`;
 }
 async function boot() {
   let d;

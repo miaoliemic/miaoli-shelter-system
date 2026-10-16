@@ -1018,12 +1018,16 @@ def build_supply_api():
                     {"key": "Access-Control-Allow-Origin", "value": origin}]},
                 "metadata": b.meta(name)}
 
-    verify = {"id": 2, "module": "http:ActionSendData", "version": 3, "parameters": {"handleErrors": True},
+    verify = {"id": 2, "module": "http:ActionSendData", "version": 3, "parameters": {"handleErrors": False},  # False：LINE 回 400 時照常往下走，由路由判斷 statusCode
               "mapper": {"url": "https://api.line.me/oauth2/v2.1/verify", "method": "post", "serializeUrl": False,
                          "shareCookies": False, "bodyType": "x_www_form_urlencoded", "parseResponse": True,
                          "fields": [{"key": "id_token", "value": "{{1.t}}"}, {"key": "client_id", "value": channel}],
                          "headers": [], "qs": []},
               "metadata": {"designer": {"x": 0, "y": 0, "name": "向 LINE 驗證 ID Token"}}}
+    # ID Token 無效時 LINE 回 400，Make 會把它當成錯誤中斷；在錯誤處理路線回傳 401，頁面才知道要重新登入
+    verify["onerror"] = [respond("回傳驗證失敗（錯誤路線）", '{"ok":false,"error":"auth"}', "401"),
+                         {"id": b.nid(), "module": "builtin:Ignore", "version": 1, "mapper": None,
+                          "metadata": {"designer": {"x": 300, "y": 300}}}]
     W = 3  # 名冊
     staff = {"id": W, "module": "notion:searchObjects1", "version": 1,
              "mapper": {"limit": "1", "select": "data_source_item", "data_source": DS_STAFF,
@@ -1101,10 +1105,12 @@ def build_supply_api():
          "mapper": {}, "metadata": {"designer": {"x": -300, "y": 0, "name": "物資頁面送來的請求"}, "parameters": [
              {"name": "hook", "type": "hook:gateway-webhook", "label": "Webhook", "required": True},
              {"name": "maxResults", "type": "number", "label": "Maximum number of results"}]}},
-        verify, staff,
-        b.router("依身分與動作分流", [
+        verify,
+        # 身分驗證失敗時 sub 是空的，不能拿去查名冊（Notion 會報錯、執行中斷），所以先分流再查
+        b.router("身分驗證", [
             (flt("身分驗證失敗", [[c("{{2.statusCode}}", "number:notequal", "200")]]), [
                 respond("回傳驗證失敗", '{"ok":false,"error":"auth"}', "401")]),
+            (flt("身分驗證成功", [[auth_ok]]), [staff, b.router("依身分與動作分流", [
             (flt("不是在班工作人員", [[auth_ok, c(f"{{{{{W}.id}}}}", "notexist")],
                                      [auth_ok, c(sp(W, "啟用中"), "boolean:notequal", "true")],
                                      [auth_ok, c(sp(W, "簽到狀態", ".name"), "text:notequal", "上班中")]]), [
@@ -1112,6 +1118,7 @@ def build_supply_api():
             (flt("讀庫存", [on + [act("load")]]), load_flow),
             (flt("送出登記", [on + [act("submit")]]), submit_flow),
             (flt("查號碼牌", [on + [act("resident")]]), resident_flow),
+        ])]),
         ]),
     ]
     return blueprint("13 物資 API（LIFF）", flow, instant=True)
