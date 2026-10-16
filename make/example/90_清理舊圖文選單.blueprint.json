@@ -1,0 +1,182 @@
+{
+ "name": "90 清理舊圖文選單（保留使用中的兩張）",
+ "flow": [
+  {
+   "id": 1,
+   "module": "line:makeApiCall",
+   "version": 1,
+   "parameters": {
+    "__IMTCONN__": 0
+   },
+   "mapper": {
+    "url": "/v2/bot/richmenu/list",
+    "method": "GET",
+    "headers": []
+   },
+   "metadata": {
+    "designer": {
+     "x": 0,
+     "y": 0,
+     "name": "列出所有圖文選單"
+    },
+    "parameters": [
+     {
+      "name": "__IMTCONN__",
+      "type": "account:line2",
+      "label": "Connection",
+      "required": true
+     }
+    ]
+   }
+  },
+  {
+   "id": 2,
+   "module": "line:makeApiCall",
+   "version": 1,
+   "parameters": {
+    "__IMTCONN__": 0
+   },
+   "mapper": {
+    "url": "/v2/bot/richmenu/alias/staff-plus",
+    "method": "GET",
+    "headers": []
+   },
+   "metadata": {
+    "designer": {
+     "x": 300,
+     "y": 0,
+     "name": "目前的加乘選單（保留）"
+    },
+    "parameters": [
+     {
+      "name": "__IMTCONN__",
+      "type": "account:line2",
+      "label": "Connection",
+      "required": true
+     }
+    ]
+   }
+  },
+  {
+   "id": 3,
+   "module": "line:makeApiCall",
+   "version": 1,
+   "parameters": {
+    "__IMTCONN__": 0
+   },
+   "mapper": {
+    "url": "/v2/bot/user/all/richmenu",
+    "method": "GET",
+    "headers": []
+   },
+   "metadata": {
+    "designer": {
+     "x": 600,
+     "y": 0,
+     "name": "目前的一般選單（保留）"
+    },
+    "parameters": [
+     {
+      "name": "__IMTCONN__",
+      "type": "account:line2",
+      "label": "Connection",
+      "required": true
+     }
+    ]
+   }
+  },
+  {
+   "id": 4,
+   "module": "builtin:BasicFeeder",
+   "version": 1,
+   "mapper": {
+    "array": "{{1.body.richmenus}}"
+   },
+   "metadata": {
+    "designer": {
+     "x": 900,
+     "y": 0,
+     "name": "逐張檢查"
+    }
+   }
+  },
+  {
+   "id": 5,
+   "module": "line:makeApiCall",
+   "version": 1,
+   "parameters": {
+    "__IMTCONN__": 0
+   },
+   "mapper": {
+    "url": "/v2/bot/richmenu/{{4.richMenuId}}",
+    "method": "DELETE",
+    "headers": []
+   },
+   "metadata": {
+    "designer": {
+     "x": 1200,
+     "y": 0,
+     "name": "刪除舊選單"
+    },
+    "parameters": [
+     {
+      "name": "__IMTCONN__",
+      "type": "account:line2",
+      "label": "Connection",
+      "required": true
+     }
+    ]
+   },
+   "filter": {
+    "name": "不是目前使用中的兩張",
+    "conditions": [
+     [
+      {
+       "a": "{{4.richMenuId}}",
+       "o": "text:notequal",
+       "b": "{{2.body.richMenuId}}"
+      },
+      {
+       "a": "{{4.richMenuId}}",
+       "o": "text:notequal",
+       "b": "{{3.body.richMenuId}}"
+      }
+     ]
+    ]
+   },
+   "onerror": [
+    {
+     "id": 6,
+     "module": "builtin:Ignore",
+     "version": 1,
+     "mapper": null,
+     "metadata": {
+      "designer": {
+       "x": 1500,
+       "y": 0
+      }
+     }
+    }
+   ]
+  }
+ ],
+ "metadata": {
+  "instant": false,
+  "version": 1,
+  "designer": {
+   "orphans": []
+  },
+  "scenario": {
+   "dlq": true,
+   "slots": null,
+   "dataloss": false,
+   "maxErrors": 3,
+   "autoCommit": true,
+   "roundtrips": 1,
+   "sequential": false,
+   "confidential": false,
+   "freshVariables": false,
+   "autoCommitTriggerLast": true
+  }
+ }
+}

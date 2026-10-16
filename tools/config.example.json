@@ -4,10 +4,12 @@
     "_說明": "在 Make.com 建好 LINE webhook、LINE 連線、Notion 連線後，填入它們的編號（數字）。",
     "line_webhook_id": 0,
     "line_connection_id": 0,
-    "notion_connection_id": 0
+    "notion_connection_id": 0,
+    "supply_api_hook_id": 0
   },
   "line": {
-    "staff_menu_alias": "staff-plus"
+    "staff_menu_alias": "staff-plus",
+    "login_channel_id": "<LIFF 所在的 LINE Login channel ID>"
   },
   "notion": {
     "_說明": "填 data source ID（Notion 資料表的 collection ID），不是 database ID。richmenu_page_id 是放選單圖片的頁面：頁面裡第一組左右兩欄，左欄放一般選單、右欄放加乘選單，各取欄裡最後一張圖。",

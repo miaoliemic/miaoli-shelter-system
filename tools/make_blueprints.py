@@ -997,6 +997,150 @@ def build_menu():
     return blueprint("12 建立圖文選單（一般＋加乘）", flow, instant=False)
 
 
+def build_supply_api():
+    """13 物資 API：給 LIFF 物資頁面（liff/supplies/）呼叫的 webhook。
+    頁面用 application/x-www-form-urlencoded 送出（瀏覽器不會先送 CORS 預檢），欄位：
+      a＝動作（load 讀庫存｜submit 送出登記｜resident 查號碼牌）、t＝LINE ID Token、
+      r＝請求編號（submit）、l＝{"lines":[{itemId,name,type,qty,note}]}（submit）、g＝領取人收容登記 ID（submit，可空白）、tag＝號碼牌（resident）
+    每次都先向 LINE 驗證 ID Token，再查名冊：啟用中、在班；資料一律以名冊的派駐開設為準。
+    回應一律是 JSON：{"ok":true,…} 或 {"ok":false,"error":"auth|not_on_duty"}。"""
+    hook = CFG["make"].get("supply_api_hook_id", 0)
+    channel = CFG["line"].get("login_channel_id", "")
+    origin = "https://miaoliemic.github.io"
+    b = B()
+    b.next_id = 100
+
+    def respond(name, body, status="200"):
+        mid = b.nid()
+        return {"id": mid, "module": "gateway:WebhookRespond", "version": 1, "parameters": {},
+                "mapper": {"status": status, "body": body, "headers": [
+                    {"key": "Content-Type", "value": "application/json; charset=utf-8"},
+                    {"key": "Access-Control-Allow-Origin", "value": origin}]},
+                "metadata": b.meta(name)}
+
+    verify = {"id": 2, "module": "http:ActionSendData", "version": 3, "parameters": {"handleErrors": True},
+              "mapper": {"url": "https://api.line.me/oauth2/v2.1/verify", "method": "post", "serializeUrl": False,
+                         "shareCookies": False, "bodyType": "x_www_form_urlencoded", "parseResponse": True,
+                         "fields": [{"key": "id_token", "value": "{{1.t}}"}, {"key": "client_id", "value": channel}],
+                         "headers": [], "qs": []},
+              "metadata": {"designer": {"x": 0, "y": 0, "name": "向 LINE 驗證 ID Token"}}}
+    W = 3  # 名冊
+    staff = {"id": W, "module": "notion:searchObjects1", "version": 1,
+             "mapper": {"limit": "1", "select": "data_source_item", "data_source": DS_STAFF,
+                        "filter": [[c("LINE User ID |&*^%$#@| rich_text", "text:equals", "{{2.data.sub}}")]]},
+             "metadata": {"designer": {"x": 300, "y": 0, "name": "查名冊"},
+                          "parameters": [{"name": "__IMTCONN__", "type": "account:notion2,notion3", "label": "Connection", "required": True}]},
+             "parameters": {"__IMTCONN__": CONN_NOTION}}
+
+    auth_ok = c("{{2.statusCode}}", "number:equal", "200")
+    w_exist = c(f"{{{{{W}.id}}}}", "exist")
+    w_en = c(sp(W, "啟用中"), "boolean:equal", "true")
+    w_duty = c(sp(W, "簽到狀態", ".name"), "text:equal", "上班中")
+    on = [auth_ok, w_exist, w_en, w_duty]
+    act = lambda a: c("{{1.a}}", "text:equal", a)
+    w_open = sp(W, "派駐開設", "[].id")
+    w_name = sp(W, "姓名", "[].plain_text")
+    w_role = sp(W, "角色", ".name")
+
+    # ---- load：本所品項與目前庫存 ----
+    g_open = b.get("讀派駐開設", w_open)
+    O = g_open["id"]
+    items = b.search("找本所物資品項", DS_ITEM, [c("收容所 |&*^%$#@| relation", "relation:contains", sp(O, "收容所", "[].id"))])
+    items["mapper"]["limit"] = "100"
+    IT = items["id"]
+    agg_id = b.nid()
+    agg = {"id": agg_id, "module": "builtin:BasicAggregator", "version": 1, "parameters": {"feeder": IT},
+           "mapper": {"id": f"{{{{{IT}.id}}}}", "properties_value": f"{{{{{IT}.properties_value}}}}"},
+           "metadata": b.meta("彙整品項")}
+    js_id = b.nid()
+    js = {"id": js_id, "module": "json:TransformToJSON", "version": 1, "parameters": {"space": ""},
+          "mapper": {"object": f"{{{{{agg_id}.array}}}}"}, "metadata": b.meta("品項轉成 JSON")}
+    load_body = ('{"ok":true,"me":{"name":"' + w_name + '","role":"' + w_role + '","opening":"'
+                 + sp(O, "開設名稱", "[].plain_text") + '","openingId":"' + f"{{{{{O}.id}}}}" + '"},"items":'
+                 + f"{{{{{js_id}.json}}}}" + "}")
+    load_flow = [g_open, items, agg, js, respond("回傳庫存", load_body)]
+
+    # ---- submit：每一行新增一筆物資異動紀錄（請求編號重複就不再寫） ----
+    dup = b.search("請求編號是否已登記", DS_MOVE, [c("請求編號 |&*^%$#@| rich_text", "text:equals", "{{1.r}}")])
+    D = dup["id"]
+    parse = {"id": b.nid(), "module": "json:ParseJSON", "version": 1, "parameters": {"type": ""},
+             "mapper": {"json": "{{1.l}}"}, "metadata": b.meta("解析登記內容")}
+    P = parse["id"]
+    feed = {"id": b.nid(), "module": "builtin:BasicFeeder", "version": 1, "mapper": {"array": f"{{{{{P}.lines}}}}"},
+            "metadata": b.meta("逐項登記")}
+    F = feed["id"]
+    move = b.create("新增物資異動紀錄", DS_MOVE, [
+        f_title("摘要", f"{{{{{F}.name}}}} {{{{{F}.type}}}} {{{{{F}.note}}}}"), f_rel("品項", f"{{{{{F}.itemId}}}}"),
+        f_rel("收容所開設", w_open), f_sel("異動類型", f"{{{{{F}.type}}}}"),
+        {"key": "數量", "type": "number", "value": f"{{{{{F}.qty}}}}"},
+        f_rel("經手人", f"{{{{{W}.id}}}}"), f_now("時間"), f_sel("來源", "LINE 表單"),
+        f_text("備註", f"物資頁面：{{{{{F}.note}}}}"), f_text("請求編號", "{{1.r}}"),
+        f_rel("領取人", "{{1.g}}")])
+    after = b.get("讀最新庫存", f"{{{{{F}.itemId}}}}")
+    A = after["id"]
+    rows = b.aggregate("彙整結果", F, '{"itemId":"' + f"{{{{{F}.itemId}}}}" + '","stock":'
+                       + "{{ifempty(" + sp(A, "目前庫存", ".number")[2:-2] + "; 0)}}}", sep=",")
+    submit_flow = [dup, b.router("是否重複送出", [
+        (flt("已登記過", [[c(f"{{{{{D}.id}}}}", "exist")]]), [respond("回傳重複", '{"ok":true,"duplicate":true}')]),
+        (flt("新的登記", [[c(f"{{{{{D}.id}}}}", "notexist")]]), [
+            parse, feed, move, after, rows, respond("回傳登記結果", '{"ok":true,"results":[' + f"{{{{{rows['id']}.text}}}}" + "]}")]),
+    ])]
+
+    # ---- resident：號碼牌 → 居民（領物資用） ----
+    tg = b.search("找號碼牌（領物資）", DS_TAG, [c("編號 |&*^%$#@| title", "text:equals", "{{1.tag}}")])
+    TG = tg["id"]
+    who = b.get("讀居民（領物資）", sp(TG, "綁定居民", "[].id"))
+    WHO = who["id"]
+    resident_body = ('{"ok":true,"found":"{{if(' + f"{TG}.id" + '; "yes"; "no")}}","tagStatus":"' + sp(TG, "狀態", ".name")
+                     + '","residentId":"' + f"{{{{{WHO}.id}}}}" + '","name":"' + sp(WHO, "姓名", "[].plain_text")
+                     + '","status":"' + sp(WHO, "在所狀態", ".name") + '"}')
+    resident_flow = [tg, who, respond("回傳居民", resident_body)]
+
+    flow = [
+        {"id": 1, "module": "gateway:CustomWebHook", "version": 1, "parameters": {"hook": hook, "maxResults": 1},
+         "mapper": {}, "metadata": {"designer": {"x": -300, "y": 0, "name": "物資頁面送來的請求"}, "parameters": [
+             {"name": "hook", "type": "hook:gateway-webhook", "label": "Webhook", "required": True},
+             {"name": "maxResults", "type": "number", "label": "Maximum number of results"}]}},
+        verify, staff,
+        b.router("依身分與動作分流", [
+            (flt("身分驗證失敗", [[c("{{2.statusCode}}", "number:notequal", "200")]]), [
+                respond("回傳驗證失敗", '{"ok":false,"error":"auth"}', "401")]),
+            (flt("不是在班工作人員", [[auth_ok, c(f"{{{{{W}.id}}}}", "notexist")],
+                                     [auth_ok, c(sp(W, "啟用中"), "boolean:notequal", "true")],
+                                     [auth_ok, c(sp(W, "簽到狀態", ".name"), "text:notequal", "上班中")]]), [
+                respond("回傳不在班", '{"ok":false,"error":"not_on_duty"}', "403")]),
+            (flt("讀庫存", [on + [act("load")]]), load_flow),
+            (flt("送出登記", [on + [act("submit")]]), submit_flow),
+            (flt("查號碼牌", [on + [act("resident")]]), resident_flow),
+        ]),
+    ]
+    return blueprint("13 物資 API（LIFF）", flow, instant=True)
+
+
+def build_cleanup():
+    """刪除 LINE 上已經不用的圖文選單（維護用；每次執行情境 12 都會多出兩張新選單，舊的不會自動刪除）。
+    目前使用中的兩張（預設的一般選單、別名指到的加乘選單）會保留，其餘逐張刪除；刪除選單時 LINE 會自動解除綁定。"""
+    line_meta = [{"name": "__IMTCONN__", "type": "account:line2", "label": "Connection", "required": True}]
+
+    def call(mid, url, method, name, x, **extra):
+        return {"id": mid, "module": "line:makeApiCall", "version": 1, "parameters": {"__IMTCONN__": CONN_LINE},
+                "mapper": {"url": url, "method": method, "headers": []},
+                "metadata": {"designer": {"x": x, "y": 0, "name": name}, "parameters": line_meta}, **extra}
+    flow = [
+        call(1, "/v2/bot/richmenu/list", "GET", "列出所有圖文選單", 0),
+        call(2, f"/v2/bot/richmenu/alias/{MENU_ALIAS}", "GET", "目前的加乘選單（保留）", 300),
+        call(3, "/v2/bot/user/all/richmenu", "GET", "目前的一般選單（保留）", 600),
+        {"id": 4, "module": "builtin:BasicFeeder", "version": 1, "mapper": {"array": "{{1.body.richmenus}}"},
+         "metadata": {"designer": {"x": 900, "y": 0, "name": "逐張檢查"}}},
+        call(5, "/v2/bot/richmenu/{{4.richMenuId}}", "DELETE", "刪除舊選單", 1200,
+             filter=flt("不是目前使用中的兩張", [[c("{{4.richMenuId}}", "text:notequal", "{{2.body.richMenuId}}"),
+                                              c("{{4.richMenuId}}", "text:notequal", "{{3.body.richMenuId}}")]]),
+             onerror=[{"id": 6, "module": "builtin:Ignore", "version": 1, "mapper": None,
+                       "metadata": {"designer": {"x": 1500, "y": 0}}}]),
+    ]
+    return blueprint("90 清理舊圖文選單（保留使用中的兩張）", flow, instant=False)
+
+
 def blueprint(name, flow, instant):
     return {"name": name, "flow": flow, "metadata": {
         "instant": instant, "version": 1, "designer": {"orphans": []},
@@ -1009,7 +1153,9 @@ def main():
     out = ROOT / "make" / ("example" if EXAMPLE else "")
     out.mkdir(parents=True, exist_ok=True)
     for fname, bp in (("11_LINE訊息_第一版.blueprint.json", build_main()),
-                      ("12_建立圖文選單.blueprint.json", build_menu())):
+                      ("12_建立圖文選單.blueprint.json", build_menu()),
+                      ("13_物資API.blueprint.json", build_supply_api()),
+                      ("90_清理舊圖文選單.blueprint.json", build_cleanup())):
         p = out / fname
         p.write_text(json.dumps(bp, ensure_ascii=False, indent=1), encoding="utf-8")
         print(fname, p.stat().st_size)
