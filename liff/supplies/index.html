@@ -1,0 +1,385 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>收容所物資</title>
+<style>
+:root{
+  --bg:#F4F3EE;--card:#FFFFFF;--text:#1E2A36;--soft:#5B6573;--muted:#8A93A0;--line:#E2E0D8;
+  --green:#2B7A3D;--green-bg:#E3F1E6;--blue:#1F5FA8;--blue-bg:#E4EEF9;--amber:#8A5300;--amber-bg:#FFF1D6;
+  --red:#B42318;--red-bg:#FDE7E5;--chip:#ECEAE3;
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#15191E;--card:#1F252C;--text:#E8EAED;--soft:#AEB6C0;--muted:#7D8792;--line:#323A43;
+  --green:#6BC283;--green-bg:#1E3325;--blue:#7DB2EE;--blue-bg:#1B2B3E;--amber:#F2B451;--amber-bg:#3A2C12;
+  --red:#F2867B;--red-bg:#3D1E1B;--chip:#2A3139;
+}}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--bg);color:var(--text);font-family:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;font-size:16px;line-height:1.5}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer;border:none;background:none}
+.wrap{max-width:560px;margin:0 auto;padding-bottom:180px}
+header{position:sticky;top:0;z-index:5;background:var(--bg);padding:14px 16px 10px;border-bottom:1px solid var(--line)}
+.title{display:flex;align-items:center;gap:8px}
+.title h1{font-size:19px;font-weight:700;flex:1}
+.sub{font-size:13px;color:var(--soft);margin-top:2px}
+.iconbtn{width:40px;height:40px;border-radius:12px;background:var(--card);border:1px solid var(--line);display:inline-flex;align-items:center;justify-content:center;font-size:18px}
+.seg{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:12px}
+.seg button{padding:10px 0;border-radius:12px;background:var(--card);border:1px solid var(--line);font-weight:700}
+.seg button.on[data-mode="in"]{background:var(--green);border-color:var(--green);color:#fff}
+.seg button.on[data-mode="out"]{background:var(--blue);border-color:var(--blue);color:#fff}
+.seg button.on[data-mode="count"]{background:var(--amber);border-color:var(--amber);color:#fff}
+.seg button:disabled{opacity:.35}
+.hint{font-size:13px;color:var(--soft);margin-top:8px}
+.tools{display:flex;gap:8px;margin-top:10px}
+.tools input{flex:1;height:42px;border-radius:12px;border:1px solid var(--line);background:var(--card);padding:0 12px}
+.scan{height:42px;padding:0 14px;border-radius:12px;background:var(--text);color:var(--bg);font-weight:700;white-space:nowrap}
+.chips{display:flex;gap:6px;overflow-x:auto;margin-top:10px;padding-bottom:2px}
+.chips button{padding:5px 12px;border-radius:999px;background:var(--chip);font-size:14px;white-space:nowrap}
+.chips button.on{background:var(--text);color:var(--bg)}
+.recipient{margin:12px 16px 0;padding:12px 14px;border-radius:14px;background:var(--blue-bg);color:var(--blue)}
+.recipient b{font-size:17px}
+.focus{margin:12px 16px 0;padding:16px;border-radius:16px;background:var(--card);border:2px solid var(--text)}
+.focus h2{font-size:22px}
+.focus .big{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+.focus .big button{padding:14px 0;border-radius:12px;font-size:18px;font-weight:700;border:1px solid var(--line);background:var(--bg)}
+.focus .big button.on[data-mode="in"]{background:var(--green);color:#fff;border-color:var(--green)}
+.focus .big button.on[data-mode="out"]{background:var(--blue);color:#fff;border-color:var(--blue)}
+.showall{display:block;margin:10px auto 0;color:var(--soft);font-size:14px;text-decoration:underline}
+.list{margin:12px 16px 0;background:var(--card);border-radius:16px;border:1px solid var(--line);overflow:hidden}
+.row{padding:12px 14px;border-top:1px solid var(--line)}
+.row:first-child{border-top:none}
+.row.low{background:var(--amber-bg)}
+.row.picked{box-shadow:inset 4px 0 0 var(--accent)}
+.row .top{display:flex;align-items:center;gap:8px}
+.row .name{font-weight:700;font-size:17px;flex:1}
+.row .stock{font-size:13px;color:var(--soft)}
+.row.low .stock,.row.low .name{color:var(--amber)}
+.ctrl{display:flex;align-items:center;gap:8px;margin-top:8px}
+.unit{height:40px;border-radius:10px;border:1px solid var(--line);background:var(--bg);padding:0 8px}
+.step{width:44px;height:44px;border-radius:50%;border:1px solid var(--line);background:var(--bg);font-size:22px;font-weight:700;line-height:1}
+.qty{width:72px;height:44px;text-align:center;border-radius:10px;border:1px solid var(--line);background:var(--bg);font-size:18px;font-weight:700}
+.diff{font-size:13px;margin-left:auto}
+.err{font-size:13px;color:var(--red);margin-top:6px}
+.addnew{display:block;width:100%;padding:14px;text-align:left;color:var(--blue);font-weight:700;border-top:1px solid var(--line)}
+.recent{margin:16px 16px 0;font-size:14px;color:var(--soft)}
+.recent h3{font-size:14px;margin-bottom:4px;color:var(--text)}
+.bar{position:fixed;left:0;right:0;bottom:0;z-index:6;background:var(--card);border-top:1px solid var(--line);padding:12px 16px calc(12px + env(safe-area-inset-bottom))}
+.bar .in{max-width:528px;margin:0 auto;display:flex;align-items:center;gap:10px}
+.bar .sum{flex:1;font-size:15px;color:var(--soft)}
+.bar .sum b{color:var(--text)}
+.go{padding:12px 20px;border-radius:12px;color:#fff;font-weight:700;font-size:16px;background:var(--accent)}
+.go:disabled{opacity:.4}
+.demo{max-width:528px;margin:8px auto 0;display:flex;gap:6px;flex-wrap:wrap;font-size:12px;color:var(--muted)}
+.demo button{font-size:12px;padding:2px 8px;border-radius:999px;border:1px dashed var(--muted);color:var(--soft)}
+.sheet-bg{position:fixed;inset:0;z-index:10;background:rgba(0,0,0,.45);display:flex;align-items:flex-end;justify-content:center}
+.sheet{width:100%;max-width:560px;background:var(--card);border-radius:20px 20px 0 0;padding:18px 16px calc(18px + env(safe-area-inset-bottom));max-height:85vh;overflow:auto}
+.sheet h2{font-size:19px;margin-bottom:10px}
+.sheet .line{display:flex;justify-content:space-between;padding:8px 0;border-top:1px solid var(--line);font-size:16px}
+.sheet .line small{color:var(--soft)}
+.sheet .acts{display:grid;grid-template-columns:1fr 2fr;gap:8px;margin-top:14px}
+.sheet .acts button{padding:13px 0;border-radius:12px;font-weight:700;border:1px solid var(--line)}
+.sheet .acts .go{border:none}
+.sheet label{display:block;font-size:14px;color:var(--soft);margin-top:10px}
+.sheet input,.sheet select{width:100%;height:44px;border-radius:10px;border:1px solid var(--line);background:var(--bg);padding:0 10px;margin-top:4px}
+.ok{color:var(--green)} .bad{color:var(--red)}
+.toast{position:fixed;left:50%;top:16px;transform:translateX(-50%);z-index:20;background:var(--text);color:var(--bg);padding:10px 16px;border-radius:12px;font-size:15px;max-width:90vw}
+.blocked{margin:60px 24px;text-align:center}
+.blocked h2{font-size:20px;margin-bottom:8px}
+.blocked p{color:var(--soft)}
+</style>
+</head>
+<body>
+<div class="wrap" id="app"></div>
+<div class="bar" id="bar" hidden>
+  <div class="in"><div class="sum" id="sum"></div><button class="go" id="go">確認登記</button></div>
+  <div class="demo" id="demo"></div>
+</div>
+<script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+<script>
+// ===== 設定：LIFF ID 與 API 網址填入後改用真資料；未填時用下方的模擬資料（原型） =====
+const CONFIG = { liffId: "2012049994-PV1Y181j", apiUrl: null };
+// 只有在正式網址（GitHub Pages）才啟動 LIFF；本機預覽時略過，直接用模擬資料
+const IN_LIFF_HOST = location.hostname.endsWith("github.io");
+
+const MODES = { in: "入庫", out: "發放", count: "盤點" };
+const ACCENT = { in: "var(--green)", out: "var(--blue)", count: "var(--amber)" };
+
+// ===== 模擬後端（原型用）。正式版由 Make 情境 13 提供相同格式的回應 =====
+const mock = {
+  me: { name: "佳璇", role: "管理者（收容所負責人）", onDuty: true,
+        opening: "【模擬】清華里活動中心", event: "【模擬】2026-10 風災" },
+  items: [
+    { id: "i1", code: "SUP-7K2QX", name: "飲用水", cat: "飲用水", unit: "瓶", pack: "箱", per: 24, stock: 216, safety: 48 },
+    { id: "i2", code: "SUP-M4TZ8", name: "泡麵", cat: "食品", unit: "碗", pack: "箱", per: 12, stock: 60, safety: 24 },
+    { id: "i3", code: "SUP-R9WD2", name: "餅乾", cat: "食品", unit: "包", pack: "箱", per: 30, stock: 90, safety: 30 },
+    { id: "i4", code: "SUP-H3NV6", name: "衛生紙", cat: "衛生用品", unit: "包", pack: "串", per: 12, stock: 72, safety: 24 },
+    { id: "i5", code: "SUP-Q8LJ5", name: "成人紙尿褲", cat: "衛生用品", unit: "片", pack: "包", per: 10, stock: 30, safety: 20 },
+    { id: "i6", code: "SUP-B6XC7", name: "口罩", cat: "醫療", unit: "片", pack: "盒", per: 50, stock: 300, safety: 100 },
+    { id: "i7", code: "SUP-T2FY9", name: "暖暖包", cat: "防寒", unit: "片", pack: "盒", per: 10, stock: 38, safety: 50 },
+    { id: "i8", code: "SUP-W5KP3", name: "毛毯", cat: "寢具", unit: "條", pack: "", per: 1, stock: 30, safety: 10 },
+  ],
+  residents: { "MLS-W8AGZ": { name: "測試王小明", note: "長者・高齡者", inShelter: true },
+               "MLS-RXKK3": { name: "測試陳美華", note: "已離所", inShelter: false } },
+  recent: [
+    { t: "10:42", text: "衛生紙 發放 1 包・王大明" },
+    { t: "10:35", text: "成人紙尿褲 入庫 30 片" },
+    { t: "10:20", text: "飲用水 入庫 2 箱" },
+  ],
+  seen: new Set(),
+};
+const wait = ms => new Promise(r => setTimeout(r, ms));
+const api = {
+  async load() { await wait(300); return { me: mock.me, items: mock.items.map(x => ({ ...x })), recent: mock.recent.slice(0, 5) }; },
+  async resident(tag) { await wait(150); return mock.residents[tag] || null; },
+  // lines: [{ itemId, type: 入庫|發放|盤點調整, qty(最小單位，盤點調整可正負), note }]
+  async submit(requestId, lines, recipientTag) {
+    await wait(700);
+    if (mock.seen.has(requestId)) return { duplicate: true, results: [] };
+    mock.seen.add(requestId);
+    const results = lines.map(l => {
+      const it = mock.items.find(x => x.id === l.itemId);
+      if (l.type === "發放" && l.qty > it.stock) return { itemId: l.itemId, ok: false, error: `庫存只剩 ${it.stock} ${it.unit}` };
+      it.stock += l.type === "發放" ? -l.qty : l.qty;
+      const now = new Date(), t = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+      mock.recent.unshift({ t, text: `${it.name} ${l.type} ${l.note}` + (recipientTag ? `・${mock.residents[recipientTag].name}` : "") });
+      return { itemId: l.itemId, ok: true, stock: it.stock };
+    });
+    return { results };
+  },
+  async addItem(f) {
+    await wait(400);
+    const id = "i" + (mock.items.length + 1), code = "SUP-" + Math.random().toString(36).slice(2, 7).toUpperCase();
+    const it = { id, code, name: f.name, cat: f.cat, unit: f.unit, pack: f.pack, per: f.per || 1, stock: 0, safety: f.safety || 0 };
+    mock.items.push(it); return it;
+  },
+};
+
+// ===== 狀態 =====
+const params = new URLSearchParams(location.search);
+const S = {
+  me: null, items: [], recent: [],
+  mode: "in", cat: "全部", q: "",
+  focusCode: params.get("item"),      // 掃物資標籤進來：只顯示該品項
+  showAll: !params.get("item"),
+  tag: params.get("tag"), resident: null, // 掃號碼牌「領物資」進來：只能發放
+  guest: params.get("as") === "guest",
+  pick: {},                           // itemId → { qty, unit }
+  errs: {},                           // itemId → 錯誤訊息（送出失敗的留在頁面上）
+  busy: false,
+};
+if (S.tag) S.mode = "out";
+
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+function toast(msg) { const d = document.createElement("div"); d.className = "toast"; d.textContent = msg; document.body.append(d); setTimeout(() => d.remove(), 2600); }
+function stockText(it) {
+  const extra = it.pack && it.per > 1 ? `（約 ${Math.floor(it.stock / it.per)} ${it.pack}）` : "";
+  return `庫存 ${it.stock} ${it.unit}${extra}`;
+}
+function base(it, p) { return p.unit === it.pack && it.pack ? p.qty * it.per : p.qty; }
+function lines() {
+  return Object.entries(S.pick).filter(([, p]) => p.qty !== "" && p.qty != null && (S.mode === "count" || p.qty > 0)).map(([id, p]) => {
+    const it = S.items.find(x => x.id === id), n = base(it, p);
+    if (S.mode === "count") { const d = n - it.stock; return { it, p, qty: d, type: "盤點調整", note: `實點 ${n} ${it.unit}（${d >= 0 ? "+" : ""}${d}）` }; }
+    return { it, p, qty: n, type: MODES[S.mode], note: `${p.qty} ${p.unit}` };
+  }).filter(l => S.mode !== "count" || l.qty !== 0);
+}
+
+// ===== 畫面 =====
+function render() {
+  document.documentElement.style.setProperty("--accent", ACCENT[S.mode]);
+  const app = $("#app");
+  if (S.guest || (S.me && !S.me.onDuty)) {
+    app.innerHTML = `<div class="blocked"><h2>物資登記限在班工作人員使用</h2><p>請先到服務台掃「工作人員簽到 QR」簽到。</p></div>`;
+    $("#bar").hidden = false; $("#bar .in").hidden = true; return;
+  }
+  if (!S.me) { app.innerHTML = `<div class="blocked"><p>載入中…</p></div>`; return; }
+  const focus = S.focusCode && S.items.find(x => x.code === S.focusCode);
+  const cats = ["全部", ...new Set(S.items.map(x => x.cat))];
+  const shown = S.items.filter(x => (S.cat === "全部" || x.cat === S.cat) && (!S.q || x.name.includes(S.q)) && x !== focus);
+  const lockOut = !!S.tag;
+  app.innerHTML = `
+  <header>
+    <div class="title"><h1>${esc(S.me.opening)}・物資</h1><button class="iconbtn" id="reload" aria-label="重新整理">↻</button></div>
+    <div class="sub">${esc(S.me.event)}　經手人：${esc(S.me.name)}</div>
+    ${focus && !S.showAll ? "" : `<div class="seg">${Object.entries(MODES).map(([k, v]) => `<button data-mode="${k}" class="${S.mode === k ? "on" : ""}" ${lockOut && k !== "out" ? "disabled" : ""}>${v}</button>`).join("")}</div>`}
+    <div class="hint">${S.mode === "count" ? "填「實際點到的數量」，系統自動算出差額。沒點的品項留空。" : S.mode === "out" ? "填要發出去的數量，可一次填多項。" : "填收到的數量，可切換瓶或箱，一次填多項。"}</div>
+    ${focus && !S.showAll ? "" : `<div class="tools"><input id="q" placeholder="搜尋品名" value="${esc(S.q)}"><button class="scan" id="scan">掃描標籤</button></div>
+    <div class="chips">${cats.map(c => `<button data-cat="${esc(c)}" class="${S.cat === c ? "on" : ""}">${esc(c)}</button>`).join("")}</div>`}
+  </header>
+  ${S.tag ? (S.resident ? `<div class="recipient">領取人<br><b>${esc(S.resident.name)}</b>　${esc(S.tag)}・${esc(S.resident.note)}</div>` : "") : ""}
+  ${focus ? `<div class="focus"><h2>${esc(focus.name)}</h2><div class="stock">${stockText(focus)}</div>
+     ${lockOut ? "" : `<div class="big"><button data-mode="in" class="${S.mode === "in" ? "on" : ""}">入庫</button><button data-mode="out" class="${S.mode === "out" ? "on" : ""}">發放</button></div>`}
+     ${rowCtrl(focus)}</div>
+     ${S.showAll ? "" : `<button class="showall" id="showall">顯示全部品項</button>`}` : ""}
+  ${S.showAll ? `<div class="list">${shown.map(it => `<div class="row ${it.stock < it.safety ? "low" : ""} ${S.pick[it.id] && S.pick[it.id].qty !== "" ? "picked" : ""}" data-id="${it.id}">
+      <div class="top"><div class="name">${esc(it.name)}${it.stock < it.safety ? " ⚠" : ""}</div></div>
+      <div class="stock">${stockText(it)}${it.stock < it.safety ? `，低於安全庫存 ${it.safety}` : ""}</div>${rowCtrl(it)}</div>`).join("") || `<div class="row">找不到符合的品項</div>`}
+    ${S.me.role.includes("管理者") && !lockOut ? `<button class="addnew" id="addnew">＋ 新增品項</button>` : ""}</div>` : ""}
+  <div class="recent"><h3>本所最近登記</h3>${S.recent.slice(0, 5).map(r => `<div>${esc(r.t)}　${esc(r.text)}</div>`).join("")}</div>`;
+  renderBar();
+}
+function rowCtrl(it) {
+  const p = S.pick[it.id] || { qty: "", unit: it.unit };
+  const units = it.pack && it.pack !== it.unit ? `<select class="unit" data-unit="${it.id}"><option ${p.unit === it.unit ? "selected" : ""}>${esc(it.unit)}</option><option ${p.unit === it.pack ? "selected" : ""}>${esc(it.pack)}</option></select>` : `<span class="stock">${esc(it.unit)}</span>`;
+  let diff = "";
+  if (S.mode === "count" && p.qty !== "") { const d = base(it, p) - it.stock; diff = `<span class="diff ${d < 0 ? "bad" : "ok"}">差額 ${d >= 0 ? "+" : ""}${d}</span>`; }
+  else if (p.qty > 0 && p.unit === it.pack && it.pack) diff = `<span class="diff">＝${base(it, p)} ${esc(it.unit)}</span>`;
+  return `<div class="ctrl"><button class="step" data-step="-1" data-id="${it.id}" aria-label="減少">−</button>
+    <input class="qty" inputmode="numeric" data-qty="${it.id}" value="${p.qty}" placeholder="${S.mode === "count" ? "實點" : "0"}">
+    <button class="step" data-step="1" data-id="${it.id}" aria-label="增加">+</button>${units}${diff}</div>
+    ${S.errs[it.id] ? `<div class="err">${esc(S.errs[it.id])}</div>` : ""}`;
+}
+function renderBar() {
+  const ls = lines(), bar = $("#bar");
+  bar.hidden = false;
+  const label = S.mode === "count" ? "盤點" : MODES[S.mode];
+  $("#sum").innerHTML = ls.length ? `${label} <b>${ls.length}</b> 項` : `尚未填寫數量`;
+  $("#go").textContent = S.busy ? "登記中…" : `確認${label}`;
+  $("#go").disabled = !ls.length || S.busy || (S.tag && !S.resident);
+}
+
+// ===== 操作 =====
+function setQty(id, qty, keepFocus) {
+  const it = S.items.find(x => x.id === id);
+  const p = S.pick[id] || { qty: "", unit: it.unit };
+  p.qty = qty === "" ? "" : Math.max(0, parseInt(qty, 10) || 0);
+  S.pick[id] = p; delete S.errs[id];
+  if (keepFocus) renderBar(); else render();
+}
+document.addEventListener("click", async e => {
+  const b = e.target.closest("button"); if (!b) return;
+  if (b.dataset.mode && !b.disabled) {
+    if (b.dataset.mode !== S.mode && Object.keys(S.pick).length && !confirm("切換模式會清除已填的數量，確定嗎？")) return;
+    if (b.dataset.mode !== S.mode) { S.pick = {}; S.errs = {}; }
+    S.mode = b.dataset.mode; render();
+  }
+  else if (b.dataset.cat) { S.cat = b.dataset.cat; render(); }
+  else if (b.dataset.step) {
+    const id = b.dataset.id, cur = (S.pick[id] && S.pick[id].qty) || 0;
+    setQty(id, Math.max(0, (+cur) + (+b.dataset.step)));
+  }
+  else if (b.id === "showall") { S.showAll = true; render(); }
+  else if (b.id === "reload") { await boot(); toast("已更新庫存"); }
+  else if (b.id === "scan") scan();
+  else if (b.id === "addnew") addItemSheet();
+});
+document.addEventListener("input", e => {
+  if (e.target.dataset.qty) setQty(e.target.dataset.qty, e.target.value, true);
+  else if (e.target.id === "q") { S.q = e.target.value.trim(); const pos = e.target.selectionStart; render(); const q = $("#q"); q.focus(); q.setSelectionRange(pos, pos); }
+});
+document.addEventListener("change", e => {
+  if (e.target.dataset.qty) render();
+  if (e.target.dataset.unit) { const id = e.target.dataset.unit, it = S.items.find(x => x.id === id); S.pick[id] = { qty: (S.pick[id] && S.pick[id].qty) || "", unit: e.target.value || it.unit }; render(); }
+});
+
+async function scan() {
+  let v;
+  if (window.liff && liff.isInClient && liff.isInClient() && liff.isApiAvailable("scanCodeV2")) {
+    try { v = (await liff.scanCodeV2()).value; } catch (e) { toast("無法開啟掃描器"); return; }
+  } else {
+    const codes = S.items.map(x => `${x.code} ${x.name}`).join("\n");
+    v = prompt(`（原型）輸入或貼上標籤代碼：\n${codes}`, S.items[0].code);
+  }
+  if (!v) return;
+  const m = String(v).toUpperCase().match(/SUP-[A-Z0-9]{5}/);
+  const code = m ? m[0] : "";
+  const it = S.items.find(x => x.code === code);
+  if (!it) { toast("這不是本所的物資標籤"); return; }
+  if (!S.pick[it.id]) S.pick[it.id] = { qty: S.mode === "count" ? "" : 1, unit: it.unit };
+  S.cat = "全部"; S.q = ""; render();
+  const row = document.querySelector(`.row[data-id="${it.id}"]`); if (row) row.scrollIntoView({ block: "center" });
+  toast(`已加入：${it.name}`);
+}
+
+$("#go").addEventListener("click", () => {
+  const ls = lines(); if (!ls.length || S.busy) return;
+  const label = S.mode === "count" ? "盤點" : MODES[S.mode];
+  sheet(`<h2>確認${label}${S.resident ? `給 ${esc(S.resident.name)}` : ""}</h2>
+    ${ls.map(l => `<div class="line"><span>${esc(l.it.name)}</span><span>${esc(l.note)}${l.p.unit === l.it.pack && S.mode !== "count" ? ` <small>＝${l.qty} ${esc(l.it.unit)}</small>` : ""}</span></div>`).join("")}
+    <div class="acts"><button data-close>返回修改</button><button class="go" id="doit">確認${label}</button></div>`, root => {
+    root.querySelector("#doit").onclick = () => { closeSheet(); submit(ls); };
+  });
+});
+
+async function submit(ls) {
+  S.busy = true; renderBar();
+  const requestId = (crypto.randomUUID && crypto.randomUUID()) || String(Date.now()) + Math.random();
+  try {
+    const res = await api.submit(requestId, ls.map(l => ({ itemId: l.it.id, type: l.type, qty: l.qty, note: l.note })), S.tag);
+    if (res.duplicate) { toast("這筆已經登記過了"); return; }
+    let ok = 0, bad = 0;
+    for (const r of res.results) {
+      const it = S.items.find(x => x.id === r.itemId);
+      if (r.ok) { ok++; it.stock = r.stock; delete S.pick[r.itemId]; delete S.errs[r.itemId]; }
+      else { bad++; S.errs[r.itemId] = r.error; }
+    }
+    const d = await api.load(); S.recent = d.recent;
+    toast(bad ? `${ok} 項已登記，${bad} 項未登記，請看紅字` : `已登記 ${ok} 項`);
+  } catch (err) {
+    toast("網路不穩，沒有送出。請再按一次確認。");
+  } finally { S.busy = false; render(); }
+}
+
+function addItemSheet() {
+  sheet(`<h2>新增品項</h2>
+    <label>品名<input id="f-name" placeholder="例：牙刷"></label>
+    <label>類別<select id="f-cat">${["飲用水", "食品", "寢具", "衛生用品", "醫療", "防寒", "其他"].map(c => `<option>${c}</option>`).join("")}</select></label>
+    <label>最小單位<input id="f-unit" placeholder="例：支"></label>
+    <label>包裝單位（可空白）<input id="f-pack" placeholder="例：盒"></label>
+    <label>每包裝數量<input id="f-per" inputmode="numeric" placeholder="例：20"></label>
+    <label>安全庫存<input id="f-safety" inputmode="numeric" placeholder="例：30"></label>
+    <div class="err" id="f-err"></div>
+    <div class="acts"><button data-close>取消</button><button class="go" id="f-ok" style="background:var(--green)">新增</button></div>`, root => {
+    root.querySelector("#f-ok").onclick = async () => {
+      const v = id => root.querySelector(id).value.trim();
+      if (!v("#f-name") || !v("#f-unit")) { root.querySelector("#f-err").textContent = "品名和最小單位一定要填"; return; }
+      if (S.items.some(x => x.name === v("#f-name"))) { root.querySelector("#f-err").textContent = "本所已經有這個品項"; return; }
+      const it = await api.addItem({ name: v("#f-name"), cat: v("#f-cat"), unit: v("#f-unit"), pack: v("#f-pack"), per: +v("#f-per") || 1, safety: +v("#f-safety") || 0 });
+      S.items = (await api.load()).items; closeSheet();
+      S.mode = "in"; S.pick = { [it.id]: { qty: "", unit: it.unit } }; S.cat = "全部"; render();
+      toast(`已新增「${it.name}」，現在可以入庫`);
+    };
+  });
+}
+
+function sheet(html, onMount) {
+  closeSheet();
+  const bg = document.createElement("div"); bg.className = "sheet-bg"; bg.id = "sheet";
+  bg.innerHTML = `<div class="sheet">${html}</div>`;
+  bg.addEventListener("click", e => { if (e.target === bg || e.target.closest("[data-close]")) closeSheet(); });
+  document.body.append(bg); onMount && onMount(bg);
+}
+function closeSheet() { const s = $("#sheet"); if (s) s.remove(); }
+
+// ===== 原型示範切換（正式版移除） =====
+function demoBar() {
+  const base = location.pathname, links = [["一般進入", ""], ["掃物資標籤", "?item=SUP-7K2QX"], ["掃號碼牌領物資", "?tag=MLS-W8AGZ"], ["非工作人員", "?as=guest"]];
+  $("#demo").innerHTML = `原型示範：` + links.map(([t, q]) => `<button onclick="location.href='${base}${q}'">${t}</button>`).join("");
+}
+
+async function initLiff() {
+  if (!CONFIG.liffId || !IN_LIFF_HOST || !window.liff) return null;
+  await liff.init({ liffId: CONFIG.liffId });
+  if (!liff.isLoggedIn()) { liff.login({ redirectUri: location.href }); return null; }
+  try { return await liff.getProfile(); } catch (e) { return null; }
+}
+let PROFILE = null;
+async function boot() {
+  const d = await api.load(); S.me = d.me; S.items = d.items; S.recent = d.recent;
+  if (PROFILE) S.me = { ...S.me, name: PROFILE.displayName };  // 原型：經手人顯示目前 LINE 帳號的名字
+  if (S.tag) {
+    S.resident = await api.resident(S.tag);
+    if (!S.resident) toast("查無此號碼牌");
+    else if (!S.resident.inShelter) { toast("此號碼牌已失效，不能領物資"); S.resident = null; }
+  }
+  if (S.focusCode && !S.items.some(x => x.code === S.focusCode)) { toast("這不是本所的物資標籤"); S.focusCode = null; S.showAll = true; }
+  render();
+}
+render(); demoBar();
+initLiff().then(p => { PROFILE = p; return boot(); }).catch(e => { toast("LINE 登入失敗：" + e.message); boot(); });
+</script>
+</body>
+</html>
