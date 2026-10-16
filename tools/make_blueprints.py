@@ -1018,25 +1018,29 @@ def build_supply_api():
                     {"key": "Access-Control-Allow-Origin", "value": origin}]},
                 "metadata": b.meta(name)}
 
-    verify = {"id": 2, "module": "http:ActionSendData", "version": 3, "parameters": {"handleErrors": False},  # False：LINE 回 400 時照常往下走，由路由判斷 statusCode
-              "mapper": {"url": "https://api.line.me/oauth2/v2.1/verify", "method": "post", "serializeUrl": False,
-                         "shareCookies": False, "bodyType": "x_www_form_urlencoded", "parseResponse": True,
-                         "fields": [{"key": "id_token", "value": "{{1.t}}"}, {"key": "client_id", "value": channel}],
-                         "headers": [], "qs": []},
-              "metadata": {"designer": {"x": 0, "y": 0, "name": "向 LINE 驗證 ID Token"}}}
-    # ID Token 無效時 LINE 回 400，Make 會把它當成錯誤中斷；在錯誤處理路線回傳 401，頁面才知道要重新登入
-    verify["onerror"] = [respond("回傳驗證失敗（錯誤路線）", '{"ok":false,"error":"auth"}', "401"),
-                         {"id": b.nid(), "module": "builtin:Ignore", "version": 1, "mapper": None,
-                          "metadata": {"designer": {"x": 300, "y": 300}}}]
+    # 頁面送來 LIFF 的 Access Token（每次開啟都會更新，有效 12 小時；ID Token 在 LINE 裡可能拿到過期的舊憑證）。
+    # 1) 驗證這張 Access Token 是發給本系統的 LINE Login channel；2) 用它向 LINE 取得使用者編號。
+    def line_get(mid, url, name, headers=()):
+        return {"id": mid, "module": "http:ActionSendData", "version": 3, "parameters": {"handleErrors": False},
+                "mapper": {"url": url, "method": "get", "serializeUrl": False, "shareCookies": False,
+                           "parseResponse": True, "headers": list(headers), "qs": []},
+                "metadata": {"designer": {"x": 0 if mid == 2 else 150, "y": 0 if mid == 2 else 150, "name": name}},
+                # 憑證無效時 LINE 回 400／401，Make 會當成錯誤中斷；在錯誤處理路線回傳 401，頁面才知道身分有問題
+                "onerror": [respond(f"回傳驗證失敗（{name}）", '{"ok":false,"error":"auth"}', "401"),
+                            {"id": b.nid(), "module": "builtin:Ignore", "version": 1, "mapper": None,
+                             "metadata": {"designer": {"x": 300, "y": 300}}}]}
+    verify = line_get(2, "https://api.line.me/oauth2/v2.1/verify?access_token={{encodeURL(1.t)}}", "向 LINE 驗證 Access Token")
+    profile = line_get(4, "https://api.line.me/v2/profile", "向 LINE 取得使用者編號",
+                       [{"name": "Authorization", "value": "Bearer {{1.t}}"}])
     W = 3  # 名冊
     staff = {"id": W, "module": "notion:searchObjects1", "version": 1,
              "mapper": {"limit": "1", "select": "data_source_item", "data_source": DS_STAFF,
-                        "filter": [[c("LINE User ID |&*^%$#@| rich_text", "text:equals", "{{2.data.sub}}")]]},
+                        "filter": [[c("LINE User ID |&*^%$#@| rich_text", "text:equals", "{{4.data.userId}}")]]},
              "metadata": {"designer": {"x": 300, "y": 0, "name": "查名冊"},
                           "parameters": [{"name": "__IMTCONN__", "type": "account:notion2,notion3", "label": "Connection", "required": True}]},
              "parameters": {"__IMTCONN__": CONN_NOTION}}
 
-    auth_ok = c("{{2.statusCode}}", "number:equal", "200")
+    auth_ok = c("{{2.data.client_id}}", "text:equal", channel)
     w_exist = c(f"{{{{{W}.id}}}}", "exist")
     w_en = c(sp(W, "啟用中"), "boolean:equal", "true")
     w_duty = c(sp(W, "簽到狀態", ".name"), "text:equal", "上班中")
@@ -1106,11 +1110,11 @@ def build_supply_api():
              {"name": "hook", "type": "hook:gateway-webhook", "label": "Webhook", "required": True},
              {"name": "maxResults", "type": "number", "label": "Maximum number of results"}]}},
         verify,
-        # 身分驗證失敗時 sub 是空的，不能拿去查名冊（Notion 會報錯、執行中斷），所以先分流再查
+        # 憑證不對時使用者編號是空的，不能拿去查名冊（Notion 會報錯、執行中斷），所以先分流再查
         b.router("身分驗證", [
-            (flt("身分驗證失敗", [[c("{{2.statusCode}}", "number:notequal", "200")]]), [
+            (flt("不是本系統的憑證", [[c("{{2.data.client_id}}", "text:notequal", channel)]]), [
                 respond("回傳驗證失敗", '{"ok":false,"error":"auth"}', "401")]),
-            (flt("身分驗證成功", [[auth_ok]]), [staff, b.router("依身分與動作分流", [
+            (flt("身分驗證成功", [[auth_ok]]), [profile, staff, b.router("依身分與動作分流", [
             (flt("不是在班工作人員", [[auth_ok, c(f"{{{{{W}.id}}}}", "notexist")],
                                      [auth_ok, c(sp(W, "啟用中"), "boolean:notequal", "true")],
                                      [auth_ok, c(sp(W, "簽到狀態", ".name"), "text:notequal", "上班中")]]), [

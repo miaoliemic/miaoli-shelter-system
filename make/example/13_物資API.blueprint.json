@@ -39,22 +39,11 @@
     "handleErrors": false
    },
    "mapper": {
-    "url": "https://api.line.me/oauth2/v2.1/verify",
-    "method": "post",
+    "url": "https://api.line.me/oauth2/v2.1/verify?access_token={{encodeURL(1.t)}}",
+    "method": "get",
     "serializeUrl": false,
     "shareCookies": false,
-    "bodyType": "x_www_form_urlencoded",
     "parseResponse": true,
-    "fields": [
-     {
-      "key": "id_token",
-      "value": "{{1.t}}"
-     },
-     {
-      "key": "client_id",
-      "value": "<LIFF 所在的 LINE Login channel ID>"
-     }
-    ],
     "headers": [],
     "qs": []
    },
@@ -62,7 +51,7 @@
     "designer": {
      "x": 0,
      "y": 0,
-     "name": "向 LINE 驗證 ID Token"
+     "name": "向 LINE 驗證 Access Token"
     }
    },
    "onerror": [
@@ -89,7 +78,7 @@
       "designer": {
        "x": 900,
        "y": 150,
-       "name": "回傳驗證失敗（錯誤路線）"
+       "name": "回傳驗證失敗（向 LINE 驗證 Access Token）"
       }
      }
     },
@@ -108,14 +97,14 @@
    ]
   },
   {
-   "id": 123,
+   "id": 125,
    "module": "builtin:BasicRouter",
    "version": 1,
    "mapper": null,
    "metadata": {
     "designer": {
      "x": 600,
-     "y": 3300,
+     "y": 3450,
      "name": "身分驗證"
     }
    },
@@ -123,7 +112,7 @@
     {
      "flow": [
       {
-       "id": 120,
+       "id": 122,
        "module": "gateway:WebhookRespond",
        "version": 1,
        "parameters": {},
@@ -144,18 +133,18 @@
        "metadata": {
         "designer": {
          "x": 900,
-         "y": 2850,
+         "y": 3000,
          "name": "回傳驗證失敗"
         }
        },
        "filter": {
-        "name": "身分驗證失敗",
+        "name": "不是本系統的憑證",
         "conditions": [
          [
           {
-           "a": "{{2.statusCode}}",
-           "o": "number:notequal",
-           "b": "200"
+           "a": "{{2.data.client_id}}",
+           "o": "text:notequal",
+           "b": "<LIFF 所在的 LINE Login channel ID>"
           }
          ]
         ]
@@ -165,6 +154,88 @@
     },
     {
      "flow": [
+      {
+       "id": 4,
+       "module": "http:ActionSendData",
+       "version": 3,
+       "parameters": {
+        "handleErrors": false
+       },
+       "mapper": {
+        "url": "https://api.line.me/v2/profile",
+        "method": "get",
+        "serializeUrl": false,
+        "shareCookies": false,
+        "parseResponse": true,
+        "headers": [
+         {
+          "name": "Authorization",
+          "value": "Bearer {{1.t}}"
+         }
+        ],
+        "qs": []
+       },
+       "metadata": {
+        "designer": {
+         "x": 150,
+         "y": 150,
+         "name": "向 LINE 取得使用者編號"
+        }
+       },
+       "onerror": [
+        {
+         "id": 103,
+         "module": "gateway:WebhookRespond",
+         "version": 1,
+         "parameters": {},
+         "mapper": {
+          "status": "401",
+          "body": "{\"ok\":false,\"error\":\"auth\"}",
+          "headers": [
+           {
+            "key": "Content-Type",
+            "value": "application/json; charset=utf-8"
+           },
+           {
+            "key": "Access-Control-Allow-Origin",
+            "value": "https://miaoliemic.github.io"
+           }
+          ]
+         },
+         "metadata": {
+          "designer": {
+           "x": 900,
+           "y": 300,
+           "name": "回傳驗證失敗（向 LINE 取得使用者編號）"
+          }
+         }
+        },
+        {
+         "id": 104,
+         "module": "builtin:Ignore",
+         "version": 1,
+         "mapper": null,
+         "metadata": {
+          "designer": {
+           "x": 300,
+           "y": 300
+          }
+         }
+        }
+       ],
+       "filter": {
+        "name": "身分驗證成功",
+        "conditions": [
+         [
+          {
+           "a": "{{2.data.client_id}}",
+           "o": "text:equal",
+           "b": "<LIFF 所在的 LINE Login channel ID>"
+          }
+         ]
+        ]
+       }
+      },
       {
        "id": 3,
        "module": "notion:searchObjects1",
@@ -178,7 +249,7 @@
           {
            "a": "LINE User ID |&*^%$#@| rich_text",
            "o": "text:equals",
-           "b": "{{2.data.sub}}"
+           "b": "{{4.data.userId}}"
           }
          ]
         ]
@@ -200,29 +271,17 @@
        },
        "parameters": {
         "__IMTCONN__": 0
-       },
-       "filter": {
-        "name": "身分驗證成功",
-        "conditions": [
-         [
-          {
-           "a": "{{2.statusCode}}",
-           "o": "number:equal",
-           "b": "200"
-          }
-         ]
-        ]
        }
       },
       {
-       "id": 122,
+       "id": 124,
        "module": "builtin:BasicRouter",
        "version": 1,
        "mapper": null,
        "metadata": {
         "designer": {
          "x": 600,
-         "y": 3150,
+         "y": 3300,
          "name": "依身分與動作分流"
         }
        },
@@ -230,7 +289,7 @@
         {
          "flow": [
           {
-           "id": 121,
+           "id": 123,
            "module": "gateway:WebhookRespond",
            "version": 1,
            "parameters": {},
@@ -251,7 +310,7 @@
            "metadata": {
             "designer": {
              "x": 900,
-             "y": 3000,
+             "y": 3150,
              "name": "回傳不在班"
             }
            },
@@ -260,9 +319,9 @@
             "conditions": [
              [
               {
-               "a": "{{2.statusCode}}",
-               "o": "number:equal",
-               "b": "200"
+               "a": "{{2.data.client_id}}",
+               "o": "text:equal",
+               "b": "<LIFF 所在的 LINE Login channel ID>"
               },
               {
                "a": "{{3.id}}",
@@ -271,9 +330,9 @@
              ],
              [
               {
-               "a": "{{2.statusCode}}",
-               "o": "number:equal",
-               "b": "200"
+               "a": "{{2.data.client_id}}",
+               "o": "text:equal",
+               "b": "<LIFF 所在的 LINE Login channel ID>"
               },
               {
                "a": "{{3.properties_value.`啟用中`}}",
@@ -283,9 +342,9 @@
              ],
              [
               {
-               "a": "{{2.statusCode}}",
-               "o": "number:equal",
-               "b": "200"
+               "a": "{{2.data.client_id}}",
+               "o": "text:equal",
+               "b": "<LIFF 所在的 LINE Login channel ID>"
               },
               {
                "a": "{{3.properties_value.`簽到狀態`.name}}",
@@ -301,7 +360,7 @@
         {
          "flow": [
           {
-           "id": 103,
+           "id": 105,
            "module": "notion:getADatabaseItem",
            "version": 1,
            "mapper": {
@@ -312,7 +371,7 @@
            "metadata": {
             "designer": {
              "x": 900,
-             "y": 300,
+             "y": 450,
              "name": "讀派駐開設"
             },
             "parameters": [
@@ -332,9 +391,9 @@
             "conditions": [
              [
               {
-               "a": "{{2.statusCode}}",
-               "o": "number:equal",
-               "b": "200"
+               "a": "{{2.data.client_id}}",
+               "o": "text:equal",
+               "b": "<LIFF 所在的 LINE Login channel ID>"
               },
               {
                "a": "{{3.id}}",
@@ -360,7 +419,7 @@
            }
           },
           {
-           "id": 104,
+           "id": 106,
            "module": "notion:searchObjects1",
            "version": 1,
            "mapper": {
@@ -370,7 +429,7 @@
               {
                "a": "收容所 |&*^%$#@| relation",
                "o": "relation:contains",
-               "b": "{{103.properties_value.`收容所`[].id}}"
+               "b": "{{105.properties_value.`收容所`[].id}}"
               }
              ]
             ],
@@ -380,7 +439,7 @@
            "metadata": {
             "designer": {
              "x": 900,
-             "y": 450,
+             "y": 600,
              "name": "找本所物資品項"
             },
             "parameters": [
@@ -397,50 +456,50 @@
            }
           },
           {
-           "id": 105,
+           "id": 107,
            "module": "builtin:BasicAggregator",
            "version": 1,
            "parameters": {
-            "feeder": 104
+            "feeder": 106
            },
            "mapper": {
-            "id": "{{104.id}}",
-            "properties_value": "{{104.properties_value}}"
+            "id": "{{106.id}}",
+            "properties_value": "{{106.properties_value}}"
            },
            "metadata": {
             "designer": {
              "x": 900,
-             "y": 600,
+             "y": 750,
              "name": "彙整品項"
             }
            }
           },
           {
-           "id": 106,
+           "id": 108,
            "module": "json:TransformToJSON",
            "version": 1,
            "parameters": {
             "space": ""
            },
            "mapper": {
-            "object": "{{105.array}}"
+            "object": "{{107.array}}"
            },
            "metadata": {
             "designer": {
              "x": 900,
-             "y": 750,
+             "y": 900,
              "name": "品項轉成 JSON"
             }
            }
           },
           {
-           "id": 107,
+           "id": 109,
            "module": "gateway:WebhookRespond",
            "version": 1,
            "parameters": {},
            "mapper": {
             "status": "200",
-            "body": "{\"ok\":true,\"me\":{\"name\":\"{{3.properties_value.`姓名`[].plain_text}}\",\"role\":\"{{3.properties_value.`角色`.name}}\",\"opening\":\"{{103.properties_value.`開設名稱`[].plain_text}}\",\"openingId\":\"{{103.id}}\"},\"items\":{{106.json}}}",
+            "body": "{\"ok\":true,\"me\":{\"name\":\"{{3.properties_value.`姓名`[].plain_text}}\",\"role\":\"{{3.properties_value.`角色`.name}}\",\"opening\":\"{{105.properties_value.`開設名稱`[].plain_text}}\",\"openingId\":\"{{105.id}}\"},\"items\":{{108.json}}}",
             "headers": [
              {
               "key": "Content-Type",
@@ -455,7 +514,7 @@
            "metadata": {
             "designer": {
              "x": 900,
-             "y": 900,
+             "y": 1050,
              "name": "回傳庫存"
             }
            }
@@ -465,7 +524,7 @@
         {
          "flow": [
           {
-           "id": 108,
+           "id": 110,
            "module": "notion:searchObjects1",
            "version": 1,
            "mapper": {
@@ -485,7 +544,7 @@
            "metadata": {
             "designer": {
              "x": 900,
-             "y": 1050,
+             "y": 1200,
              "name": "請求編號是否已登記"
             },
             "parameters": [
@@ -505,9 +564,9 @@
             "conditions": [
              [
               {
-               "a": "{{2.statusCode}}",
-               "o": "number:equal",
-               "b": "200"
+               "a": "{{2.data.client_id}}",
+               "o": "text:equal",
+               "b": "<LIFF 所在的 LINE Login channel ID>"
               },
               {
                "a": "{{3.id}}",
@@ -533,14 +592,14 @@
            }
           },
           {
-           "id": 116,
+           "id": 118,
            "module": "builtin:BasicRouter",
            "version": 1,
            "mapper": null,
            "metadata": {
             "designer": {
              "x": 600,
-             "y": 2250,
+             "y": 2400,
              "name": "是否重複送出"
             }
            },
@@ -548,7 +607,7 @@
             {
              "flow": [
               {
-               "id": 114,
+               "id": 116,
                "module": "gateway:WebhookRespond",
                "version": 1,
                "parameters": {},
@@ -569,7 +628,7 @@
                "metadata": {
                 "designer": {
                  "x": 900,
-                 "y": 1950,
+                 "y": 2100,
                  "name": "回傳重複"
                 }
                },
@@ -578,7 +637,7 @@
                 "conditions": [
                  [
                   {
-                   "a": "{{108.id}}",
+                   "a": "{{110.id}}",
                    "o": "exist"
                   }
                  ]
@@ -590,7 +649,7 @@
             {
              "flow": [
               {
-               "id": 109,
+               "id": 111,
                "module": "json:ParseJSON",
                "version": 1,
                "parameters": {
@@ -602,7 +661,7 @@
                "metadata": {
                 "designer": {
                  "x": 900,
-                 "y": 1200,
+                 "y": 1350,
                  "name": "解析登記內容"
                 }
                },
@@ -611,7 +670,7 @@
                 "conditions": [
                  [
                   {
-                   "a": "{{108.id}}",
+                   "a": "{{110.id}}",
                    "o": "notexist"
                   }
                  ]
@@ -619,22 +678,22 @@
                }
               },
               {
-               "id": 110,
+               "id": 112,
                "module": "builtin:BasicFeeder",
                "version": 1,
                "mapper": {
-                "array": "{{109.lines}}"
+                "array": "{{111.lines}}"
                },
                "metadata": {
                 "designer": {
                  "x": 900,
-                 "y": 1350,
+                 "y": 1500,
                  "name": "逐項登記"
                 }
                }
               },
               {
-               "id": 111,
+               "id": 113,
                "module": "notion:createDataSourceItem",
                "version": 1,
                "mapper": {
@@ -642,13 +701,13 @@
                  {
                   "key": "摘要",
                   "type": "title",
-                  "value": "{{110.name}} {{110.type}} {{110.note}}"
+                  "value": "{{112.name}} {{112.type}} {{112.note}}"
                  },
                  {
                   "key": "品項",
                   "type": "relation",
                   "value": [
-                   "{{110.itemId}}"
+                   "{{112.itemId}}"
                   ]
                  },
                  {
@@ -661,12 +720,12 @@
                  {
                   "key": "異動類型",
                   "type": "select",
-                  "value": "{{110.type}}"
+                  "value": "{{112.type}}"
                  },
                  {
                   "key": "數量",
                   "type": "number",
-                  "value": "{{110.qty}}"
+                  "value": "{{112.qty}}"
                  },
                  {
                   "key": "經手人",
@@ -691,7 +750,7 @@
                  {
                   "key": "備註",
                   "type": "rich_text",
-                  "value": "物資頁面：{{110.note}}"
+                  "value": "物資頁面：{{112.note}}"
                  },
                  {
                   "key": "請求編號",
@@ -712,7 +771,7 @@
                "metadata": {
                 "designer": {
                  "x": 900,
-                 "y": 1500,
+                 "y": 1650,
                  "name": "新增物資異動紀錄"
                 },
                 "parameters": [
@@ -729,18 +788,18 @@
                }
               },
               {
-               "id": 112,
+               "id": 114,
                "module": "notion:getADatabaseItem",
                "version": 1,
                "mapper": {
-                "page": "{{110.itemId}}",
+                "page": "{{112.itemId}}",
                 "getBy": "data_source",
                 "select": "map"
                },
                "metadata": {
                 "designer": {
                  "x": 900,
-                 "y": 1650,
+                 "y": 1800,
                  "name": "讀最新庫存"
                 },
                 "parameters": [
@@ -757,32 +816,32 @@
                }
               },
               {
-               "id": 113,
+               "id": 115,
                "module": "util:TextAggregator",
                "version": 1,
                "parameters": {
-                "feeder": 110,
+                "feeder": 112,
                 "rowSeparator": ","
                },
                "mapper": {
-                "value": "{\"itemId\":\"{{110.itemId}}\",\"stock\":{{ifempty(112.properties_value.`目前庫存`.number; 0)}}}"
+                "value": "{\"itemId\":\"{{112.itemId}}\",\"stock\":{{ifempty(114.properties_value.`目前庫存`.number; 0)}}}"
                },
                "metadata": {
                 "designer": {
                  "x": 900,
-                 "y": 1800,
+                 "y": 1950,
                  "name": "彙整結果"
                 }
                }
               },
               {
-               "id": 115,
+               "id": 117,
                "module": "gateway:WebhookRespond",
                "version": 1,
                "parameters": {},
                "mapper": {
                 "status": "200",
-                "body": "{\"ok\":true,\"results\":[{{113.text}}]}",
+                "body": "{\"ok\":true,\"results\":[{{115.text}}]}",
                 "headers": [
                  {
                   "key": "Content-Type",
@@ -797,7 +856,7 @@
                "metadata": {
                 "designer": {
                  "x": 900,
-                 "y": 2100,
+                 "y": 2250,
                  "name": "回傳登記結果"
                 }
                }
@@ -811,7 +870,7 @@
         {
          "flow": [
           {
-           "id": 117,
+           "id": 119,
            "module": "notion:searchObjects1",
            "version": 1,
            "mapper": {
@@ -831,7 +890,7 @@
            "metadata": {
             "designer": {
              "x": 900,
-             "y": 2400,
+             "y": 2550,
              "name": "找號碼牌（領物資）"
             },
             "parameters": [
@@ -851,9 +910,9 @@
             "conditions": [
              [
               {
-               "a": "{{2.statusCode}}",
-               "o": "number:equal",
-               "b": "200"
+               "a": "{{2.data.client_id}}",
+               "o": "text:equal",
+               "b": "<LIFF 所在的 LINE Login channel ID>"
               },
               {
                "a": "{{3.id}}",
@@ -879,18 +938,18 @@
            }
           },
           {
-           "id": 118,
+           "id": 120,
            "module": "notion:getADatabaseItem",
            "version": 1,
            "mapper": {
-            "page": "{{117.properties_value.`綁定居民`[].id}}",
+            "page": "{{119.properties_value.`綁定居民`[].id}}",
             "getBy": "data_source",
             "select": "map"
            },
            "metadata": {
             "designer": {
              "x": 900,
-             "y": 2550,
+             "y": 2700,
              "name": "讀居民（領物資）"
             },
             "parameters": [
@@ -907,13 +966,13 @@
            }
           },
           {
-           "id": 119,
+           "id": 121,
            "module": "gateway:WebhookRespond",
            "version": 1,
            "parameters": {},
            "mapper": {
             "status": "200",
-            "body": "{\"ok\":true,\"found\":\"{{if(117.id; \"yes\"; \"no\")}}\",\"tagStatus\":\"{{117.properties_value.`狀態`.name}}\",\"residentId\":\"{{118.id}}\",\"name\":\"{{118.properties_value.`姓名`[].plain_text}}\",\"status\":\"{{118.properties_value.`在所狀態`.name}}\"}",
+            "body": "{\"ok\":true,\"found\":\"{{if(119.id; \"yes\"; \"no\")}}\",\"tagStatus\":\"{{119.properties_value.`狀態`.name}}\",\"residentId\":\"{{120.id}}\",\"name\":\"{{120.properties_value.`姓名`[].plain_text}}\",\"status\":\"{{120.properties_value.`在所狀態`.name}}\"}",
             "headers": [
              {
               "key": "Content-Type",
@@ -928,7 +987,7 @@
            "metadata": {
             "designer": {
              "x": 900,
-             "y": 2700,
+             "y": 2850,
              "name": "回傳居民"
             }
            }
