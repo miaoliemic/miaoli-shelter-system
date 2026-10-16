@@ -23,6 +23,9 @@ https://line.me/R/oaMessage/@796juukk/?<網址編碼後的文字>
 | 簽到 QR | `簽到 SIGN-` + 代碼 | `簽到 SIGN-7K3Q9` | `https://line.me/R/oaMessage/@796juukk/?簽到 SIGN-7K3Q9` |
 | 號碼牌 QR | `QR MLS-` + 代碼 | `QR MLS-8YC5K` | `https://line.me/R/oaMessage/@796juukk/?QR MLS-8YC5K` |
 
+| 物資標籤 QR | （不走聊天室）物資頁面網址加物資代碼 | `SUP-P4KPZ` | `https://liff.line.me/<LIFF ID>?item=SUP-P4KPZ` |
+
+- 物資標籤直接打開物資頁面的該品項，不經過聊天室；物資代碼存在 Notion 物資品項的「物資代碼」欄，新增品項時由物資頁面產生（`SUP-` 加 5 碼，去掉容易看錯的 0、O、1、I）。印製：`python tools/make_qr.py --event … --place … --items 飲用水=SUP-P4KPZ …`。
 - 前綴「簽到」、「QR」是給 Make.com 分辨用途的，不要改。
 - 中間的空白是半形空白，網址編碼後是 `%20`。
 - 為什麼用預填訊息，而不是直接放代碼：LINE 掃到純文字時不會傳給官方帳號，只會顯示在掃描畫面上。用預填訊息連結，掃完就直接進入對話，按一次傳送就完成。

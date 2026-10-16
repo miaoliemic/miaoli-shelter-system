@@ -81,6 +81,23 @@
 | R42 | （對話暫存是新品）名稱文字 | 名冊內 | 對話暫存補上名稱 | 小按鈕選單位：個、包、瓶、盒、條、件、箱、雙、片 |
 | R43 | `新品單位：<單位>` | 在班中 | 新增物資品項（掛在所在收容所，類別「其他」，期初與安全庫存 0）；清空對話暫存 | 「✅ 已新增」，小按鈕「現在入庫」 |
 
+### 物資頁面（LIFF，第二版）
+
+設定 `line.liff_id` 後，簽到後的「物資」、本所狀況的「物資」、號碼牌的「領物資」都改成打開物資頁面（`liff/supplies/`，放在 GitHub Pages）。上面 R30～R43 的聊天室流程仍保留，打字「物資」或「飲用水+20」照樣可用。
+
+- 三種入口打開同一個頁面：選單按鈕（整張庫存表）、物資標籤 QR（`?item=SUP-xxxxx`，直接跳到該品項）、號碼牌領物資（`?tag=MLS-xxxxx`，帶入領取人、只能發放）。
+- 頁面一次填多項、按一次確認；後端是 Make 情境「13 物資 API」，用表單格式送出（瀏覽器不會先送 CORS 預檢），欄位 `a` 是動作：
+
+| 動作 | 誰可以用 | 做什麼 | 回應 |
+|---|---|---|---|
+| `load` | 在班工作人員 | 讀派駐開設的收容所品項 | `{ok, me, items}`（items 是 Notion 原樣的 properties_value） |
+| `submit` | 在班工作人員 | 每項新增一筆物資異動紀錄（來源「LINE 表單」、備註「物資頁面：…」），請求編號重複就不再寫 | `{ok, results:[{itemId, stock}]}` 或 `{ok, duplicate:true}` |
+| `resident` | 在班工作人員 | 號碼牌 → 居民姓名與在所狀態 | `{ok, found, residentId, name, status, tagStatus}` |
+| `addItem` | 在班管理者 | 新增物資品項（物資代碼由頁面產生，期初庫存 0） | `{ok, itemId}`；不是管理者回 403 |
+
+- 身分：頁面送 LIFF 的 Access Token，Make 先向 LINE 確認它屬於本系統的 LINE Login channel，再取得使用者編號查名冊（啟用中、上班中）。驗證失敗回 401，頁面只自動重試一次，之後顯示原因，不會無限重新整理。
+- 發放超過庫存：頁面先擋；若兩人同時發放造成負庫存，頁面標示「請盤點確認」。入庫依流程由指定一人負責。
+
 ### 現場回報（工作人員，在班中）
 
 | # | 觸發文字 | 寫入 | 回覆 |
@@ -96,6 +113,9 @@
 **第一版不做**：點名、居民綁定 LINE、撤收與結案的 LINE 操作（由社會處在 Notion 改狀態）。
 
 ## Make.com 運算式的地雷（實測踩過）
+
+- HTTP 模組（Make a request）遇到 4xx 會中斷整個執行（即使關掉「Evaluate all states as errors」），webhook 只回「Accepted」。要在該模組的錯誤處理路線放 Webhook response＋Ignore，才回得出錯誤訊息。
+- LIFF 在 LINE 內取得的 ID Token 可能是過期的舊憑證；後端驗證身分改用 Access Token。
 
 - **不能用正則字面值**（`/…/`）：整個情境會初始化失敗並被自動停用。要切字串請用 `split`；filter 的 `text:pattern` 不受影響。
 - **彙整（Text aggregator）的換行放進 JSON 會不合法**：送給 LINE `makeApiCall` 前要用 `replace(x; newline; "\n")` 轉成兩個字元的 `\n`。

@@ -3,6 +3,7 @@
 用法：
   python tools/make_blueprints.py            讀 tools/config.local.json，輸出到 make/（不進版本庫）
   python tools/make_blueprints.py --example  讀 tools/config.example.json，輸出範例到 make/example/
+  python tools/make_blueprints.py --account emic  改用 config 裡 make_accounts.emic 的連線編號，輸出到 make/emic/
 
 第一次使用：複製 tools/config.example.json 成 tools/config.local.json，填入自己的
 Notion data source ID、Make.com 連線編號和 webhook 編號（說明見 docs/部署說明.md）。
@@ -21,6 +22,10 @@ _cfg_path = ROOT / "tools" / ("config.example.json" if EXAMPLE else "config.loca
 if not _cfg_path.exists():
     sys.exit(f"找不到 {_cfg_path.name}：請先複製 tools/config.example.json 成 tools/config.local.json 並填入設定。")
 CFG = json.loads(_cfg_path.read_text(encoding="utf-8"))
+# --account <名稱>：改用 config 的 make_accounts.<名稱>（同一套流程部署到不同的 Make 帳號，連線編號不同），輸出到 make/<名稱>/
+ACCOUNT = sys.argv[sys.argv.index("--account") + 1] if "--account" in sys.argv else ""
+if ACCOUNT:
+    CFG["make"] = CFG["make_accounts"][ACCOUNT]
 
 # ---- 環境設定（來自 config） ----
 HOOK = CFG["make"]["line_webhook_id"]
@@ -28,6 +33,9 @@ CONN_LINE = CFG["make"]["line_connection_id"]
 CONN_NOTION = CFG["make"]["notion_connection_id"]
 MENU_ALIAS = CFG["line"]["staff_menu_alias"]
 MENU_PAGE = CFG["notion"]["richmenu_page_id"]
+# 物資頁面（LIFF）：設定了 liff_id 才把「物資」「領物資」按鈕改成打開物資頁面；沒設定時維持聊天室一步一步的流程
+LIFF_ID = CFG["line"].get("liff_id", "")
+SUPPLY_BTN = f"https://liff.line.me/{LIFF_ID}" if LIFF_ID else "物資"
 
 _ds = CFG["notion"]["data_sources"]
 DS_STAFF = _ds["工作人員名冊"]
@@ -159,7 +167,9 @@ class B:
     def quick(self, name, text, items, f=None):
         """items: [(按鈕文字, 送出的文字)]"""
         # LINE 按鈕文字上限 20 字；含運算式的按鈕不能截斷，由內容本身保持夠短（例：單位）
-        qr = [{"type": "action", "action": {"type": "message", "label": lb if "{{" in lb else lb[:20], "text": tx}}
+        # 送出的文字是 https:// 開頭時，改成打開網址的按鈕（例：物資頁面）
+        qr = [{"type": "action", "action": ({"type": "uri", "label": lb[:20], "uri": tx} if tx.startswith("https://") else
+                                            {"type": "message", "label": lb if "{{" in lb else lb[:20], "text": tx})}
               for lb, tx in items]
         body = {"replyToken": RT, "messages": [{"type": "text", "text": text, "quickReply": {"items": qr}}]}
         return self.line_api(name, "/v2/bot/message/reply", body=body, f=f)
@@ -202,7 +212,7 @@ def build_main():
 
     # ---------- R1 簽到 ----------
     # 掃簽到 QR：沒在班就直接簽到（少一步），在班就問要做什麼；兩種都附同一組常用功能按鈕
-    DUTY_BTNS = [("本所狀況", "本所狀況"), ("現場回報", "現場回報"), ("物資", "物資"), ("簽退", "簽退")]
+    DUTY_BTNS = [("本所狀況", "本所狀況"), ("現場回報", "現場回報"), ("物資", SUPPLY_BTN), ("簽退", "簽退")]
     code = '{{trim(replace(1.events[1].message.text; "簽到"; ""))}}'
     op = b.search("找簽到碼對應的開設", DS_OPEN, [c("簽到代碼 |&*^%$#@| rich_text", "text:equals", code)])
     O = op["id"]
@@ -352,7 +362,7 @@ def build_main():
     r5_move = b.router("依在所狀態給按鈕", [
         (flt("在所", [[c(r_stat, "text:equal", "在所")]]), [
             b.quick("按鈕：外出或離所", f"號碼牌 {tcode}：{sp(R, '姓名', '[].plain_text')} 目前在所", [
-                ("外出", f"外出 {tcode}"), ("領物資", f"領物資：{tcode_short}"), ("離所", f"離所 {tcode}")])]),
+                ("外出", f"外出 {tcode}"), ("領物資", f"{SUPPLY_BTN}?tag={tcode}" if LIFF_ID else f"領物資：{tcode_short}"), ("離所", f"離所 {tcode}")])]),
         (flt("外出或未返", [[c(r_stat, "text:equal", "外出")], [c(r_stat, "text:equal", "未返")]]), [
             b.quick("按鈕：返回或離所", f"號碼牌 {tcode}：目前{r_stat}", [("返回", f"返回 {tcode}"), ("離所", f"離所 {tcode}")])]),
         (flt("已離所", [[c(r_stat, "text:equal", "已離所")]]), [
@@ -481,11 +491,11 @@ def build_main():
     r7in = b.router("依開設階段", [
         (flt("整備中", [[c(g7_stat, "text:equal", "整備中")]]), [
             b.quick("狀況＋整備按鈕", status_text + "\n\n整備階段：請回報整備項目，全部完成後按「整備完成」。",
-                    [("整備回報", "整備回報"), ("整備完成", "整備完成"), ("物資", "物資"), refresh])]),
+                    [("整備回報", "整備回報"), ("整備完成", "整備完成"), ("物資", SUPPLY_BTN), refresh])]),
         (flt("待核准", [[c(g7_stat, "text:equal", "待核准")]]), [
             b.quick("狀況（待核准）", status_text + "\n\n已送出整備完成，等社會處核准。", [refresh])]),
         (flt("開設中", [[c(g7_stat, "text:equal", "開設中")]]), [
-            b.quick("狀況＋營運按鈕", status_text, [("現場回報", "現場回報"), ("物資", "物資"), ("未結反映", "未結反映"), refresh])]),
+            b.quick("狀況＋營運按鈕", status_text, [("現場回報", "現場回報"), ("物資", SUPPLY_BTN), ("未結反映", "未結反映"), refresh])]),
         (flt("撤收", [[c(g7_stat, "text:equal", "撤收中")], [c(g7_stat, "text:equal", "已撤收")]]), [
             b.quick("狀況（撤收）", status_text, [refresh])]),
     ])
@@ -1104,6 +1114,18 @@ def build_supply_api():
                      + '","status":"' + sp(WHO, "在所狀態", ".name") + '"}')
     resident_flow = [tg, who, respond("回傳居民", resident_body)]
 
+    # ---- addItem：管理者在物資頁面新增品項（物資代碼由頁面產生，期初庫存 0，之後用入庫加上數量） ----
+    g_open3 = b.get("讀派駐開設（新增品項）", w_open)
+    new_item = b.create("新增物資品項（物資頁面）", DS_ITEM, [
+        f_title("品名", "{{1.name}}"), f_text("單位", "{{1.unit}}"), f_text("包裝單位", "{{1.pack}}"),
+        {"key": "每包裝數量", "type": "number", "value": "{{ifempty(1.per; 1)}}"},
+        {"key": "期初庫存", "type": "number", "value": "{{0}}"},
+        {"key": "安全庫存", "type": "number", "value": "{{ifempty(1.safety; 0)}}"},
+        f_sel("類別", "{{ifempty(1.cat; \"其他\")}}"), f_text("物資代碼", "{{1.code}}"),
+        f_rel("收容所", sp(g_open3["id"], "收容所", "[].id")), f_text("備註", f"物資頁面新增：{w_name}")])
+    add_flow = [g_open3, new_item, respond("回傳新品項", '{"ok":true,"itemId":"' + f"{{{{{new_item['id']}.id}}}}" + '"}')]
+    is_mgr = c(w_role, "text:contain", "管理者")
+
     flow = [
         {"id": 1, "module": "gateway:CustomWebHook", "version": 1, "parameters": {"hook": hook, "maxResults": 1},
          "mapper": {}, "metadata": {"designer": {"x": -300, "y": 0, "name": "物資頁面送來的請求"}, "parameters": [
@@ -1122,6 +1144,9 @@ def build_supply_api():
             (flt("讀庫存", [on + [act("load")]]), load_flow),
             (flt("送出登記", [on + [act("submit")]]), submit_flow),
             (flt("查號碼牌", [on + [act("resident")]]), resident_flow),
+            (flt("新增品項", [on + [act("addItem"), is_mgr]]), add_flow),
+            (flt("不是管理者（新增品項）", [on + [act("addItem"), c(w_role, "text:notcontain", "管理者")]]), [
+                respond("回傳不是管理者", '{"ok":false,"error":"not_manager"}', "403")]),
         ])]),
         ]),
     ]
@@ -1161,7 +1186,7 @@ def blueprint(name, flow, instant):
 
 
 def main():
-    out = ROOT / "make" / ("example" if EXAMPLE else "")
+    out = ROOT / "make" / ("example" if EXAMPLE else ACCOUNT)
     out.mkdir(parents=True, exist_ok=True)
     for fname, bp in (("11_LINE訊息_第一版.blueprint.json", build_main()),
                       ("12_建立圖文選單.blueprint.json", build_menu()),

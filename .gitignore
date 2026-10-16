@@ -11,3 +11,5 @@ tools/config.local.json
 make/*.blueprint.json
 make/舊帳號封存_*/
 output/
+make/emic/
+make/shelter/

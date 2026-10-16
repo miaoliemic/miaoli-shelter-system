@@ -97,14 +97,14 @@
    ]
   },
   {
-   "id": 125,
+   "id": 129,
    "module": "builtin:BasicRouter",
    "version": 1,
    "mapper": null,
    "metadata": {
     "designer": {
      "x": 600,
-     "y": 3450,
+     "y": 4050,
      "name": "身分驗證"
     }
    },
@@ -112,7 +112,7 @@
     {
      "flow": [
       {
-       "id": 122,
+       "id": 125,
        "module": "gateway:WebhookRespond",
        "version": 1,
        "parameters": {},
@@ -133,7 +133,7 @@
        "metadata": {
         "designer": {
          "x": 900,
-         "y": 3000,
+         "y": 3450,
          "name": "回傳驗證失敗"
         }
        },
@@ -274,14 +274,14 @@
        }
       },
       {
-       "id": 124,
+       "id": 128,
        "module": "builtin:BasicRouter",
        "version": 1,
        "mapper": null,
        "metadata": {
         "designer": {
          "x": 600,
-         "y": 3300,
+         "y": 3900,
          "name": "依身分與動作分流"
         }
        },
@@ -289,7 +289,7 @@
         {
          "flow": [
           {
-           "id": 123,
+           "id": 126,
            "module": "gateway:WebhookRespond",
            "version": 1,
            "parameters": {},
@@ -310,7 +310,7 @@
            "metadata": {
             "designer": {
              "x": 900,
-             "y": 3150,
+             "y": 3600,
              "name": "回傳不在班"
             }
            },
@@ -990,6 +990,249 @@
              "y": 2850,
              "name": "回傳居民"
             }
+           }
+          }
+         ]
+        },
+        {
+         "flow": [
+          {
+           "id": 122,
+           "module": "notion:getADatabaseItem",
+           "version": 1,
+           "mapper": {
+            "page": "{{3.properties_value.`派駐開設`[].id}}",
+            "getBy": "data_source",
+            "select": "map"
+           },
+           "metadata": {
+            "designer": {
+             "x": 900,
+             "y": 3000,
+             "name": "讀派駐開設（新增品項）"
+            },
+            "parameters": [
+             {
+              "name": "__IMTCONN__",
+              "type": "account:notion2,notion3",
+              "label": "Connection",
+              "required": true
+             }
+            ]
+           },
+           "parameters": {
+            "__IMTCONN__": 0
+           },
+           "filter": {
+            "name": "新增品項",
+            "conditions": [
+             [
+              {
+               "a": "{{2.data.client_id}}",
+               "o": "text:equal",
+               "b": "<LIFF 所在的 LINE Login channel ID>"
+              },
+              {
+               "a": "{{3.id}}",
+               "o": "exist"
+              },
+              {
+               "a": "{{3.properties_value.`啟用中`}}",
+               "o": "boolean:equal",
+               "b": "true"
+              },
+              {
+               "a": "{{3.properties_value.`簽到狀態`.name}}",
+               "o": "text:equal",
+               "b": "上班中"
+              },
+              {
+               "a": "{{1.a}}",
+               "o": "text:equal",
+               "b": "addItem"
+              },
+              {
+               "a": "{{3.properties_value.`角色`.name}}",
+               "o": "text:contain",
+               "b": "管理者"
+              }
+             ]
+            ]
+           }
+          },
+          {
+           "id": 123,
+           "module": "notion:createDataSourceItem",
+           "version": 1,
+           "mapper": {
+            "fields": [
+             {
+              "key": "品名",
+              "type": "title",
+              "value": "{{1.name}}"
+             },
+             {
+              "key": "單位",
+              "type": "rich_text",
+              "value": "{{1.unit}}"
+             },
+             {
+              "key": "包裝單位",
+              "type": "rich_text",
+              "value": "{{1.pack}}"
+             },
+             {
+              "key": "每包裝數量",
+              "type": "number",
+              "value": "{{ifempty(1.per; 1)}}"
+             },
+             {
+              "key": "期初庫存",
+              "type": "number",
+              "value": "{{0}}"
+             },
+             {
+              "key": "安全庫存",
+              "type": "number",
+              "value": "{{ifempty(1.safety; 0)}}"
+             },
+             {
+              "key": "類別",
+              "type": "select",
+              "value": "{{ifempty(1.cat; \"其他\")}}"
+             },
+             {
+              "key": "物資代碼",
+              "type": "rich_text",
+              "value": "{{1.code}}"
+             },
+             {
+              "key": "收容所",
+              "type": "relation",
+              "value": [
+               "{{122.properties_value.`收容所`[].id}}"
+              ]
+             },
+             {
+              "key": "備註",
+              "type": "rich_text",
+              "value": "物資頁面新增：{{3.properties_value.`姓名`[].plain_text}}"
+             }
+            ],
+            "select": "map",
+            "data_source": "<物資品項 的 data source ID>"
+           },
+           "metadata": {
+            "designer": {
+             "x": 900,
+             "y": 3150,
+             "name": "新增物資品項（物資頁面）"
+            },
+            "parameters": [
+             {
+              "name": "__IMTCONN__",
+              "type": "account:notion2,notion3",
+              "label": "Connection",
+              "required": true
+             }
+            ]
+           },
+           "parameters": {
+            "__IMTCONN__": 0
+           }
+          },
+          {
+           "id": 124,
+           "module": "gateway:WebhookRespond",
+           "version": 1,
+           "parameters": {},
+           "mapper": {
+            "status": "200",
+            "body": "{\"ok\":true,\"itemId\":\"{{123.id}}\"}",
+            "headers": [
+             {
+              "key": "Content-Type",
+              "value": "application/json; charset=utf-8"
+             },
+             {
+              "key": "Access-Control-Allow-Origin",
+              "value": "https://miaoliemic.github.io"
+             }
+            ]
+           },
+           "metadata": {
+            "designer": {
+             "x": 900,
+             "y": 3300,
+             "name": "回傳新品項"
+            }
+           }
+          }
+         ]
+        },
+        {
+         "flow": [
+          {
+           "id": 127,
+           "module": "gateway:WebhookRespond",
+           "version": 1,
+           "parameters": {},
+           "mapper": {
+            "status": "403",
+            "body": "{\"ok\":false,\"error\":\"not_manager\"}",
+            "headers": [
+             {
+              "key": "Content-Type",
+              "value": "application/json; charset=utf-8"
+             },
+             {
+              "key": "Access-Control-Allow-Origin",
+              "value": "https://miaoliemic.github.io"
+             }
+            ]
+           },
+           "metadata": {
+            "designer": {
+             "x": 900,
+             "y": 3750,
+             "name": "回傳不是管理者"
+            }
+           },
+           "filter": {
+            "name": "不是管理者（新增品項）",
+            "conditions": [
+             [
+              {
+               "a": "{{2.data.client_id}}",
+               "o": "text:equal",
+               "b": "<LIFF 所在的 LINE Login channel ID>"
+              },
+              {
+               "a": "{{3.id}}",
+               "o": "exist"
+              },
+              {
+               "a": "{{3.properties_value.`啟用中`}}",
+               "o": "boolean:equal",
+               "b": "true"
+              },
+              {
+               "a": "{{3.properties_value.`簽到狀態`.name}}",
+               "o": "text:equal",
+               "b": "上班中"
+              },
+              {
+               "a": "{{1.a}}",
+               "o": "text:equal",
+               "b": "addItem"
+              },
+              {
+               "a": "{{3.properties_value.`角色`.name}}",
+               "o": "text:notcontain",
+               "b": "管理者"
+              }
+             ]
+            ]
            }
           }
          ]

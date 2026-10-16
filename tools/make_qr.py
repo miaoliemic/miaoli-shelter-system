@@ -1,10 +1,13 @@
-"""產生可列印的 QR 圖片：工作人員簽到 QR、居民號碼牌 QR、加入官方帳號 QR。
+"""產生可列印的 QR 圖片：工作人員簽到 QR、居民號碼牌 QR、加入官方帳號 QR、物資標籤 QR。
 
 QR 內容的格式見 docs/QR編碼規則.md：LINE 預填訊息連結，掃了會打開官方帳號對話框並填好文字，
 使用者按「傳送」後由 Make.com 處理。
 
 用法：
     python tools/make_qr.py --sign SIGN-XXXXX --event "2026-10 ○○颱風" --place "清華里活動中心" --tags MLS-AAAAA MLS-BBBBB ...
+    python tools/make_qr.py --event "2026-10 ○○颱風" --place "清華里活動中心" --items 飲用水=SUP-AAAAA 泡麵=SUP-BBBBB ...
+
+物資標籤 QR 不走聊天室：內容是物資頁面（LIFF）網址加物資代碼，掃了直接打開該品項。物資代碼在 Notion 物資品項的「物資代碼」欄。
 
 輸出到 output/qr/（已列在 .gitignore：簽到碼外流的話，人不在現場也能簽到）。
 需要套件：qrcode、Pillow。
@@ -17,7 +20,8 @@ import urllib.parse
 import qrcode
 from PIL import Image, ImageDraw, ImageFont
 
-OA_ID = "@796juukk"  # 官方帳號 Basic ID；換帳號時要改這裡並重印所有 QR
+OA_ID = "@796juukk"
+LIFF_ID = "2012049994-PV1Y181j"  # 物資頁面（LIFF）；換 LINE Login channel 時要改這裡並重印物資標籤  # 官方帳號 Basic ID；換帳號時要改這裡並重印所有 QR
 OUT = os.path.join(os.path.dirname(__file__), "..", "output", "qr")
 
 LOGO = os.path.join(os.path.dirname(__file__), "..", "assets", "logo.png")  # 苗栗縣徽，與官方帳號頭像相同
@@ -124,24 +128,57 @@ def tag_sheet(tags, event, place):
     return img
 
 
+def item_sheet(items, event, place):
+    """物資標籤：一張 A4 排 6 格（2 × 3），貼在物資旁邊；品名放最大，掃了直接打開物資頁面的該品項。"""
+    w, h = 1240, 1754
+    color, light = "#1c7ed6", "#e7f5ff"
+    img = Image.new("RGB", (w, h), "white")
+    d = ImageDraw.Draw(img)
+    d.rectangle([0, 0, w, 165], fill=color)
+    paste_logo(img, 34, 22, 120)
+    center(d, 18, "物資標籤（工作人員掃描：入庫・發放）", font(46, True), "white", w)
+    center(d, 92, f"{event}｜{place}", font(40), "white", w)
+    cw, ch = 560, 505
+    for i, (name, code) in enumerate(items[:6]):
+        x = 40 + (i % 2) * (cw + 40)
+        y = 185 + (i // 2) * (ch + 15)
+        d.rounded_rectangle([x, y, x + cw, y + ch], radius=24, fill="white", outline=color, width=6)
+        d.rounded_rectangle([x + 6, y + 6, x + cw - 6, y + 96], radius=18, fill=light)
+        f = font(62 if len(name) <= 6 else 46, True)
+        tw = d.textlength(name, font=f)
+        d.text((x + (cw - tw) / 2, y + 14), name, font=f, fill="#1f2933")
+        img.paste(qr_image(f"https://liff.line.me/{LIFF_ID}?item={code}", 300), (x + (cw - 300) // 2, y + 106))
+        tw = d.textlength(code, font=font(40, True))
+        d.text((x + (cw - tw) / 2, y + 412), code, font=font(40, True), fill="#1f2933")
+        sub = place
+        sw = d.textlength(sub, font=font(24))
+        d.text((x + (cw - sw) / 2, y + 462), sub, font=font(24), fill="#52606d")
+    return img
+
+
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--sign", required=True, help="簽到代碼，例：SIGN-7K3Q9")
+    ap.add_argument("--sign", help="簽到代碼，例：SIGN-7K3Q9（只印物資標籤時可省略）")
     ap.add_argument("--event", required=True, help="災害事件，印在簽到 QR 和號碼牌上，例：【模擬】2026-10 風災")
     ap.add_argument("--place", required=True, help="收容所名稱，例：清華里活動中心")
     ap.add_argument("--tags", nargs="*", default=[], help="號碼牌編號，例：MLS-8YC5K")
+    ap.add_argument("--items", nargs="*", default=[], help="物資標籤，品名=物資代碼，例：飲用水=SUP-P4KPZ（每 6 個一張）")
     a = ap.parse_args()
     os.makedirs(OUT, exist_ok=True)
 
     # 簽到 QR 是整個收容所共用的（系統用 LINE 帳號認人），不印代碼，避免被誤認為個人專用
-    card("工作人員簽到", a.event, a.place, oa_message_url(f"簽到 {a.sign}"), "本所工作人員共用",
-         ["用 LINE 掃描 → 按「傳送」", "沒在班：直接簽到；已在班：選要做的事"], "#2f9e44"
-         ).save(os.path.join(OUT, "01_工作人員簽到QR.png"))
+    if a.sign:
+        card("工作人員簽到", a.event, a.place, oa_message_url(f"簽到 {a.sign}"), "本所工作人員共用",
+             ["用 LINE 掃描 → 按「傳送」", "沒在班：直接簽到；已在班：選要做的事"], "#2f9e44"
+             ).save(os.path.join(OUT, "01_工作人員簽到QR.png"))
     card("加入官方帳號", None, "苗栗避難所系統", f"https://line.me/R/ti/p/{OA_ID}", OA_ID,
          ["用手機相機或 LINE 掃描，加入好友", "工作人員加入後，按選單「工作人員」申請開通"], "#06c755"
          ).save(os.path.join(OUT, "00_加入官方帳號QR.png"))
     if a.tags:
         tag_sheet(a.tags, a.event, a.place).save(os.path.join(OUT, "02_居民號碼牌QR.png"))
+    items = [tuple(x.split("=", 1)) for x in a.items if "=" in x]
+    for n in range(0, len(items), 6):
+        item_sheet(items[n:n + 6], a.event, a.place).save(os.path.join(OUT, f"03_物資標籤QR_{n // 6 + 1}.png"))
     for f in sorted(os.listdir(OUT)):
         print(os.path.join("output", "qr", f))
 

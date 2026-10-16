@@ -148,6 +148,12 @@ async function post(fields) {
 const txt = v => Array.isArray(v) ? v.map(x => x.plain_text || (x.text && x.text.content) || x.name || "").join("") : (v && v.name) || (typeof v === "string" ? v : "");
 const num = v => typeof v === "number" ? v : (v && typeof v.number === "number" ? v.number : 0);
 const photo = v => { const f = Array.isArray(v) && v[0]; return f ? ((f.file && f.file.url) || (f.external && f.external.url) || f.url || "") : ""; };
+// 物資代碼：SUP- 加 5 碼（去掉容易看錯的 0、O、1、I），印在物資標籤 QR 上
+function newCode() {
+  const A = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789", r = new Uint32Array(5);
+  crypto.getRandomValues(r);
+  return "SUP-" + Array.from(r, x => A[x % A.length]).join("");
+}
 const real = {
   async load() {
     const d = await post({ a: "load" });
@@ -164,6 +170,12 @@ const real = {
     const d = await post({ a: "resident", tag });
     if (d.found !== "yes") return null;
     return { id: d.residentId, name: d.name, note: d.status, inShelter: d.tagStatus !== "失效" && d.status === "在所" };
+  },
+  async addItem(f) {
+    const code = newCode();
+    const d = await post({ a: "addItem", name: f.name, unit: f.unit, pack: f.pack || "", per: String(f.per || 1),
+                           cat: f.cat || "其他", safety: String(f.safety || 0), code });
+    return { id: d.itemId, code, name: f.name, cat: f.cat, unit: f.unit, pack: f.pack, per: f.per || 1, stock: 0, safety: f.safety || 0 };
   },
   async submit(requestId, lines, recipientTag) {
     const d = await post({ a: "submit", r: requestId, g: (S.resident && S.resident.id) || "",
@@ -266,7 +278,7 @@ function render() {
   ${S.showAll ? `<div class="list">${shown.map(it => `<div class="row ${it.stock < it.safety ? "low" : ""} ${S.pick[it.id] && S.pick[it.id].qty !== "" ? "picked" : ""}" data-id="${it.id}">
       <div class="top"><div class="name">${esc(it.name)}${it.stock < it.safety ? " ⚠" : ""}</div></div>
       <div class="stock">${stockText(it)}${it.stock < it.safety ? `，低於安全庫存 ${it.safety}` : ""}</div>${rowCtrl(it)}</div>`).join("") || `<div class="row">找不到符合的品項</div>`}
-    ${S.me.role.includes("管理者") && !lockOut && !REAL ? `<button class="addnew" id="addnew">＋ 新增品項</button>` : ""}</div>` : ""}
+    ${(S.me.role || "").includes("管理者") && !lockOut ? `<button class="addnew" id="addnew">＋ 新增品項</button>` : ""}</div>` : ""}
   ${S.recent.length ? `<div class="recent"><h3>${REAL ? "這次登記" : "本所最近登記"}</h3>${S.recent.slice(0, 5).map(r => `<div>${esc(r.t)}　${esc(r.text)}</div>`).join("")}</div>` : ""}`;
   renderBar();
 }
@@ -392,8 +404,13 @@ function addItemSheet() {
       const v = id => root.querySelector(id).value.trim();
       if (!v("#f-name") || !v("#f-unit")) { root.querySelector("#f-err").textContent = "品名和最小單位一定要填"; return; }
       if (S.items.some(x => x.name === v("#f-name"))) { root.querySelector("#f-err").textContent = "本所已經有這個品項"; return; }
-      const it = await api.addItem({ name: v("#f-name"), cat: v("#f-cat"), unit: v("#f-unit"), pack: v("#f-pack"), per: +v("#f-per") || 1, safety: +v("#f-safety") || 0 });
-      S.items = (await api.load()).items; closeSheet();
+      let it;
+      const okBtn = root.querySelector("#f-ok"); okBtn.disabled = true; okBtn.textContent = "新增中…";
+      try { it = await api.addItem({ name: v("#f-name"), cat: v("#f-cat"), unit: v("#f-unit"), pack: v("#f-pack"), per: +v("#f-per") || 1, safety: +v("#f-safety") || 0 }); }
+      catch (e) { okBtn.disabled = false; okBtn.textContent = "新增"; root.querySelector("#f-err").textContent = e.code === "not_manager" ? "只有收容所管理者可以新增品項" : "沒有新增成功，請再試一次"; return; }
+      S.items = (await api.load()).items;
+      if (!S.items.some(x => x.id === it.id)) S.items.push(it);   // Notion 搜尋偶爾慢一步，先放進清單
+      closeSheet();
       S.mode = "in"; S.pick = { [it.id]: { qty: "", unit: it.unit } }; S.cat = "全部"; render();
       toast(`已新增「${it.name}」，現在可以入庫`);
     };
