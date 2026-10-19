@@ -1288,6 +1288,198 @@ def build_supply_api():
     return blueprint("13 物資與居民 API（LIFF）", flow, instant=True)
 
 
+def build_ops_api():
+    """14 本所與事件 API：現場頁面（liff/supplies/?v=ops）的「本所」畫面呼叫的 webhook。
+    限在班的工作人員（身分類別＝工作人員）；志工屬勞務型，用一般介面，不使用本所畫面。欄位：
+      a＝動作（status 本所狀況｜report 記錄事件｜update 認領・追加紀錄・解決｜prep 整備回報｜prepDone 送出整備完成）
+      t＝LINE Access Token；其餘依動作而定，見各段說明。
+    身分驗證和 13 相同：先向 LINE 確認 Access Token 屬於本系統，再取得使用者編號查名冊。
+    事件就是「現場日誌」的一筆；本版不處理居民反映（日誌類別＝居民反映的不列入）。"""
+    hook = CFG["make"].get("ops_api_hook_id", 0)
+    channel = CFG["line"].get("login_channel_id", "")
+    origin = "https://miaoliemic.github.io"
+    b = B()
+    b.next_id = 100
+
+    def respond(name, body, status="200"):
+        mid = b.nid()
+        return {"id": mid, "module": "gateway:WebhookRespond", "version": 1, "parameters": {},
+                "mapper": {"status": status, "body": body, "headers": [
+                    {"key": "Content-Type", "value": "application/json; charset=utf-8"},
+                    {"key": "Access-Control-Allow-Origin", "value": origin}]},
+                "metadata": b.meta(name)}
+
+    def line_get(mid, url, name, headers=()):
+        return {"id": mid, "module": "http:ActionSendData", "version": 3, "parameters": {"handleErrors": False},
+                "mapper": {"url": url, "method": "get", "serializeUrl": False, "shareCookies": False,
+                           "parseResponse": True, "headers": list(headers), "qs": [], **HTTP_DEFAULTS},
+                "metadata": {"designer": {"x": 0 if mid == 2 else 150, "y": 0 if mid == 2 else 150, "name": name}},
+                "onerror": [respond(f"回傳驗證失敗（{name}）", '{"ok":false,"error":"auth"}', "401"),
+                            {"id": b.nid(), "module": "builtin:Ignore", "version": 1, "mapper": None,
+                             "metadata": {"designer": {"x": 300, "y": 300}}}]}
+    verify = line_get(2, "https://api.line.me/oauth2/v2.1/verify?access_token={{encodeURL(1.t)}}", "向 LINE 驗證 Access Token")
+    profile = line_get(4, "https://api.line.me/v2/profile", "向 LINE 取得使用者編號",
+                       [{"name": "Authorization", "value": "Bearer {{1.t}}"}])
+    W = 3
+    staff = {"id": W, "module": "notion:searchObjects1", "version": 1,
+             "mapper": {"limit": "1", "select": "data_source_item", "data_source": DS_STAFF,
+                        "filter": [[c("LINE User ID |&*^%$#@| rich_text", "text:equals", "{{4.data.userId}}")]]},
+             "metadata": {"designer": {"x": 300, "y": 0, "name": "查名冊"},
+                          "parameters": [{"name": "__IMTCONN__", "type": "account:notion2,notion3", "label": "Connection", "required": True}]},
+             "parameters": {"__IMTCONN__": CONN_NOTION}}
+
+    auth_ok = c("{{2.data.client_id}}", "text:equal", channel)
+    w_kind = sp(W, "身分類別", ".name")
+    on = [auth_ok, c(f"{{{{{W}.id}}}}", "exist"), c(sp(W, "啟用中"), "boolean:equal", "true"),
+          c(sp(W, "簽到狀態", ".name"), "text:equal", "上班中"), c(w_kind, "text:equal", "工作人員")]
+    act = lambda a: c("{{1.a}}", "text:equal", a)
+    w_open = sp(W, "派駐開設", "[].id")
+    w_name = sp(W, "姓名", "[].plain_text")
+    w_role = sp(W, "角色", ".name")
+    open_rel = lambda: c("收容所開設 |&*^%$#@| relation", "relation:contains", w_open)
+
+    def agg_json(name, feeder, fields):
+        """把搜尋結果彙整成 JSON 陣列（文字裡有引號、換行也不會壞掉），輸出 {{N.json}}"""
+        a = {"id": b.nid(), "module": "builtin:BasicAggregator", "version": 1, "parameters": {"feeder": feeder},
+             "mapper": fields, "metadata": b.meta(f"彙整{name}")}
+        j = {"id": b.nid(), "module": "json:TransformToJSON", "version": 1, "parameters": {"space": ""},
+             "mapper": {"object": f"{{{{{a['id']}.array}}}}"}, "metadata": b.meta(f"{name}轉成 JSON")}
+        return [a, j], j["id"]
+
+    # ---- status：本所狀況（數字、在班人員、外出・未返・需關懷名單、未結事件與整備回報） ----
+    og = b.get("讀派駐開設（本所）", w_open)
+    O = og["id"]
+    duty = b.search("找本所在班人員", DS_STAFF, [c("派駐開設 |&*^%$#@| relation", "relation:contains", w_open),
+                                            c("簽到狀態 |&*^%$#@| select", "select:equals", "上班中")])
+    duty["mapper"]["limit"] = "50"
+    D = duty["id"]
+    duty_mods, DJ = agg_json("在班人員", D, {"id": f"{{{{{D}.id}}}}", "name": sp(D, "姓名", "[].plain_text"),
+                                          "role": sp(D, "角色", ".name"), "kind": sp(D, "身分類別", ".name")})
+    # 居民：外出、未返，或在所且有特殊關懷
+    res = b.notion("searchObjects1", "找本所外出與需關懷居民", {
+        "limit": "100", "select": "data_source_item", "data_source": DS_RES, "filter": [
+            [open_rel(), c("在所狀態 |&*^%$#@| select", "select:equals", "外出")],
+            [open_rel(), c("在所狀態 |&*^%$#@| select", "select:equals", "未返")],
+            [open_rel(), c("在所狀態 |&*^%$#@| select", "select:equals", "在所"),
+             c("特殊關懷 |&*^%$#@| multi_select", "multi_select:is_not_empty", "true")]]})
+    R = res["id"]
+    res_mods, RJ = agg_json("居民名單", R, {"id": f"{{{{{R}.id}}}}", "name": sp(R, "姓名", "[].plain_text"),
+                                         "status": sp(R, "在所狀態", ".name"), "back": sp(R, "預計返回時間", ".start"),
+                                         "care": "{{join(map(" + f"{R}.properties_value.`特殊關懷`" + '; "name"); "、")}}'})
+    # 事件：未結的（居民反映除外），加上所有整備回報（整備清單要看已完成的項目）
+    logs = b.notion("searchObjects1", "找本所未結事件與整備回報", {
+        "limit": "60", "select": "data_source_item", "data_source": DS_LOG,
+        "sorts": [{"select": "timestamp", "direction": "descending", "timestamp": "created_time"}], "filter": [
+            [open_rel(), c("處理進度 |&*^%$#@| select", "select:does_not_equal", "已解決"),
+             c("處理進度 |&*^%$#@| select", "select:does_not_equal", "已結案"),
+             c("日誌類別 |&*^%$#@| select", "select:does_not_equal", "居民反映")],
+            [open_rel(), c("日誌類別 |&*^%$#@| select", "select:equals", "整備回報")]]})
+    L = logs["id"]
+    log_mods, LJ = agg_json("事件", L, {
+        "id": f"{{{{{L}.id}}}}",
+        "title": sp(L, "日誌標題", "[].plain_text"), "cat": sp(L, "日誌類別", ".name"), "sev": sp(L, "嚴重程度", ".name"),
+        "status": sp(L, "處理進度", ".name"), "text": sp(L, "內容說明", "[].plain_text"), "log": sp(L, "處理紀錄", "[].plain_text"),
+        "owner": sp(L, "負責人", "[].id"), "by": sp(L, "回報人", "[].id"), "item": sp(L, "整備項目", ".name"),
+        "at": f"{{{{{L}.created_time}}}}"})
+    num = lambda p: "{{ifempty(" + sp(O, p, ".number")[2:-2] + "; 0)}}"
+    status_body = ('{"ok":true,"me":{"id":"' + f"{{{{{W}.id}}}}" + '","name":"' + w_name + '","role":"' + w_role + '"},'
+                   '"opening":{"name":"' + sp(O, "開設名稱", "[].plain_text") + '","stage":"' + sp(O, "開設狀態", ".name")
+                   + '","light":"' + sp(O, "狀況燈號", ".string") + '","inside":' + num("在所人數") + ',"capacity":' + num("容納人數")
+                   + ',"out":' + num("外出人數") + ',"late":' + num("未返人數") + ',"care":' + num("需關懷人數")
+                   + ',"open":' + num("未結日誌數") + ',"urgent":' + num("緊急未結數")
+                   + ',"needStaff":' + num("缺工作人員") + ',"needVol":' + num("缺志工") + '},'
+                   '"duty":' + f"{{{{{DJ}.json}}}}" + ',"residents":' + f"{{{{{RJ}.json}}}}" + ',"events":' + f"{{{{{LJ}.json}}}}" + '}')
+    status_flow = [og, duty, *duty_mods, res, *res_mods, logs, *log_mods, respond("回傳本所狀況", status_body)]
+
+    # ---- report：記錄事件（cat 類別、sev 嚴重程度、text 說明、g 相關居民 ID 可空白） ----
+    urgent = '{{if(contains("緊急,高"; 1.sev); true; false)}}'
+    new_log = b.create("新增事件（本所頁面）", DS_LOG, [
+        f_title("日誌標題", "{{1.cat}}：{{substring(1.text; 0; 24)}}"), f_sel("日誌類別", "{{1.cat}}"),
+        f_sel("嚴重程度", "{{1.sev}}"), f_sel("處理進度", "待處理"), f_text("內容說明", "{{1.text}}"),
+        f_rel("回報人", f"{{{{{W}.id}}}}"), f_rel("收容所開設", w_open), f_now("發生時間"), f_sel("來源", "LINE 回報"),
+        f_chk("需回報社會處", urgent),
+        {"key": "相關居民", "type": "relation", "value": '{{if(1.g; split(1.g; ","); emptyarray)}}'}])
+    report_flow = [new_log, respond("回傳已記錄", '{"ok":true,"id":"' + f"{{{{{new_log['id']}.id}}}}" + '"}')]
+
+    # ---- update：id 事件、kind＝claim 我來處理｜note 追加紀錄｜resolve 已解決、text 紀錄內容 ----
+    gl = b.get("讀事件", "{{1.id}}")
+    G = gl["id"]
+    ours = c(sp(G, "收容所開設", "[].id"), "text:contain", w_open)
+    stamp = '{{formatDate(now; "MM/DD HH:mm")}} ' + w_name
+    # Make 的運算式不能用 + 串字，舊紀錄後面直接接換行（第一筆前面會多一個空行，不影響閱讀）
+    old_log = sp(G, "處理紀錄", "[].plain_text") + "\n"
+    kind = lambda k: c("{{1.kind}}", "text:equal", k)
+    upd = lambda name, fields: b.update(name, DS_LOG, f"{{{{{G}.id}}}}", fields)
+    ok_body = '{"ok":true}'
+    update_flow = [gl, b.router("事件動作", [
+        (flt("不是本所的事件", [[c(sp(G, "收容所開設", "[].id"), "text:notcontain", w_open)]]), [
+            respond("回傳不是本所事件", '{"ok":false,"error":"not_ours"}', "403")]),
+        (flt("我來處理", [[ours, kind("claim")]]), [
+            upd("認領事件", [f_rel("負責人", f"{{{{{W}.id}}}}"), f_sel("處理進度", "處理中"),
+                         f_text("處理紀錄", old_log + stamp + " 認領處理{{if(1.text; \"：\"; \"\")}}{{1.text}}")]),
+            respond("回傳已認領", ok_body)]),
+        (flt("追加紀錄", [[ours, kind("note")]]), [
+            upd("追加處理紀錄", [f_text("處理紀錄", old_log + stamp + "：{{1.text}}")]),
+            respond("回傳已追加", ok_body)]),
+        (flt("已解決", [[ours, kind("resolve")]]), [
+            upd("事件已解決", [f_sel("處理進度", "已解決"),
+                          f_text("處理紀錄", old_log + stamp + " 標記已解決{{if(1.text; \"：\"; \"\")}}{{1.text}}")]),
+            respond("回傳已解決", ok_body)]),
+    ])]
+
+    # ---- prep：整備回報（item 整備項目、result＝已完成｜有問題、text 說明） ----
+    done = 'if(1.result = "已完成"'
+    prep_log = b.create("新增整備回報（本所頁面）", DS_LOG, [
+        f_title("日誌標題", "整備回報：{{1.item}}{{1.result}}"), f_sel("日誌類別", "整備回報"), f_sel("整備項目", "{{1.item}}"),
+        f_sel("處理進度", "{{" + done + '; "已解決"; "待處理")}}'), f_sel("嚴重程度", "{{" + done + '; "低"; "中")}}'),
+        f_text("內容說明", "{{1.text}}"), f_rel("收容所開設", w_open), f_rel("回報人", f"{{{{{W}.id}}}}"),
+        f_now("發生時間"), f_sel("來源", "LINE 回報")])
+    prep_flow = [prep_log, respond("回傳整備已記錄", ok_body)]
+
+    # ---- prepDone：管理者送出整備完成（開設狀態 整備中 → 待核准，和聊天室 R4 相同） ----
+    op2 = b.get("讀派駐開設（整備完成）", w_open)
+    O2 = op2["id"]
+    prepdone_flow = [op2, b.router("可否送出整備完成", [
+        (flt("整備中", [[c(sp(O2, "開設狀態", ".name"), "text:equal", "整備中")]]), [
+            b.update("開設改待核准（本所頁面）", DS_OPEN, f"{{{{{O2}.id}}}}", [f_sel("開設狀態", "待核准")]),
+            b.create("新增申請日誌（本所頁面）", DS_LOG, [
+                f_title("日誌標題", "整備完成，申請開放進駐"), f_sel("日誌類別", "整備回報"), f_sel("處理進度", "待處理"),
+                f_sel("嚴重程度", "中"), f_chk("需回報社會處", True), f_rel("收容所開設", f"{{{{{O2}.id}}}}"),
+                f_rel("回報人", f"{{{{{W}.id}}}}"), f_now("發生時間"), f_sel("來源", "LINE 回報")]),
+            respond("回傳已送出整備完成", ok_body)]),
+        (flt("不是整備中", [[c(sp(O2, "開設狀態", ".name"), "text:notequal", "整備中")]]), [
+            respond("回傳不是整備中", '{"ok":false,"error":"bad_stage"}', "409")]),
+    ])]
+    is_mgr = c(w_role, "text:contain", "管理者")
+
+    flow = [
+        {"id": 1, "module": "gateway:CustomWebHook", "version": 1, "parameters": {"hook": hook, "maxResults": 1},
+         "mapper": {}, "metadata": {"designer": {"x": -300, "y": 0, "name": "本所頁面送來的請求"}, "parameters": [
+             {"name": "hook", "type": "hook:gateway-webhook", "label": "Webhook", "required": True},
+             {"name": "maxResults", "type": "number", "label": "Maximum number of results"}]}},
+        verify,
+        b.router("身分驗證", [
+            (flt("不是本系統的憑證", [[c("{{2.data.client_id}}", "text:notequal", channel)]]), [
+                respond("回傳驗證失敗", '{"ok":false,"error":"auth"}', "401")]),
+            (flt("身分驗證成功", [[auth_ok]]), [profile, staff, b.router("依身分與動作分流", [
+                (flt("不是在班工作人員", [[auth_ok, c(f"{{{{{W}.id}}}}", "notexist")],
+                                         [auth_ok, c(sp(W, "啟用中"), "boolean:notequal", "true")],
+                                         [auth_ok, c(sp(W, "簽到狀態", ".name"), "text:notequal", "上班中")],
+                                         [auth_ok, c(w_kind, "text:notequal", "工作人員")]]), [
+                    respond("回傳不是在班工作人員", '{"ok":false,"error":"not_on_duty"}', "403")]),
+                (flt("本所狀況", [on + [act("status")]]), status_flow),
+                (flt("記錄事件", [on + [act("report")]]), report_flow),
+                (flt("事件處理", [on + [act("update")]]), update_flow),
+                (flt("整備回報", [on + [act("prep")]]), prep_flow),
+                (flt("送出整備完成", [on + [act("prepDone"), is_mgr]]), prepdone_flow),
+                (flt("不是管理者（整備完成）", [on + [act("prepDone"), c(w_role, "text:notcontain", "管理者")]]), [
+                    respond("回傳不是管理者", '{"ok":false,"error":"not_manager"}', "403")]),
+            ])]),
+        ]),
+    ]
+    return blueprint("14 本所與事件 API（LIFF）", flow, instant=True)
+
+
 def build_cleanup():
     """刪除 LINE 上已經不用的圖文選單（維護用；每次執行情境 12 都會多出兩張新選單，舊的不會自動刪除）。
     目前使用中的兩張（預設的一般選單、別名指到的加乘選單）會保留，其餘逐張刪除；刪除選單時 LINE 會自動解除綁定。"""
@@ -1326,6 +1518,7 @@ def main():
     for fname, bp in (("11_LINE訊息_第一版.blueprint.json", build_main()),
                       ("12_建立圖文選單.blueprint.json", build_menu()),
                       ("13_物資API.blueprint.json", build_supply_api()),
+                      ("14_本所與事件API.blueprint.json", build_ops_api()),
                       ("90_清理舊圖文選單.blueprint.json", build_cleanup())):
         p = out / fname
         p.write_text(json.dumps(bp, ensure_ascii=False, indent=1), encoding="utf-8")

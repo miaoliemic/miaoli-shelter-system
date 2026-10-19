@@ -5,7 +5,8 @@
     "line_webhook_id": 0,
     "line_connection_id": 0,
     "notion_connection_id": 0,
-    "supply_api_hook_id": 0
+    "supply_api_hook_id": 0,
+    "ops_api_hook_id": 0
   },
   "line": {
     "staff_menu_alias": "staff-plus",
