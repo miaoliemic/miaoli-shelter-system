@@ -60,6 +60,12 @@ RT = "{{1.events[1].replyToken}}"
 S = 2  # 查身分模組
 
 
+
+# HTTP「Make a request」模組的必填設定。在 Make 介面建立時會自動帶入預設值，用 API 建立時不會，
+# 少了這些，模組會直接報 BundleValidationError（Missing value of required parameter），請求根本沒送出。
+HTTP_DEFAULTS = {"rejectUnauthorized": True, "followRedirect": True, "followAllRedirects": False, "useQuerystring": False,
+                 "gzip": True, "useMtls": False}
+
 def sp(mod, prop, suffix=""):
     return "{{" + f"{mod}.properties_value.`{prop}`{suffix}" + "}}"
 
@@ -1033,7 +1039,7 @@ def build_supply_api():
     def line_get(mid, url, name, headers=()):
         return {"id": mid, "module": "http:ActionSendData", "version": 3, "parameters": {"handleErrors": False},
                 "mapper": {"url": url, "method": "get", "serializeUrl": False, "shareCookies": False,
-                           "parseResponse": True, "headers": list(headers), "qs": []},
+                           "parseResponse": True, "headers": list(headers), "qs": [], **HTTP_DEFAULTS},
                 "metadata": {"designer": {"x": 0 if mid == 2 else 150, "y": 0 if mid == 2 else 150, "name": name}},
                 # 憑證無效時 LINE 回 400／401，Make 會當成錯誤中斷；在錯誤處理路線回傳 401，頁面才知道身分有問題
                 "onerror": [respond(f"回傳驗證失敗（{name}）", '{"ok":false,"error":"auth"}', "401"),
@@ -1093,14 +1099,23 @@ def build_supply_api():
         {"key": "數量", "type": "number", "value": f"{{{{{F}.qty}}}}"},
         f_rel("經手人", f"{{{{{W}.id}}}}"), f_now("時間"), f_sel("來源", "LINE 表單"),
         f_text("備註", f"物資頁面：{{{{{F}.note}}}}"), f_text("請求編號", "{{1.r}}"),
-        f_rel("領取人", "{{1.g}}")])
+        # 一般入庫／發放沒有領取人（g 是空字串）。["{{1.g}}"] 會變成 [""]，Notion 會拒收，
+        # 所以整個陣列用運算式產生：沒有領取人時給空陣列。
+        {"key": "領取人", "type": "relation", "value": '{{if(1.g; split(1.g; ","); emptyarray)}}'},
+        f_text("發放區域", "{{1.w}}")])   # 領取人姓名，或「公共用途」
     after = b.get("讀最新庫存", f"{{{{{F}.itemId}}}}")
     A = after["id"]
     rows = b.aggregate("彙整結果", F, '{"itemId":"' + f"{{{{{F}.itemId}}}}" + '","stock":'
                        + "{{ifempty(" + sp(A, "目前庫存", ".number")[2:-2] + "; 0)}}}", sep=",")
+    # 發放一定要有對象：居民（g）或公共用途（u=public）。頁面會先擋，這裡再擋一次
+    is_out = c("{{1.l}}", "text:contain", '"type":"發放"')
+    new_req = c(f"{{{{{D}.id}}}}", "notexist")
     submit_flow = [dup, b.router("是否重複送出", [
         (flt("已登記過", [[c(f"{{{{{D}.id}}}}", "exist")]]), [respond("回傳重複", '{"ok":true,"duplicate":true}')]),
-        (flt("新的登記", [[c(f"{{{{{D}.id}}}}", "notexist")]]), [
+        (flt("發放缺領取人", [[new_req, is_out, c("{{1.g}}", "notexist"), c("{{1.u}}", "text:notequal", "public")]]),
+         [respond("回傳缺領取人", '{"ok":false,"error":"no_recipient"}', "400")]),
+        (flt("新的登記", [[new_req, c("{{1.l}}", "text:notcontain", '"type":"發放"')],
+                         [new_req, c("{{1.g}}", "exist")], [new_req, c("{{1.u}}", "text:equal", "public")]]), [
             parse, feed, move, after, rows, respond("回傳登記結果", '{"ok":true,"results":[' + f"{{{{{rows['id']}.text}}}}" + "]}")]),
     ])]
 

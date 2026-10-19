@@ -38,8 +38,12 @@ header{position:sticky;top:0;z-index:5;background:var(--bg);padding:14px 16px 10
 .chips{display:flex;gap:6px;overflow-x:auto;margin-top:10px;padding-bottom:2px}
 .chips button{padding:5px 12px;border-radius:999px;background:var(--chip);font-size:14px;white-space:nowrap}
 .chips button.on{background:var(--text);color:var(--bg)}
-.recipient{margin:12px 16px 0;padding:12px 14px;border-radius:14px;background:var(--blue-bg);color:var(--blue)}
+.recipient{margin:12px 16px 0;padding:12px 14px;border-radius:14px;background:var(--blue-bg);color:var(--blue);display:flex;align-items:center;gap:8px}
+.recipient.none{background:var(--amber-bg);color:var(--amber)}
+.recipient .who{flex:1;min-width:0}
 .recipient b{font-size:17px}
+.recipient small{display:block;font-size:12px;opacity:.85}
+.recipient button{padding:8px 10px;border-radius:10px;background:var(--card);border:1px solid var(--line);color:var(--text);font-size:14px;font-weight:700;white-space:nowrap}
 .focus{margin:12px 16px 0;padding:16px;border-radius:16px;background:var(--card);border:2px solid var(--text)}
 .focus h2{font-size:22px}
 .focus .big{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
@@ -120,8 +124,9 @@ const mock = {
     { id: "i7", code: "SUP-T2FY9", name: "暖暖包", cat: "防寒", unit: "片", pack: "盒", per: 10, stock: 38, safety: 50 },
     { id: "i8", code: "SUP-W5KP3", name: "毛毯", cat: "寢具", unit: "條", pack: "", per: 1, stock: 30, safety: 10 },
   ],
-  residents: { "MLS-W8AGZ": { name: "測試王小明", note: "長者・高齡者", inShelter: true },
-               "MLS-RXKK3": { name: "測試陳美華", note: "已離所", inShelter: false } },
+  residents: { "MLS-W8AGZ": { id: "r1", name: "測試王小明", note: "長者・高齡者", inShelter: true },
+               "MLS-K7PQ2": { id: "r2", name: "測試林阿姨", note: "在所", inShelter: true },
+               "MLS-RXKK3": { id: "r3", name: "測試陳美華", note: "已離所", inShelter: false } },
   recent: [
     { t: "10:42", text: "衛生紙 發放 1 包・王大明" },
     { t: "10:35", text: "成人紙尿褲 入庫 30 片" },
@@ -177,14 +182,15 @@ const real = {
                            cat: f.cat || "其他", safety: String(f.safety || 0), code });
     return { id: d.itemId, code, name: f.name, cat: f.cat, unit: f.unit, pack: f.pack, per: f.per || 1, stock: 0, safety: f.safety || 0 };
   },
-  async submit(requestId, lines, recipientTag) {
-    const d = await post({ a: "submit", r: requestId, g: (S.resident && S.resident.id) || "",
+  async submit(requestId, lines) {
+    const d = await post({ a: "submit", r: requestId, g: S.recip && S.recip.kind === "resident" ? S.recip.id : "",
+                           u: S.recip && S.recip.kind === "public" ? "public" : "", w: recipName(),
                            l: JSON.stringify({ lines: lines.map(l => ({ ...l, name: S.items.find(x => x.id === l.itemId).name })) }) });
     if (d.duplicate) return { duplicate: true, results: [] };
     const now = new Date(), t = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
     for (const l of lines) {
       const it = S.items.find(x => x.id === l.itemId);
-      S.recent.unshift({ t, text: `${it.name} ${l.type} ${l.note}` + (S.resident ? `・${S.resident.name}` : "") });
+      S.recent.unshift({ t, text: `${it.name} ${l.type} ${l.note}` + (l.type === "發放" && S.recip ? `・${recipName()}` : "") });
     }
     return { results: (d.results || []).map(r => ({ itemId: r.itemId, ok: true, stock: r.stock })) };
   },
@@ -193,16 +199,17 @@ const mockApi = {
   async load() { await wait(300); return { me: mock.me, items: mock.items.map(x => ({ ...x })), recent: mock.recent.slice(0, 5) }; },
   async resident(tag) { await wait(150); return mock.residents[tag] || null; },
   // lines: [{ itemId, type: 入庫|發放|盤點調整, qty(最小單位，盤點調整可正負), note }]
-  async submit(requestId, lines, recipientTag) {
+  async submit(requestId, lines) {
     await wait(700);
     if (mock.seen.has(requestId)) return { duplicate: true, results: [] };
+    if (lines.some(l => l.type === "發放") && !S.recip) throw new ApiError("no_recipient");
     mock.seen.add(requestId);
     const results = lines.map(l => {
       const it = mock.items.find(x => x.id === l.itemId);
       if (l.type === "發放" && l.qty > it.stock) return { itemId: l.itemId, ok: false, error: `庫存只剩 ${it.stock} ${it.unit}` };
       it.stock += l.type === "發放" ? -l.qty : l.qty;
       const now = new Date(), t = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
-      mock.recent.unshift({ t, text: `${it.name} ${l.type} ${l.note}` + (recipientTag ? `・${mock.residents[recipientTag].name}` : "") });
+      mock.recent.unshift({ t, text: `${it.name} ${l.type} ${l.note}` + (l.type === "發放" && S.recip ? `・${recipName()}` : "") });
       return { itemId: l.itemId, ok: true, stock: it.stock };
     });
     return { results };
@@ -224,7 +231,10 @@ const S = {
   mode: "in", cat: "全部", q: "",
   focusCode: params.get("item"),      // 掃物資標籤進來：只顯示該品項
   showAll: !params.get("item"),
-  tag: params.get("tag"), resident: null, // 掃號碼牌「領物資」進來：只能發放
+  tag: params.get("tag"),             // 從聊天室掃號碼牌「領物資」進來：只能發放，一開始就帶好領取人
+  // 發放對象：{ kind: "resident", tag, id, name, note } 或 { kind: "public" }。
+  // 以最後掃到的號碼牌為準：掃錯了直接掃正確的那張就好，不用先取消。一位家人可以代領全家（數量不設限）
+  recip: null,
   guest: params.get("as") === "guest",
   pick: {},                           // itemId → { qty, unit }
   errs: {},                           // itemId → 錯誤訊息（送出失敗的留在頁面上）
@@ -233,6 +243,9 @@ const S = {
 if (S.tag) S.mode = "out";
 
 const $ = s => document.querySelector(s);
+const recipName = () => !S.recip ? "" : S.recip.kind === "public" ? "公共用途" : S.recip.name;
+// 「給 王小明」或「・公共用途」
+const toWho = () => !S.recip ? "" : S.recip.kind === "public" ? "・公共用途" : `給 ${S.recip.name}`;
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 function toast(msg) { const d = document.createElement("div"); d.className = "toast"; d.textContent = msg; document.body.append(d); setTimeout(() => d.remove(), 2600); }
 function stockText(it) {
@@ -266,11 +279,11 @@ function render() {
     <div class="title"><h1>${esc(S.me.opening)}・物資</h1><button class="iconbtn" id="reload" aria-label="重新整理">↻</button></div>
     <div class="sub">${esc(S.me.event)}　經手人：${esc(S.me.name)}</div>
     ${focus && !S.showAll ? "" : `<div class="seg">${Object.entries(MODES).map(([k, v]) => `<button data-mode="${k}" class="${S.mode === k ? "on" : ""}" ${lockOut && k !== "out" ? "disabled" : ""}>${v}</button>`).join("")}</div>`}
-    <div class="hint">${S.mode === "count" ? "填「實際點到的數量」，系統自動算出差額。沒點的品項留空。" : S.mode === "out" ? "填要發出去的數量，可一次填多項。" : "填收到的數量，可切換瓶或箱，一次填多項。"}</div>
-    ${focus && !S.showAll ? "" : `<div class="tools"><input id="q" placeholder="搜尋品名" value="${esc(S.q)}"><button class="scan" id="scan">掃描標籤</button></div>
+    <div class="hint">${S.mode === "count" ? "填「實際點到的數量」，系統自動算出差額。沒點的品項留空。" : S.mode === "out" ? "填要發出去的數量，可一次填多項。物資標籤和居民號碼牌都用「掃描」，先掃哪個都可以。" : "填收到的數量，可切換瓶或箱，一次填多項。"}</div>
+    ${focus && !S.showAll ? "" : `<div class="tools"><input id="q" placeholder="搜尋品名" value="${esc(S.q)}"><button class="scan" id="scan">掃描</button></div>
     <div class="chips">${cats.map(c => `<button data-cat="${esc(c)}" class="${S.cat === c ? "on" : ""}">${esc(c)}</button>`).join("")}</div>`}
   </header>
-  ${S.tag ? (S.resident ? `<div class="recipient">領取人<br><b>${esc(S.resident.name)}</b>　${esc(S.tag)}・${esc(S.resident.note)}</div>` : "") : ""}
+  ${S.mode === "out" ? recipBar() : ""}
   ${focus ? `<div class="focus"><h2>${esc(focus.name)}</h2><div class="stock">${stockText(focus)}</div>
      ${lockOut ? "" : `<div class="big"><button data-mode="in" class="${S.mode === "in" ? "on" : ""}">入庫</button><button data-mode="out" class="${S.mode === "out" ? "on" : ""}">發放</button></div>`}
      ${rowCtrl(focus)}</div>
@@ -281,6 +294,15 @@ function render() {
     ${(S.me.role || "").includes("管理者") && !lockOut ? `<button class="addnew" id="addnew">＋ 新增品項</button>` : ""}</div>` : ""}
   ${S.recent.length ? `<div class="recent"><h3>${REAL ? "這次登記" : "本所最近登記"}</h3>${S.recent.slice(0, 5).map(r => `<div>${esc(r.t)}　${esc(r.text)}</div>`).join("")}</div>` : ""}`;
   renderBar();
+}
+function recipBar() {
+  const r = S.recip;
+  if (!r) return `<div class="recipient none"><div class="who"><b>尚未指定領取人</b><small>掃居民號碼牌；不是發給個人就選公共用途</small></div>
+    <button id="rscan">掃號碼牌</button><button id="pub">公共用途</button></div>`;
+  if (r.kind === "public") return `<div class="recipient"><div class="who">領取對象<br><b>公共用途</b><small>補到廁所、公共區等，不是發給個人</small></div>
+    <button id="rscan">改掃號碼牌</button></div>`;
+  return `<div class="recipient"><div class="who">領取人<br><b>${esc(r.name)}</b>　${esc(r.tag)}${r.note ? `・${esc(r.note)}` : ""}<small>掃錯了就直接掃另一張；可代領全家</small></div>
+    <button id="pub">改公共用途</button></div>`;
 }
 function rowCtrl(it) {
   const p = S.pick[it.id] || { qty: "", unit: it.unit };
@@ -297,9 +319,11 @@ function renderBar() {
   const ls = lines(), bar = $("#bar");
   bar.hidden = false;
   const label = S.mode === "count" ? "盤點" : MODES[S.mode];
-  $("#sum").innerHTML = ls.length ? `${label} <b>${ls.length}</b> 項` : `尚未填寫數量`;
-  $("#go").textContent = S.busy ? "登記中…" : `確認${label}`;
-  $("#go").disabled = !ls.length || S.busy || (S.tag && !S.resident);
+  const needWho = S.mode === "out" && !S.recip;   // 發放：物資和領取對象兩個都要有，先後不拘
+  $("#sum").innerHTML = !ls.length ? (S.mode === "out" && S.recip ? `請選要發放的物資（${esc(recipName())}）` : `尚未填寫數量`)
+    : `${label} <b>${ls.length}</b> 項` + (S.mode === "out" && S.recip ? ` <b>${esc(toWho())}</b>` : "");
+  $("#go").textContent = S.busy ? "登記中…" : ls.length && needWho ? "掃領取人號碼牌" : `確認${label}`;
+  $("#go").disabled = !ls.length || S.busy;
 }
 
 // ===== 操作 =====
@@ -324,7 +348,8 @@ document.addEventListener("click", async e => {
   }
   else if (b.id === "showall") { S.showAll = true; render(); }
   else if (b.id === "reload") { await boot(); toast("已更新庫存"); }
-  else if (b.id === "scan") scan();
+  else if (b.id === "scan" || b.id === "rscan") scan();
+  else if (b.id === "pub") { S.recip = { kind: "public" }; render(); toast("領取對象：公共用途"); }
   else if (b.id === "addnew") addItemSheet();
 });
 document.addEventListener("input", e => {
@@ -341,24 +366,43 @@ async function scan() {
   if (window.liff && liff.isInClient && liff.isInClient() && liff.isApiAvailable("scanCodeV2")) {
     try { v = (await liff.scanCodeV2()).value; } catch (e) { toast("無法開啟掃描器"); return; }
   } else {
-    const codes = S.items.map(x => `${x.code} ${x.name}`).join("\n");
-    v = prompt(`（原型）輸入或貼上標籤代碼：\n${codes}`, S.items[0].code);
+    const codes = S.items.map(x => `${x.code} ${x.name}`).concat(REAL ? [] : Object.entries(mock.residents).map(([k, r]) => `${k} ${r.name}（號碼牌）`)).join("\n");
+    v = prompt(`（原型）輸入或貼上物資標籤或號碼牌代碼：\n${codes}`, S.items[0].code);
   }
   if (!v) return;
+  const tm = String(v).toUpperCase().match(/MLS-[A-Z0-9]{5}/);
+  if (tm) return pickResident(tm[0]);
   const m = String(v).toUpperCase().match(/SUP-[A-Z0-9]{5}/);
   const code = m ? m[0] : "";
   const it = S.items.find(x => x.code === code);
-  if (!it) { toast("這不是本所的物資標籤"); return; }
+  if (!it) { toast("這不是本所的物資標籤或居民號碼牌"); return; }
   if (!S.pick[it.id]) S.pick[it.id] = { qty: S.mode === "count" ? "" : 1, unit: it.unit };
   S.cat = "全部"; S.q = ""; render();
   const row = document.querySelector(`.row[data-id="${it.id}"]`); if (row) row.scrollIntoView({ block: "center" });
   toast(`已加入：${it.name}`);
 }
 
+// 掃到居民號碼牌：查居民，設為這次的領取人（取代上一位）。查不到或不在所就保留原本的
+async function pickResident(tag) {
+  if (S.mode !== "out") {
+    if (lines().length && !confirm("掃到居民號碼牌，要切換到「發放」嗎？已填的數量會清除。")) return;
+    S.pick = {}; S.errs = {}; S.mode = "out"; render();
+  }
+  let r;
+  try { r = await api.resident(tag); }
+  catch (e) { if (!handleApiError(e)) toast("網路不穩，沒查到號碼牌，請再掃一次"); return; }
+  if (!r) { toast(`查無號碼牌 ${tag}` + (S.recip ? "，領取人沒有更換" : "")); return; }
+  if (!r.inShelter) { toast(`${r.name}（${tag}）目前「${r.note}」，不能領物資` + (S.recip ? "，領取人沒有更換" : "")); return; }
+  const changed = S.recip && S.recip.kind === "resident" && S.recip.tag !== tag;
+  S.recip = { kind: "resident", tag, ...r };
+  render(); toast(changed ? `領取人改為 ${r.name}` : `領取人：${r.name}`);
+}
+
 $("#go").addEventListener("click", () => {
   const ls = lines(); if (!ls.length || S.busy) return;
+  if (S.mode === "out" && !S.recip) { scan(); return; }
   const label = S.mode === "count" ? "盤點" : MODES[S.mode];
-  sheet(`<h2>確認${label}${S.resident ? `給 ${esc(S.resident.name)}` : ""}</h2>
+  sheet(`<h2>確認${label}${S.mode === "out" ? esc(toWho()) : ""}</h2>
     ${ls.map(l => `<div class="line"><span>${esc(l.it.name)}</span><span>${esc(l.note)}${l.p.unit === l.it.pack && S.mode !== "count" ? ` <small>＝${l.qty} ${esc(l.it.unit)}</small>` : ""}</span></div>`).join("")}
     <div class="acts"><button data-close>返回修改</button><button class="go" id="doit">確認${label}</button></div>`, root => {
     root.querySelector("#doit").onclick = () => { closeSheet(); submit(ls); };
@@ -374,7 +418,7 @@ async function submit(ls) {
   S.busy = true; renderBar();
   const requestId = (crypto.randomUUID && crypto.randomUUID()) || String(Date.now()) + Math.random();
   try {
-    const res = await api.submit(requestId, ls.map(l => ({ itemId: l.it.id, type: l.type, qty: l.qty, note: l.note })), S.tag);
+    const res = await api.submit(requestId, ls.map(l => ({ itemId: l.it.id, type: l.type, qty: l.qty, note: l.note })));
     if (res.duplicate) { toast("這筆已經登記過了"); return; }
     let ok = 0, bad = 0;
     for (const r of res.results) {
@@ -384,9 +428,12 @@ async function submit(ls) {
       else { bad++; S.errs[r.itemId] = r.error; }
     }
     if (!REAL) { const d = await api.load(); S.recent = d.recent; }
-    toast(bad ? `${ok} 項已登記，${bad} 項未登記，請看紅字` : `已登記 ${ok} 項`);
+    const who = S.mode === "out" ? recipName() : "";
+    if (S.mode === "out" && !bad) S.recip = null;   // 發完換下一位，避免記到上一位身上
+    toast(bad ? `${ok} 項已登記，${bad} 項未登記，請看紅字` : `已登記 ${ok} 項` + (who ? `（${who}）` : ""));
   } catch (err) {
-    if (!handleApiError(err)) toast("網路不穩，沒有送出。請再按一次確認（不會重複登記）。");
+    if (err.code === "no_recipient") toast("發放要先掃領取人號碼牌，或選公共用途");
+    else if (!handleApiError(err)) toast("網路不穩，沒有送出。請再按一次確認（不會重複登記）。");
   } finally { S.busy = false; render(); }
 }
 
@@ -474,10 +521,12 @@ async function boot() {
   catch (e) { if (!handleApiError(e)) { S.me = null; $("#app").innerHTML = `<div class="blocked"><h2>暫時無法讀取庫存</h2><p>請稍後按重新整理，或改用聊天室打字登記（例：飲用水+20）。</p></div>`; } return; }
   S.me = d.me; S.items = d.items; S.recent = d.recent;
   if (PROFILE && !REAL) S.me = { ...S.me, name: PROFILE.displayName };  // 原型：經手人顯示目前 LINE 帳號的名字
-  if (S.tag) {
-    S.resident = await api.resident(S.tag);
-    if (!S.resident) toast("查無此號碼牌");
-    else if (!S.resident.inShelter) { toast("此號碼牌已失效，不能領物資"); S.resident = null; }
+  if (S.tag && !S.tagDone) {   // 只在第一次載入時帶入；之後按重新整理不會把發完的人又設回來
+    S.tagDone = true;
+    const r = await api.resident(S.tag);
+    if (!r) toast("查無此號碼牌");
+    else if (!r.inShelter) toast("此號碼牌已失效，不能領物資");
+    else S.recip = { kind: "resident", tag: S.tag, ...r };
   }
   if (S.focusCode && !S.items.some(x => x.code === S.focusCode)) { toast("這不是本所的物資標籤"); S.focusCode = null; S.showAll = true; }
   render();
