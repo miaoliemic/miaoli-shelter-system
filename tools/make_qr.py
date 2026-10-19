@@ -119,7 +119,8 @@ def tag_sheet(tags, event, place):
         for txt, f, fill, yy in ((event, font(24, True), color, y + 12), (place, font(30, True), "#1f2933", y + 42)):
             tw = d.textlength(txt, font=f)
             d.text((x + (cw - tw) / 2, yy), txt, font=f, fill=fill)
-        img.paste(qr_image(oa_message_url(f"QR {t}"), 320), (x + (cw - 320) // 2, y + 92))
+        # 掃了直接打開居民頁面（LIFF）：空白牌就報到，使用中就外出・返回・領物資・離所
+        img.paste(qr_image(f"https://liff.line.me/{LIFF_ID}?r={t}", 320), (x + (cw - 320) // 2, y + 92))
         tw = d.textlength(t, font=font(46, True))
         d.text((x + (cw - tw) / 2, y + 412), t, font=font(46, True), fill="#1f2933")
         sub = "工作人員掃描：報到・外出・領物資・離所"

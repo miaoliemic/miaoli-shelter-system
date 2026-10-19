@@ -1014,9 +1014,10 @@ def build_menu():
 
 
 def build_supply_api():
-    """13 物資 API：給 LIFF 物資頁面（liff/supplies/）呼叫的 webhook。
+    """13 物資與居民 API：給 LIFF 現場頁面（liff/supplies/）呼叫的 webhook。
     頁面用 application/x-www-form-urlencoded 送出（瀏覽器不會先送 CORS 預檢），欄位：
-      a＝動作（load 讀庫存｜submit 送出登記｜resident 查號碼牌）、t＝LINE ID Token、
+      a＝動作（load 讀庫存｜submit 送出登記｜resident 查號碼牌｜addItem 新增品項｜
+              tagInfo 號碼牌與居民｜register 報到｜move 外出・返回・離所）、t＝LINE Access Token、
       r＝請求編號（submit）、l＝{"lines":[{itemId,name,type,qty,note}]}（submit）、g＝領取人收容登記 ID（submit，可空白）、tag＝號碼牌（resident）
     每次都先向 LINE 驗證 ID Token，再查名冊：啟用中、在班；資料一律以名冊的派駐開設為準。
     回應一律是 JSON：{"ok":true,…} 或 {"ok":false,"error":"auth|not_on_duty"}。"""
@@ -1141,6 +1142,119 @@ def build_supply_api():
     add_flow = [g_open3, new_item, respond("回傳新品項", '{"ok":true,"itemId":"' + f"{{{{{new_item['id']}.id}}}}" + '"}')]
     is_mgr = c(w_role, "text:contain", "管理者")
 
+    # ==== 居民：掃號碼牌（liff/supplies/?r=MLS-xxxxx）後的查詢、報到、進出 ====
+    # 權限和聊天室一樣：報到限管理者、門禁組；進出（外出・返回・離所）再加志工。號碼牌必須是本所的（存放收容所）
+    role_ok = lambda roles: [c(w_role, "exist"), c(roles, "text:contain", w_role)]
+    role_no = lambda roles: [c(roles, "text:notcontain", w_role)]
+
+    def tag_checks(T, O):
+        """號碼牌存在、而且是本所的"""
+        return [c(f"{{{{{T}.id}}}}", "exist"), c(sp(T, "存放收容所", "[].id"), "text:contain", sp(O, "收容所", "[].id"))]
+
+    def not_ours(T, O):
+        return [[c(f"{{{{{T}.id}}}}", "notexist")],
+                [c(f"{{{{{T}.id}}}}", "exist"), c(sp(T, "存放收容所", "[].id"), "text:notcontain", sp(O, "收容所", "[].id"))]]
+
+    # ---- tagInfo：號碼牌狀態；使用中時附上居民（不回傳電話、證號、照護說明等敏感欄位） ----
+    oi = b.get("讀派駐開設（號碼牌）", w_open)
+    OI = oi["id"]
+    ti = b.search("找號碼牌（居民頁面）", DS_TAG, [c("編號 |&*^%$#@| title", "text:equals", "{{1.tag}}")])
+    TI = ti["id"]
+    ri = b.get("讀居民（居民頁面）", sp(TI, "綁定居民", "[].id"))
+    RI = ri["id"]
+    common = ('"tag":"{{1.tag}}","role":"' + w_role + '","staff":"' + w_name + '","opening":"' + sp(OI, "開設名稱", "[].plain_text")
+              + '","openStatus":"' + sp(OI, "開設狀態", ".name") + '"')
+    res_body = ('{"ok":true,"state":"used",' + common + ',"resident":{"id":"' + f"{{{{{RI}.id}}}}"
+                # 志工只看得到號碼牌編號，不回傳姓名和特殊關懷（docs/QR編碼規則.md）
+                + '","name":"{{if(' + w_role[2:-2] + ' = "志工"; ""; ' + sp(RI, "姓名", "[].plain_text")[2:-2] + ')}}'
+                + '","age":"' + sp(RI, "年齡層", ".name")
+                + '","care":"{{if(' + w_role[2:-2] + ' = "志工"; ""; join(map(' + f"{RI}.properties_value.`特殊關懷`" + '; "name"); "、"))}}'
+                + '","status":"' + sp(RI, "在所狀態", ".name") + '","back":"' + sp(RI, "預計返回時間", ".start")
+                + '","area":"' + sp(RI, "分配區域", "[].plain_text") + '"}}')
+    t_stat = sp(TI, "狀態", ".name")
+    taginfo_flow = [oi, ti, b.router("號碼牌狀態", [
+        (flt("不是本所的號碼牌", not_ours(TI, OI)), [respond("回傳不是本所", '{"ok":true,"state":"none",' + common + '}')]),
+        (flt("空白牌", [tag_checks(TI, OI) + [c(t_stat, "text:equal", "可用")]]), [
+            respond("回傳空白牌", '{"ok":true,"state":"blank",' + common + '}')]),
+        (flt("已失效", [tag_checks(TI, OI) + [c(t_stat, "text:equal", "失效")]]), [
+            respond("回傳已失效", '{"ok":true,"state":"void",' + common + '}')]),
+        (flt("使用中", [tag_checks(TI, OI) + [c(t_stat, "text:equal", "使用中")]]), [ri, respond("回傳居民", res_body)]),
+    ])]
+
+    # ---- register：一次填完報到資料 → 新增收容登記、號碼牌改使用中、新增進出紀錄（報到） ----
+    og = b.get("讀派駐開設（報到）", w_open)
+    OG = og["id"]
+    tg2 = b.search("找號碼牌（報到）", DS_TAG, [c("編號 |&*^%$#@| title", "text:equals", "{{1.tag}}")])
+    TG2 = tg2["id"]
+    new_res = b.create("新增收容登記（居民頁面）", DS_RES, [
+        f_title("姓名", "{{1.name}}"), f_sel("年齡層", "{{1.age}}"), f_sel("在所狀態", "在所"), f_now("報到時間"),
+        f_rel("收容所開設", w_open), f_rel("號碼牌", f"{{{{{TG2}.id}}}}"), f_chk("是否在名冊", False),
+        f_sel("查核狀態", '{{ifempty(1.verify; "不需查核")}}'),
+        {"key": "特殊關懷", "type": "multi_select", "value": '{{if(1.care; split(1.care; ","); emptyarray)}}'},
+        {"key": "聯絡電話", "type": "phone_number", "value": "{{1.phone}}"},
+        f_text("緊急聯絡人", "{{1.contact}}"), f_text("身分證後四碼", "{{1.id4}}"),
+        f_text("照護需求說明", "{{1.note}}"), f_text("分配區域", "{{1.area}}")])
+    NR2 = new_res["id"]
+    reg_ok = tag_checks(TG2, OG) + [c(sp(TG2, "狀態", ".name"), "text:equal", "可用"),
+                                     c(sp(OG, "開設狀態", ".name"), "text:equal", "開設中")]
+    register_flow = [og, tg2, b.router("可否報到（居民頁面）", [
+        (flt("可以報到", [reg_ok]), [
+            new_res,
+            b.update("號碼牌改使用中（居民頁面）", DS_TAG, f"{{{{{TG2}.id}}}}", [f_sel("狀態", "使用中"), f_rel("綁定居民", f"{{{{{NR2}.id}}}}")]),
+            b.create("新增進出紀錄：報到（居民頁面）", DS_IO, [
+                f_title("摘要", "{{1.name}} 報到"), f_sel("類型", "報到"), f_rel("居民", f"{{{{{NR2}.id}}}}"),
+                f_rel("號碼牌", f"{{{{{TG2}.id}}}}"), f_rel("收容所開設", w_open), f_rel("經手人", f"{{{{{W}.id}}}}"),
+                f_now("時間"), f_sel("來源", "工作人員掃描")]),
+            respond("回傳報到完成", '{"ok":true,"residentId":"' + f"{{{{{NR2}.id}}}}" + '"}')]),
+        (flt("本所尚未開放", [tag_checks(TG2, OG) + [c(sp(TG2, "狀態", ".name"), "text:equal", "可用"),
+                                                   c(sp(OG, "開設狀態", ".name"), "text:notequal", "開設中")]]), [
+            respond("回傳尚未開放", '{"ok":false,"error":"not_open"}', "409")]),
+        (flt("號碼牌不能報到", not_ours(TG2, OG) + [tag_checks(TG2, OG) + [c(sp(TG2, "狀態", ".name"), "text:notequal", "可用")]]), [
+            respond("回傳號碼牌不能報到", '{"ok":false,"error":"tag_unusable"}', "409")]),
+    ])]
+
+    # ---- move：外出（預計 h 小時後返回）・返回・離所（號碼牌回收失效） ----
+    om = b.get("讀派駐開設（進出）", w_open)
+    OM = om["id"]
+    tm = b.search("找號碼牌（進出）", DS_TAG, [c("編號 |&*^%$#@| title", "text:equals", "{{1.tag}}")])
+    TM = tm["id"]
+    rm = b.get("讀居民（進出）", sp(TM, "綁定居民", "[].id"))
+    RM = rm["id"]
+    r_stat = sp(RM, "在所狀態", ".name")
+    kind = lambda k: c("{{1.kind}}", "text:equal", k)
+    back = '{{addHours(now; ifempty(1.hours; 3))}}'
+
+    def io(k, extra=()):
+        return b.create(f"新增進出紀錄：{k}（居民頁面）", DS_IO, [
+            f_title("摘要", "{{1.tag}} " + k), f_sel("類型", k), f_rel("居民", f"{{{{{RM}.id}}}}"),
+            f_rel("號碼牌", f"{{{{{TM}.id}}}}"), f_rel("收容所開設", sp(RM, "收容所開設", "[].id")),
+            f_rel("經手人", f"{{{{{W}.id}}}}"), f_now("時間"), f_sel("來源", "工作人員掃描"), *extra])
+
+    def done(k, st):
+        return respond(f"回傳{k}完成", '{"ok":true,"status":"' + st + '"}')
+    move_flow = [om, tm, b.router("號碼牌可否進出", [
+        (flt("號碼牌不能進出", not_ours(TM, OM) + [tag_checks(TM, OM) + [c(sp(TM, "狀態", ".name"), "text:notequal", "使用中")]]), [
+            respond("回傳號碼牌不能進出", '{"ok":false,"error":"tag_unusable"}', "409")]),
+        (flt("使用中的本所號碼牌", [tag_checks(TM, OM) + [c(sp(TM, "狀態", ".name"), "text:equal", "使用中")]]), [
+            rm, b.router("進出動作（居民頁面）", [
+                (flt("外出", [[kind("外出"), c(r_stat, "text:equal", "在所")]]), [
+                    b.update("居民改外出（居民頁面）", DS_RES, f"{{{{{RM}.id}}}}", [f_sel("在所狀態", "外出"), f_date("預計返回時間", back)]),
+                    io("外出", [f_date("預計返回時間", back)]), done("外出", "外出")]),
+                (flt("返回", [[kind("返回"), c(r_stat, "text:equal", "外出")], [kind("返回"), c(r_stat, "text:equal", "未返")]]), [
+                    b.update("居民改在所（居民頁面）", DS_RES, f"{{{{{RM}.id}}}}", [f_sel("在所狀態", "在所")]),
+                    io("返回"), done("返回", "在所")]),
+                (flt("離所", [[kind("離所"), c(r_stat, "text:notequal", "已離所")]]), [
+                    b.update("居民改已離所（居民頁面）", DS_RES, f"{{{{{RM}.id}}}}", [f_sel("在所狀態", "已離所"), f_now("離所時間")]),
+                    b.update("號碼牌回收失效（居民頁面）", DS_TAG, f"{{{{{TM}.id}}}}", [
+                        f_sel("狀態", "失效"), f_sel("失效原因", "離所回收"), f_now("失效時間")]),
+                    io("離所"), done("離所", "已離所")]),
+                (flt("目前狀態不能這樣做", [[kind("外出"), c(r_stat, "text:notequal", "在所")],
+                                         [kind("返回"), c(r_stat, "text:notequal", "外出"), c(r_stat, "text:notequal", "未返")],
+                                         [kind("離所"), c(r_stat, "text:equal", "已離所")]]), [
+                    respond("回傳狀態不符", '{"ok":false,"error":"bad_state","status":"' + r_stat + '"}', "409")]),
+            ])]),
+    ])]
+
     flow = [
         {"id": 1, "module": "gateway:CustomWebHook", "version": 1, "parameters": {"hook": hook, "maxResults": 1},
          "mapper": {}, "metadata": {"designer": {"x": -300, "y": 0, "name": "物資頁面送來的請求"}, "parameters": [
@@ -1162,10 +1276,16 @@ def build_supply_api():
             (flt("新增品項", [on + [act("addItem"), is_mgr]]), add_flow),
             (flt("不是管理者（新增品項）", [on + [act("addItem"), c(w_role, "text:notcontain", "管理者")]]), [
                 respond("回傳不是管理者", '{"ok":false,"error":"not_manager"}', "403")]),
+            (flt("查號碼牌與居民", [on + [act("tagInfo")]]), taginfo_flow),
+            (flt("報到", [on + [act("register")] + role_ok(ROLES_CHECKIN)]), register_flow),
+            (flt("進出", [on + [act("move")] + role_ok(ROLES_GATE)]), move_flow),
+            (flt("沒有權限（居民）", [on + [act("register")] + role_no(ROLES_CHECKIN),
+                                     on + [act("move")] + role_no(ROLES_GATE)]), [
+                respond("回傳沒有權限", '{"ok":false,"error":"no_permission"}', "403")]),
         ])]),
         ]),
     ]
-    return blueprint("13 物資 API（LIFF）", flow, instant=True)
+    return blueprint("13 物資與居民 API（LIFF）", flow, instant=True)
 
 
 def build_cleanup():
