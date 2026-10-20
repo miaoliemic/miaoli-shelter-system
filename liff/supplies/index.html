@@ -467,6 +467,12 @@ const SEVS = ["緊急", "高", "中", "低"];
 const PREP = ["場地清潔", "水電設備", "安全檢查", "寢具", "醫療物資"];
 const isOpen = e => !/已解決|已結案/.test(e.status);
 function staffName(id) { const d = S.ops && S.ops.duty.find(x => x.id === id); return d ? d.name : ""; }
+// 負責人：在班的從名單找；已簽退的從處理紀錄裡最後一筆「MM/DD HH:mm 姓名 認領處理」取姓名
+function ownerName(e) {
+  const n = staffName(e.owner); if (n) return n;
+  const m = [...(e.log || "").matchAll(/\d{2}\/\d{2} \d{2}:\d{2} (.+?) 認領處理/g)].pop();
+  return m ? m[1] : "";
+}
 function ago(iso) {
   const m = Math.round((Date.now() - new Date(iso)) / 60e3);
   return isNaN(m) ? "" : m < 1 ? "剛剛" : m < 60 ? `${m} 分鐘前` : m < 1440 ? `${Math.floor(m / 60)} 小時前` : fmtTime(iso);
@@ -501,7 +507,7 @@ function renderOps() {
   body += `<div class="sec">在班人員 <small>${d.duty.length} 人</small></div><div class="chips2">${d.duty.map(x => `<span>${esc(x.name)}${x.kind === "志工" ? "（志工）" : x.role ? `・${esc(x.role.replace("（收容所負責人）", ""))}` : ""}</span>`).join("")}</div>`;
   body += `<div class="sec">待處理事項 <small>${evs.length} 件，緊急的排最上面</small></div>`
     + (evs.map(e => {
-      const own = !e.owner ? `<span class="own free">待認領</span>` : e.owner === d.me.id ? `<span class="own mine">我負責</span>` : `<span class="own">${esc(staffName(e.owner) || "其他人")}處理中</span>`;
+      const own = !e.owner ? `<span class="own free">待認領</span>` : e.owner === d.me.id ? `<span class="own mine">我負責</span>` : `<span class="own">${esc(ownerName(e) || "其他人")}處理中</span>`;
       return `<button class="evt ${esc(e.sev)}" data-evt="${esc(e.id)}"><div class="t">${esc(e.title)}</div>
         <div class="m"><span class="sev ${esc(e.sev)}">${esc(e.sev)}</span>${own}<span>${esc(ago(e.at))}</span></div></button>`;
     }).join("") || `<div class="hint" style="margin:0 16px">目前沒有待處理的事項。</div>`);
