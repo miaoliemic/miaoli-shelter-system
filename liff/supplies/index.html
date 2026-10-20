@@ -157,9 +157,8 @@ header{position:sticky;top:0;z-index:5;background:var(--bg);padding:14px 16px 10
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <script>
 // ===== 設定：LIFF ID 與 API 網址填入後改用真資料；未填時用下方的模擬資料（原型） =====
-const CONFIG = { liffId: "2012049994-PV1Y181j", apiUrl: "https://hook.us2.make.com/7t41m917ehb6cazsap56tygu0am7gi9x",
-                 // 本所畫面（狀況、事件、整備）用另一個 Make 情境（14）
-                 opsUrl: "https://hook.us2.make.com/8pb0qpcoclm3jf62paodw1d9wxfo0esj" };
+// 物資、居民、本所三個畫面共用同一個 Make 情境（13），免費方案只能啟用兩個情境（11 聊天室＋13）
+const CONFIG = { liffId: "2012049994-PV1Y181j", apiUrl: "https://hook.us2.make.com/7t41m917ehb6cazsap56tygu0am7gi9x" };
 // 只有在正式網址（GitHub Pages）才啟動 LIFF；本機預覽時略過，直接用模擬資料
 const IN_LIFF_HOST = location.hostname.endsWith("github.io");
 
@@ -198,12 +197,12 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
 
 // ===== 正式後端：Make 情境 13（物資 API）。用表單格式送出，瀏覽器不會先送 CORS 預檢 =====
 class ApiError extends Error { constructor(code) { super(code); this.code = code; } }
-async function post(fields, url) {
+async function post(fields) {
   // 送 Access Token：每次開啟 LIFF 都會更新、有效 12 小時；Make 會向 LINE 確認它屬於本系統並取得使用者編號
   const token = liff.getAccessToken();
   if (!token) throw new ApiError("no_token");
   const body = new URLSearchParams({ ...fields, t: token });
-  const res = await fetch(url || CONFIG.apiUrl, { method: "POST", body });
+  const res = await fetch(CONFIG.apiUrl, { method: "POST", body });
   let data;
   try { data = await res.json(); } catch (e) { throw new ApiError("server"); }
   if (!data.ok) throw new ApiError(data.error || "server");
@@ -259,7 +258,7 @@ const real = {
   async register(f) { return await post({ a: "register", ...f }); },
   async move(tag, kind, hours) { return await post({ a: "move", tag, kind, hours: String(hours || "") }); },
   // 本所：status 狀況｜report 記錄事件｜update 認領・追加紀錄・解決｜prep 整備回報｜prepDone 送出整備完成
-  async ops(a, f) { return await post({ a, ...(f || {}) }, CONFIG.opsUrl); },
+  async ops(a, f) { return await post({ a, ...(f || {}) }); },
 };
 const mockOps = {
   stage: params0().get("stage") || "開設中", n: 3,
@@ -925,6 +924,7 @@ function handleApiError(e) {
     showAuthProblem(e.code); return true;
   }
   if (e.code === "not_on_duty") { S.me = { ...(S.me || {}), onDuty: false }; render(); return true; }
+  if (e.code === "not_staff") { S.rmsg = "本所畫面限工作人員使用；志工請用物資和居民畫面。"; render(); return true; }
   return false;
 }
 function showAuthProblem(code) {

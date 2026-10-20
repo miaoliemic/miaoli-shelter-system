@@ -952,7 +952,9 @@ def build_menu():
         return {"type": "message", "text": t}
     top = [cell(i, 0, msg(t)) for i, t in enumerate(["收容所資訊", "我要反映", "緊急聯絡"])]
     public_bottom = [{"bounds": {"x": 0, "y": ROW, "width": 2500, "height": ROW}, "action": msg("工作人員")}]
-    staff_row = [cell(0, 1, {"type": "uri", "uri": "https://line.me/R/nv/QRCode"}), cell(1, 1, msg("本所狀況")), cell(2, 1, msg("簽退"))]
+    # 「本所狀況」有 LIFF 時直接打開現場頁面的本所畫面（情境 13）；沒有 LIFF 時維持聊天室流程
+    ops = {"type": "uri", "uri": f"https://liff.line.me/{LIFF_ID}?v=ops"} if LIFF_ID else msg("本所狀況")
+    staff_row = [cell(0, 1, {"type": "uri", "uri": "https://line.me/R/nv/QRCode"}), cell(1, 1, ops), cell(2, 1, msg("簽退"))]
 
     notion_meta = [{"name": "__IMTCONN__", "type": "account:notion2,notion3", "label": "Connection", "required": True}]
     line_meta = [{"name": "__IMTCONN__", "type": "account:line2", "label": "Connection", "required": True}]
@@ -1014,7 +1016,7 @@ def build_menu():
 
 
 def build_supply_api():
-    """13 物資與居民 API：給 LIFF 現場頁面（liff/supplies/）呼叫的 webhook。
+    """13 現場頁面 API（物資・居民・本所）：給 LIFF 現場頁面（liff/supplies/）呼叫的 webhook。
     頁面用 application/x-www-form-urlencoded 送出（瀏覽器不會先送 CORS 預檢），欄位：
       a＝動作（load 讀庫存｜submit 送出登記｜resident 查號碼牌｜addItem 新增品項｜
               tagInfo 號碼牌與居民｜register 報到｜move 外出・返回・離所）、t＝LINE Access Token、
@@ -1257,7 +1259,7 @@ def build_supply_api():
 
     flow = [
         {"id": 1, "module": "gateway:CustomWebHook", "version": 1, "parameters": {"hook": hook, "maxResults": 1},
-         "mapper": {}, "metadata": {"designer": {"x": -300, "y": 0, "name": "物資頁面送來的請求"}, "parameters": [
+         "mapper": {}, "metadata": {"designer": {"x": -300, "y": 0, "name": "現場頁面送來的請求"}, "parameters": [
              {"name": "hook", "type": "hook:gateway-webhook", "label": "Webhook", "required": True},
              {"name": "maxResults", "type": "number", "label": "Maximum number of results"}]}},
         verify,
@@ -1282,57 +1284,20 @@ def build_supply_api():
             (flt("沒有權限（居民）", [on + [act("register")] + role_no(ROLES_CHECKIN),
                                      on + [act("move")] + role_no(ROLES_GATE)]), [
                 respond("回傳沒有權限", '{"ok":false,"error":"no_permission"}', "403")]),
+            *ops_routes(b, respond, W, on, act),
         ])]),
         ]),
     ]
-    return blueprint("13 物資與居民 API（LIFF）", flow, instant=True)
+    return blueprint("13 現場頁面 API（物資・居民・本所）", flow, instant=True)
 
 
-def build_ops_api():
-    """14 本所與事件 API：現場頁面（liff/supplies/?v=ops）的「本所」畫面呼叫的 webhook。
-    限在班的工作人員（身分類別＝工作人員）；志工屬勞務型，用一般介面，不使用本所畫面。欄位：
-      a＝動作（status 本所狀況｜report 記錄事件｜update 認領・追加紀錄・解決｜prep 整備回報｜prepDone 送出整備完成）
-      t＝LINE Access Token；其餘依動作而定，見各段說明。
-    身分驗證和 13 相同：先向 LINE 確認 Access Token 屬於本系統，再取得使用者編號查名冊。
+def ops_routes(b, respond, W, on, act):
+    """本所畫面（liff/supplies/?v=ops）的動作，掛在情境 13 的「依身分與動作分流」底下（免費方案只能啟用兩個情境）。
+    限在班的工作人員（身分類別＝工作人員）；志工屬勞務型，用一般介面，不使用本所畫面。
+      a＝status 本所狀況｜report 記錄事件｜update 認領・追加紀錄・解決｜prep 整備回報｜prepDone 送出整備完成
     事件就是「現場日誌」的一筆；本版不處理居民反映（日誌類別＝居民反映的不列入）。"""
-    hook = CFG["make"].get("ops_api_hook_id", 0)
-    channel = CFG["line"].get("login_channel_id", "")
-    origin = "https://miaoliemic.github.io"
-    b = B()
-    b.next_id = 100
-
-    def respond(name, body, status="200"):
-        mid = b.nid()
-        return {"id": mid, "module": "gateway:WebhookRespond", "version": 1, "parameters": {},
-                "mapper": {"status": status, "body": body, "headers": [
-                    {"key": "Content-Type", "value": "application/json; charset=utf-8"},
-                    {"key": "Access-Control-Allow-Origin", "value": origin}]},
-                "metadata": b.meta(name)}
-
-    def line_get(mid, url, name, headers=()):
-        return {"id": mid, "module": "http:ActionSendData", "version": 3, "parameters": {"handleErrors": False},
-                "mapper": {"url": url, "method": "get", "serializeUrl": False, "shareCookies": False,
-                           "parseResponse": True, "headers": list(headers), "qs": [], **HTTP_DEFAULTS},
-                "metadata": {"designer": {"x": 0 if mid == 2 else 150, "y": 0 if mid == 2 else 150, "name": name}},
-                "onerror": [respond(f"回傳驗證失敗（{name}）", '{"ok":false,"error":"auth"}', "401"),
-                            {"id": b.nid(), "module": "builtin:Ignore", "version": 1, "mapper": None,
-                             "metadata": {"designer": {"x": 300, "y": 300}}}]}
-    verify = line_get(2, "https://api.line.me/oauth2/v2.1/verify?access_token={{encodeURL(1.t)}}", "向 LINE 驗證 Access Token")
-    profile = line_get(4, "https://api.line.me/v2/profile", "向 LINE 取得使用者編號",
-                       [{"name": "Authorization", "value": "Bearer {{1.t}}"}])
-    W = 3
-    staff = {"id": W, "module": "notion:searchObjects1", "version": 1,
-             "mapper": {"limit": "1", "select": "data_source_item", "data_source": DS_STAFF,
-                        "filter": [[c("LINE User ID |&*^%$#@| rich_text", "text:equals", "{{4.data.userId}}")]]},
-             "metadata": {"designer": {"x": 300, "y": 0, "name": "查名冊"},
-                          "parameters": [{"name": "__IMTCONN__", "type": "account:notion2,notion3", "label": "Connection", "required": True}]},
-             "parameters": {"__IMTCONN__": CONN_NOTION}}
-
-    auth_ok = c("{{2.data.client_id}}", "text:equal", channel)
     w_kind = sp(W, "身分類別", ".name")
-    on = [auth_ok, c(f"{{{{{W}.id}}}}", "exist"), c(sp(W, "啟用中"), "boolean:equal", "true"),
-          c(sp(W, "簽到狀態", ".name"), "text:equal", "上班中"), c(w_kind, "text:equal", "工作人員")]
-    act = lambda a: c("{{1.a}}", "text:equal", a)
+    staff_on = on + [c(w_kind, "text:equal", "工作人員")]
     w_open = sp(W, "派駐開設", "[].id")
     w_name = sp(W, "姓名", "[].plain_text")
     w_role = sp(W, "角色", ".name")
@@ -1451,33 +1416,18 @@ def build_ops_api():
             respond("回傳不是整備中", '{"ok":false,"error":"bad_stage"}', "409")]),
     ])]
     is_mgr = c(w_role, "text:contain", "管理者")
-
-    flow = [
-        {"id": 1, "module": "gateway:CustomWebHook", "version": 1, "parameters": {"hook": hook, "maxResults": 1},
-         "mapper": {}, "metadata": {"designer": {"x": -300, "y": 0, "name": "本所頁面送來的請求"}, "parameters": [
-             {"name": "hook", "type": "hook:gateway-webhook", "label": "Webhook", "required": True},
-             {"name": "maxResults", "type": "number", "label": "Maximum number of results"}]}},
-        verify,
-        b.router("身分驗證", [
-            (flt("不是本系統的憑證", [[c("{{2.data.client_id}}", "text:notequal", channel)]]), [
-                respond("回傳驗證失敗", '{"ok":false,"error":"auth"}', "401")]),
-            (flt("身分驗證成功", [[auth_ok]]), [profile, staff, b.router("依身分與動作分流", [
-                (flt("不是在班工作人員", [[auth_ok, c(f"{{{{{W}.id}}}}", "notexist")],
-                                         [auth_ok, c(sp(W, "啟用中"), "boolean:notequal", "true")],
-                                         [auth_ok, c(sp(W, "簽到狀態", ".name"), "text:notequal", "上班中")],
-                                         [auth_ok, c(w_kind, "text:notequal", "工作人員")]]), [
-                    respond("回傳不是在班工作人員", '{"ok":false,"error":"not_on_duty"}', "403")]),
-                (flt("本所狀況", [on + [act("status")]]), status_flow),
-                (flt("記錄事件", [on + [act("report")]]), report_flow),
-                (flt("事件處理", [on + [act("update")]]), update_flow),
-                (flt("整備回報", [on + [act("prep")]]), prep_flow),
-                (flt("送出整備完成", [on + [act("prepDone"), is_mgr]]), prepdone_flow),
-                (flt("不是管理者（整備完成）", [on + [act("prepDone"), c(w_role, "text:notcontain", "管理者")]]), [
-                    respond("回傳不是管理者", '{"ok":false,"error":"not_manager"}', "403")]),
-            ])]),
-        ]),
+    ops_acts = ["status", "report", "update", "prep", "prepDone"]
+    return [
+        (flt("不是工作人員（本所）", [on + [act(a), c(w_kind, "text:notequal", "工作人員")] for a in ops_acts]), [
+            respond("回傳不是工作人員", '{"ok":false,"error":"not_staff"}', "403")]),
+        (flt("本所狀況", [staff_on + [act("status")]]), status_flow),
+        (flt("記錄事件", [staff_on + [act("report")]]), report_flow),
+        (flt("事件處理", [staff_on + [act("update")]]), update_flow),
+        (flt("整備回報", [staff_on + [act("prep")]]), prep_flow),
+        (flt("送出整備完成", [staff_on + [act("prepDone"), is_mgr]]), prepdone_flow),
+        (flt("不是管理者（整備完成）", [staff_on + [act("prepDone"), c(w_role, "text:notcontain", "管理者")]]), [
+            respond("回傳不是管理者（整備完成）", '{"ok":false,"error":"not_manager"}', "403")]),
     ]
-    return blueprint("14 本所與事件 API（LIFF）", flow, instant=True)
 
 
 def build_cleanup():
@@ -1518,7 +1468,6 @@ def main():
     for fname, bp in (("11_LINE訊息_第一版.blueprint.json", build_main()),
                       ("12_建立圖文選單.blueprint.json", build_menu()),
                       ("13_物資API.blueprint.json", build_supply_api()),
-                      ("14_本所與事件API.blueprint.json", build_ops_api()),
                       ("90_清理舊圖文選單.blueprint.json", build_cleanup())):
         p = out / fname
         p.write_text(json.dumps(bp, ensure_ascii=False, indent=1), encoding="utf-8")
