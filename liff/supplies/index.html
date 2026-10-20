@@ -86,6 +86,7 @@ header{position:sticky;top:0;z-index:5;background:var(--bg);padding:14px 16px 10
 .sheet .acts button{padding:13px 0;border-radius:12px;font-weight:700;border:1px solid var(--line)}
 .sheet .acts .go{border:none}
 .sheet label{display:block;font-size:14px;color:var(--soft);margin-top:10px}
+.sheet textarea{width:100%;min-height:80px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--text);padding:8px 10px;margin-top:4px;font:inherit}
 .sheet input,.sheet select{width:100%;height:44px;border-radius:10px;border:1px solid var(--line);background:var(--bg);padding:0 10px;margin-top:4px}
 .ok{color:var(--green)} .bad{color:var(--red)}
 .toast{position:fixed;left:50%;top:16px;transform:translateX(-50%);z-index:20;background:var(--text);color:var(--bg);padding:10px 16px;border-radius:12px;font-size:15px;max-width:90vw}
@@ -143,6 +144,36 @@ header{position:sticky;top:0;z-index:5;background:var(--bg);padding:14px 16px 10
 .prow .n{flex:1;font-weight:700}
 .prow button{padding:6px 10px;border-radius:10px;border:1px solid var(--line);background:var(--bg);font-size:14px}
 .pre{white-space:pre-wrap;font-size:14px;background:var(--bg);border-radius:10px;padding:8px 10px;margin-top:6px}
+/* 本所畫面：字放大兩倍（現場要一眼看清楚）；數字卡改兩欄避免擠在一起 */
+body.ops .title h1{font-size:30px}
+body.ops .sub{font-size:24px}
+body.ops .stats{grid-template-columns:repeat(2,1fr);gap:10px}
+body.ops .stat{padding:14px 10px}
+body.ops .stat b{font-size:48px}
+body.ops .stat b small{font-size:26px!important}
+body.ops .stat span{font-size:22px}
+body.ops .sec{font-size:30px;margin-top:22px}
+body.ops .sec{flex-direction:column;align-items:flex-start;gap:0}
+body.ops .sec small{font-size:22px}
+body.ops .chips2 span{font-size:26px;padding:6px 14px}
+body.ops .evt{padding:16px 16px}
+body.ops .evt .t{font-size:30px;line-height:1.35}
+body.ops .evt .m{font-size:24px;gap:12px}
+body.ops .sev{font-size:22px;padding:2px 12px}
+body.ops .plist .prow{font-size:26px;padding:14px}
+body.ops .prow .meta{font-size:22px}
+body.ops .prow button{font-size:22px;padding:10px 14px}
+body.ops .hint{font-size:24px}
+body.ops .rcard,body.ops .rcard .meta{font-size:24px}
+body.ops .bar .sum{font-size:24px}
+body.ops .go{font-size:24px;padding:14px 22px}
+body.ops .ract button{font-size:26px}
+body.ops .sheet h2{font-size:30px}
+body.ops .sheet label,body.ops .sheet .meta,body.ops .pre{font-size:24px}
+body.ops .sheet textarea{font-size:24px;min-height:110px}
+body.ops .sheet .pick button{font-size:24px;padding:10px 16px}
+body.ops .sheet .acts button{font-size:24px;padding:16px 0}
+body.ops .err{font-size:22px}
 .blocked{margin:60px 24px;text-align:center}
 .blocked h2{font-size:20px;margin-bottom:8px}
 .blocked p{color:var(--soft)}
@@ -389,6 +420,7 @@ function lines() {
 
 // ===== 畫面 =====
 function render() {
+  document.body.classList.toggle("ops", S.view === "ops");
   document.documentElement.style.setProperty("--accent", ACCENT[S.mode]);
   const app = $("#app");
   if (S.guest || (S.me && !S.me.onDuty)) {
@@ -459,8 +491,8 @@ function renderOps() {
   if (o.stage === "待核准") body += `<div class="rcard"><b>已送出整備完成</b><div class="meta">等社會處核准開放進駐。核准後這裡會改顯示開設中的狀況。</div></div>`;
   body += `<div class="stats">${stat("", `${o.inside}<small style="font-size:13px">／${o.capacity}</small>`, "在所／容量")}
     ${stat("out", o.out, "外出", o.out ? "warn" : "")}${stat("late", o.late, "未返", o.late ? "alert" : "")}
-    ${stat("care", o.care, "需關懷", o.care ? "warn" : "")}${stat("", evs.length, `未結事件${urgent ? `（緊急 ${urgent}）` : ""}`, urgent ? "alert" : evs.length ? "warn" : "")}
-    ${stat("", o.needStaff + o.needVol, `缺人（工 ${o.needStaff}・志 ${o.needVol}）`, o.needStaff + o.needVol ? "warn" : "")}</div>`;
+    ${stat("care", o.care, "需關懷", o.care ? "warn" : "")}${stat("", evs.length, urgent ? `未結・緊急 ${urgent}` : "未結事件", urgent ? "alert" : evs.length ? "warn" : "")}
+    ${stat("", o.needStaff + o.needVol, `缺工 ${o.needStaff}・缺志 ${o.needVol}`, o.needStaff + o.needVol ? "warn" : "")}</div>`;
   if (S.opsShow) {
     const rs = d.residents.filter(r => S.opsShow === "care" ? r.care : r.status === (S.opsShow === "late" ? "未返" : "外出"));
     body += `<div class="sec">${{ out: "外出中", late: "未返", care: "需關懷" }[S.opsShow]} <small>${rs.length} 人</small></div>
@@ -474,7 +506,7 @@ function renderOps() {
         <div class="m"><span class="sev ${esc(e.sev)}">${esc(e.sev)}</span>${own}<span>${esc(ago(e.at))}</span></div></button>`;
     }).join("") || `<div class="hint" style="margin:0 16px">目前沒有待處理的事項。</div>`);
   app.innerHTML = head + body;
-  $("#sum").innerHTML = evs.length ? `未結 <b>${evs.length}</b> 件${urgent ? `，緊急 <b>${urgent}</b>` : ""}` : "目前沒有未結事項";
+  $("#sum").innerHTML = evs.length ? `未結 <b>${evs.length}</b>${urgent ? `・緊急 <b>${urgent}</b>` : ""}` : "沒有未結事項";
   $("#go").textContent = "＋記錄事件"; $("#go").disabled = false;
 }
 function prepView(d) {
