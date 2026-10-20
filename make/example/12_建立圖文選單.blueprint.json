@@ -148,8 +148,8 @@
        "height": 843
       },
       "action": {
-       "type": "message",
-       "text": "收容所資訊"
+       "type": "uri",
+       "uri": "https://liff.line.me/<現場頁面的 LIFF ID（必填：圖文選單每一格都打開它）>?v=info"
       }
      },
      {
@@ -160,8 +160,8 @@
        "height": 843
       },
       "action": {
-       "type": "message",
-       "text": "我要反映"
+       "type": "uri",
+       "uri": "https://liff.line.me/<現場頁面的 LIFF ID（必填：圖文選單每一格都打開它）>?v=report"
       }
      },
      {
@@ -172,8 +172,8 @@
        "height": 843
       },
       "action": {
-       "type": "message",
-       "text": "緊急聯絡"
+       "type": "uri",
+       "uri": "https://liff.line.me/<現場頁面的 LIFF ID（必填：圖文選單每一格都打開它）>?v=sos"
       }
      },
      {
@@ -184,8 +184,8 @@
        "height": 843
       },
       "action": {
-       "type": "message",
-       "text": "工作人員"
+       "type": "uri",
+       "uri": "https://liff.line.me/<現場頁面的 LIFF ID（必填：圖文選單每一格都打開它）>?v=staff"
       }
      }
     ],
@@ -313,8 +313,8 @@
        "height": 843
       },
       "action": {
-       "type": "message",
-       "text": "收容所資訊"
+       "type": "uri",
+       "uri": "https://liff.line.me/<現場頁面的 LIFF ID（必填：圖文選單每一格都打開它）>?v=info"
       }
      },
      {
@@ -325,8 +325,8 @@
        "height": 843
       },
       "action": {
-       "type": "message",
-       "text": "我要反映"
+       "type": "uri",
+       "uri": "https://liff.line.me/<現場頁面的 LIFF ID（必填：圖文選單每一格都打開它）>?v=report"
       }
      },
      {
@@ -337,8 +337,8 @@
        "height": 843
       },
       "action": {
-       "type": "message",
-       "text": "緊急聯絡"
+       "type": "uri",
+       "uri": "https://liff.line.me/<現場頁面的 LIFF ID（必填：圖文選單每一格都打開它）>?v=sos"
       }
      },
      {
@@ -362,7 +362,7 @@
       },
       "action": {
        "type": "uri",
-       "uri": "https://liff.line.me/<物資頁面的 LIFF ID；留空則「物資」按鈕維持聊天室流程>?v=ops"
+       "uri": "https://liff.line.me/<現場頁面的 LIFF ID（必填：圖文選單每一格都打開它）>?v=ops"
       }
      },
      {
@@ -373,8 +373,8 @@
        "height": 843
       },
       "action": {
-       "type": "message",
-       "text": "簽退"
+       "type": "uri",
+       "uri": "https://liff.line.me/<現場頁面的 LIFF ID（必填：圖文選單每一格都打開它）>?v=signout"
       }
      }
     ],

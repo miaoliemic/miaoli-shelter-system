@@ -103,14 +103,14 @@
    ]
   },
   {
-   "id": 197,
+   "id": 220,
    "module": "builtin:BasicRouter",
    "version": 1,
    "mapper": null,
    "metadata": {
     "designer": {
      "x": 600,
-     "y": 14250,
+     "y": 17700,
      "name": "身分驗證"
     }
    },
@@ -286,14 +286,14 @@
        }
       },
       {
-       "id": 196,
+       "id": 219,
        "module": "builtin:BasicRouter",
        "version": 1,
        "mapper": null,
        "metadata": {
         "designer": {
          "x": 600,
-         "y": 14100,
+         "y": 17550,
          "name": "依身分與動作分流"
         }
        },
@@ -338,6 +338,31 @@
               {
                "a": "{{3.id}}",
                "o": "notexist"
+              },
+              {
+               "a": "{{1.a}}",
+               "o": "text:notequal",
+               "b": "info"
+              },
+              {
+               "a": "{{1.a}}",
+               "o": "text:notequal",
+               "b": "me"
+              },
+              {
+               "a": "{{1.a}}",
+               "o": "text:notequal",
+               "b": "apply"
+              },
+              {
+               "a": "{{1.a}}",
+               "o": "text:notequal",
+               "b": "feedback"
+              },
+              {
+               "a": "{{1.a}}",
+               "o": "text:notequal",
+               "b": "signout"
               }
              ],
              [
@@ -350,6 +375,31 @@
                "a": "{{3.properties_value.`啟用中`}}",
                "o": "boolean:notequal",
                "b": "true"
+              },
+              {
+               "a": "{{1.a}}",
+               "o": "text:notequal",
+               "b": "info"
+              },
+              {
+               "a": "{{1.a}}",
+               "o": "text:notequal",
+               "b": "me"
+              },
+              {
+               "a": "{{1.a}}",
+               "o": "text:notequal",
+               "b": "apply"
+              },
+              {
+               "a": "{{1.a}}",
+               "o": "text:notequal",
+               "b": "feedback"
+              },
+              {
+               "a": "{{1.a}}",
+               "o": "text:notequal",
+               "b": "signout"
               }
              ],
              [
@@ -362,6 +412,31 @@
                "a": "{{3.properties_value.`簽到狀態`.name}}",
                "o": "text:notequal",
                "b": "上班中"
+              },
+              {
+               "a": "{{1.a}}",
+               "o": "text:notequal",
+               "b": "info"
+              },
+              {
+               "a": "{{1.a}}",
+               "o": "text:notequal",
+               "b": "me"
+              },
+              {
+               "a": "{{1.a}}",
+               "o": "text:notequal",
+               "b": "apply"
+              },
+              {
+               "a": "{{1.a}}",
+               "o": "text:notequal",
+               "b": "feedback"
+              },
+              {
+               "a": "{{1.a}}",
+               "o": "text:notequal",
+               "b": "signout"
               }
              ]
             ]
@@ -4895,6 +4970,959 @@
               }
              ]
             ]
+           }
+          }
+         ]
+        },
+        {
+         "flow": [
+          {
+           "id": 196,
+           "module": "notion:searchObjects1",
+           "version": 1,
+           "mapper": {
+            "limit": "30",
+            "filter": [
+             [
+              {
+               "a": "開設狀態 |&*^%$#@| select",
+               "o": "select:equals",
+               "b": "開設中"
+              }
+             ]
+            ],
+            "select": "data_source_item",
+            "data_source": "<收容所開設 的 data source ID>"
+           },
+           "metadata": {
+            "designer": {
+             "x": 900,
+             "y": 14100,
+             "name": "找開設中的收容所（民眾）"
+            },
+            "parameters": [
+             {
+              "name": "__IMTCONN__",
+              "type": "account:notion2,notion3",
+              "label": "Connection",
+              "required": true
+             }
+            ]
+           },
+           "parameters": {
+            "__IMTCONN__": 0
+           },
+           "filter": {
+            "name": "收容所資訊",
+            "conditions": [
+             [
+              {
+               "a": "{{2.data.client_id}}",
+               "o": "text:equal",
+               "b": "<LIFF 所在的 LINE Login channel ID>"
+              },
+              {
+               "a": "{{1.a}}",
+               "o": "text:equal",
+               "b": "info"
+              }
+             ]
+            ]
+           }
+          },
+          {
+           "id": 197,
+           "module": "builtin:BasicAggregator",
+           "version": 1,
+           "parameters": {
+            "feeder": 196
+           },
+           "mapper": {
+            "id": "{{196.id}}",
+            "name": "{{196.properties_value.`開設名稱`[].plain_text}}"
+           },
+           "metadata": {
+            "designer": {
+             "x": 900,
+             "y": 14250,
+             "name": "彙整開設中的收容所"
+            }
+           }
+          },
+          {
+           "id": 198,
+           "module": "json:TransformToJSON",
+           "version": 1,
+           "parameters": {
+            "space": ""
+           },
+           "mapper": {
+            "object": "{{197.array}}"
+           },
+           "metadata": {
+            "designer": {
+             "x": 900,
+             "y": 14400,
+             "name": "開設中的收容所轉成 JSON"
+            }
+           }
+          },
+          {
+           "id": 199,
+           "module": "notion:searchObjects1",
+           "version": 1,
+           "mapper": {
+            "limit": "30",
+            "filter": [
+             [
+              {
+               "a": "啟用 |&*^%$#@| checkbox",
+               "o": "checkbox:equals",
+               "b": "true"
+              }
+             ]
+            ],
+            "select": "data_source_item",
+            "data_source": "<問答與公告 的 data source ID>",
+            "sorts": [
+             {
+              "select": "timestamp",
+              "direction": "descending",
+              "timestamp": "created_time"
+             }
+            ]
+           },
+           "metadata": {
+            "designer": {
+             "x": 900,
+             "y": 14550,
+             "name": "找問答與公告（民眾）"
+            },
+            "parameters": [
+             {
+              "name": "__IMTCONN__",
+              "type": "account:notion2,notion3",
+              "label": "Connection",
+              "required": true
+             }
+            ]
+           },
+           "parameters": {
+            "__IMTCONN__": 0
+           }
+          },
+          {
+           "id": 200,
+           "module": "builtin:BasicAggregator",
+           "version": 1,
+           "parameters": {
+            "feeder": 199
+           },
+           "mapper": {
+            "title": "{{199.properties_value.`標題`[].plain_text}}",
+            "text": "{{199.properties_value.`內容`[].plain_text}}",
+            "kw": "{{199.properties_value.`關鍵字`[].plain_text}}",
+            "type": "{{199.properties_value.`類型`.name}}"
+           },
+           "metadata": {
+            "designer": {
+             "x": 900,
+             "y": 14700,
+             "name": "彙整問答與公告"
+            }
+           }
+          },
+          {
+           "id": 201,
+           "module": "json:TransformToJSON",
+           "version": 1,
+           "parameters": {
+            "space": ""
+           },
+           "mapper": {
+            "object": "{{200.array}}"
+           },
+           "metadata": {
+            "designer": {
+             "x": 900,
+             "y": 14850,
+             "name": "問答與公告轉成 JSON"
+            }
+           }
+          },
+          {
+           "id": 202,
+           "module": "gateway:WebhookRespond",
+           "version": 1,
+           "parameters": {},
+           "mapper": {
+            "status": "200",
+            "body": "{\"ok\":true,\"shelters\":{{198.json}},\"qa\":{{201.json}}}",
+            "headers": [
+             {
+              "key": "Content-Type",
+              "value": "application/json; charset=utf-8"
+             },
+             {
+              "key": "Access-Control-Allow-Origin",
+              "value": "https://miaoliemic.github.io"
+             }
+            ]
+           },
+           "metadata": {
+            "designer": {
+             "x": 900,
+             "y": 15000,
+             "name": "回傳收容所資訊"
+            }
+           }
+          }
+         ]
+        },
+        {
+         "flow": [
+          {
+           "id": 215,
+           "module": "gateway:WebhookRespond",
+           "version": 1,
+           "parameters": {},
+           "mapper": {
+            "status": "200",
+            "body": "{\"ok\":true,\"state\":\"{{if(3.id; if(3.properties_value.`啟用中`; if(3.properties_value.`簽到狀態`.name = \"上班中\"; \"on\"; \"off\"); \"pending\"); \"none\")}}\",\"name\":\"{{3.properties_value.`姓名`[].plain_text}}\",\"role\":\"{{3.properties_value.`角色`.name}}\",\"kind\":\"{{3.properties_value.`身分類別`.name}}\",\"line\":\"{{4.data.displayName}}\"}",
+            "headers": [
+             {
+              "key": "Content-Type",
+              "value": "application/json; charset=utf-8"
+             },
+             {
+              "key": "Access-Control-Allow-Origin",
+              "value": "https://miaoliemic.github.io"
+             }
+            ]
+           },
+           "metadata": {
+            "designer": {
+             "x": 900,
+             "y": 16950,
+             "name": "回傳我的狀態"
+            }
+           },
+           "filter": {
+            "name": "我的狀態",
+            "conditions": [
+             [
+              {
+               "a": "{{2.data.client_id}}",
+               "o": "text:equal",
+               "b": "<LIFF 所在的 LINE Login channel ID>"
+              },
+              {
+               "a": "{{1.a}}",
+               "o": "text:equal",
+               "b": "me"
+              }
+             ]
+            ]
+           }
+          }
+         ]
+        },
+        {
+         "flow": [
+          {
+           "id": 206,
+           "module": "builtin:BasicRouter",
+           "version": 1,
+           "mapper": null,
+           "metadata": {
+            "designer": {
+             "x": 600,
+             "y": 15600,
+             "name": "申請開通分流"
+            }
+           },
+           "routes": [
+            {
+             "flow": [
+              {
+               "id": 203,
+               "module": "notion:createDataSourceItem",
+               "version": 1,
+               "mapper": {
+                "fields": [
+                 {
+                  "key": "姓名",
+                  "type": "title",
+                  "value": "（待審）{{4.data.displayName}}"
+                 },
+                 {
+                  "key": "LINE User ID",
+                  "type": "rich_text",
+                  "value": "{{4.data.userId}}"
+                 },
+                 {
+                  "key": "LINE 顯示名稱",
+                  "type": "rich_text",
+                  "value": "{{4.data.displayName}}"
+                 },
+                 {
+                  "key": "申請時間",
+                  "type": "date",
+                  "date": {
+                   "start": "{{now}}",
+                   "includeTime": true
+                  }
+                 },
+                 {
+                  "key": "啟用中",
+                  "type": "checkbox",
+                  "value": false
+                 },
+                 {
+                  "key": "簽到狀態",
+                  "type": "select",
+                  "value": "已簽退"
+                 },
+                 {
+                  "key": "選單狀態",
+                  "type": "select",
+                  "value": "一般"
+                 }
+                ],
+                "select": "map",
+                "data_source": "<工作人員名冊 的 data source ID>"
+               },
+               "metadata": {
+                "designer": {
+                 "x": 900,
+                 "y": 15150,
+                 "name": "新增名冊（待審，頁面）"
+                },
+                "parameters": [
+                 {
+                  "name": "__IMTCONN__",
+                  "type": "account:notion2,notion3",
+                  "label": "Connection",
+                  "required": true
+                 }
+                ]
+               },
+               "parameters": {
+                "__IMTCONN__": 0
+               },
+               "filter": {
+                "name": "新申請（頁面）",
+                "conditions": [
+                 [
+                  {
+                   "a": "{{2.data.client_id}}",
+                   "o": "text:equal",
+                   "b": "<LIFF 所在的 LINE Login channel ID>"
+                  },
+                  {
+                   "a": "{{3.id}}",
+                   "o": "notexist"
+                  }
+                 ]
+                ]
+               }
+              },
+              {
+               "id": 204,
+               "module": "gateway:WebhookRespond",
+               "version": 1,
+               "parameters": {},
+               "mapper": {
+                "status": "200",
+                "body": "{\"ok\":true,\"state\":\"pending\"}",
+                "headers": [
+                 {
+                  "key": "Content-Type",
+                  "value": "application/json; charset=utf-8"
+                 },
+                 {
+                  "key": "Access-Control-Allow-Origin",
+                  "value": "https://miaoliemic.github.io"
+                 }
+                ]
+               },
+               "metadata": {
+                "designer": {
+                 "x": 900,
+                 "y": 15300,
+                 "name": "回傳已申請"
+                }
+               }
+              }
+             ]
+            },
+            {
+             "flow": [
+              {
+               "id": 205,
+               "module": "gateway:WebhookRespond",
+               "version": 1,
+               "parameters": {},
+               "mapper": {
+                "status": "200",
+                "body": "{\"ok\":true,\"state\":\"{{if(3.id; if(3.properties_value.`啟用中`; if(3.properties_value.`簽到狀態`.name = \"上班中\"; \"on\"; \"off\"); \"pending\"); \"none\")}}\",\"name\":\"{{3.properties_value.`姓名`[].plain_text}}\",\"role\":\"{{3.properties_value.`角色`.name}}\",\"kind\":\"{{3.properties_value.`身分類別`.name}}\",\"line\":\"{{4.data.displayName}}\"}",
+                "headers": [
+                 {
+                  "key": "Content-Type",
+                  "value": "application/json; charset=utf-8"
+                 },
+                 {
+                  "key": "Access-Control-Allow-Origin",
+                  "value": "https://miaoliemic.github.io"
+                 }
+                ]
+               },
+               "metadata": {
+                "designer": {
+                 "x": 900,
+                 "y": 15450,
+                 "name": "回傳名冊狀態（申請）"
+                }
+               },
+               "filter": {
+                "name": "已在名冊（頁面）",
+                "conditions": [
+                 [
+                  {
+                   "a": "{{2.data.client_id}}",
+                   "o": "text:equal",
+                   "b": "<LIFF 所在的 LINE Login channel ID>"
+                  },
+                  {
+                   "a": "{{3.id}}",
+                   "o": "exist"
+                  }
+                 ]
+                ]
+               }
+              }
+             ]
+            }
+           ],
+           "filter": {
+            "name": "申請開通",
+            "conditions": [
+             [
+              {
+               "a": "{{2.data.client_id}}",
+               "o": "text:equal",
+               "b": "<LIFF 所在的 LINE Login channel ID>"
+              },
+              {
+               "a": "{{1.a}}",
+               "o": "text:equal",
+               "b": "apply"
+              }
+             ]
+            ]
+           }
+          }
+         ]
+        },
+        {
+         "flow": [
+          {
+           "id": 207,
+           "module": "notion:createDataSourceItem",
+           "version": 1,
+           "mapper": {
+            "fields": [
+             {
+              "key": "日誌標題",
+              "type": "title",
+              "value": "居民反映：{{1.cat}}"
+             },
+             {
+              "key": "日誌類別",
+              "type": "select",
+              "value": "居民反映"
+             },
+             {
+              "key": "協助類別",
+              "type": "select",
+              "value": "{{1.cat}}"
+             },
+             {
+              "key": "嚴重程度",
+              "type": "select",
+              "value": "{{if(1.cat = \"身體不適\"; \"高\"; \"中\")}}"
+             },
+             {
+              "key": "處理進度",
+              "type": "select",
+              "value": "待處理"
+             },
+             {
+              "key": "反映者 LINE ID",
+              "type": "rich_text",
+              "value": "{{4.data.userId}}"
+             },
+             {
+              "key": "發生時間",
+              "type": "date",
+              "date": {
+               "start": "{{now}}",
+               "includeTime": true
+              }
+             },
+             {
+              "key": "來源",
+              "type": "select",
+              "value": "LINE 回報"
+             },
+             {
+              "key": "內容說明",
+              "type": "rich_text",
+              "value": "反映地點：{{1.where}}\n{{1.text}}"
+             },
+             {
+              "key": "收容所開設",
+              "type": "relation",
+              "value": "{{if(1.o; split(1.o; \",\"); emptyarray)}}"
+             }
+            ],
+            "select": "map",
+            "data_source": "<現場日誌 的 data source ID>"
+           },
+           "metadata": {
+            "designer": {
+             "x": 900,
+             "y": 15750,
+             "name": "新增居民反映（頁面）"
+            },
+            "parameters": [
+             {
+              "name": "__IMTCONN__",
+              "type": "account:notion2,notion3",
+              "label": "Connection",
+              "required": true
+             }
+            ]
+           },
+           "parameters": {
+            "__IMTCONN__": 0
+           },
+           "filter": {
+            "name": "我要反映",
+            "conditions": [
+             [
+              {
+               "a": "{{2.data.client_id}}",
+               "o": "text:equal",
+               "b": "<LIFF 所在的 LINE Login channel ID>"
+              },
+              {
+               "a": "{{1.a}}",
+               "o": "text:equal",
+               "b": "feedback"
+              }
+             ]
+            ]
+           }
+          },
+          {
+           "id": 208,
+           "module": "gateway:WebhookRespond",
+           "version": 1,
+           "parameters": {},
+           "mapper": {
+            "status": "200",
+            "body": "{\"ok\":true}",
+            "headers": [
+             {
+              "key": "Content-Type",
+              "value": "application/json; charset=utf-8"
+             },
+             {
+              "key": "Access-Control-Allow-Origin",
+              "value": "https://miaoliemic.github.io"
+             }
+            ]
+           },
+           "metadata": {
+            "designer": {
+             "x": 900,
+             "y": 15900,
+             "name": "回傳已收到反映"
+            }
+           }
+          }
+         ]
+        },
+        {
+         "flow": [
+          {
+           "id": 210,
+           "module": "notion:updateADatabaseItem",
+           "version": 1,
+           "mapper": {
+            "page": "{{3.id}}",
+            "fields": [
+             {
+              "key": "簽到狀態",
+              "type": "select",
+              "value": "已簽退"
+             },
+             {
+              "key": "選單狀態",
+              "type": "select",
+              "value": "一般"
+             },
+             {
+              "key": "對話暫存",
+              "type": "rich_text",
+              "value": "－"
+             }
+            ],
+            "select": "map",
+            "updateBy": "data_source",
+            "data_source": "<工作人員名冊 的 data source ID>"
+           },
+           "metadata": {
+            "designer": {
+             "x": 900,
+             "y": 16200,
+             "name": "名冊改已簽退（頁面）"
+            },
+            "parameters": [
+             {
+              "name": "__IMTCONN__",
+              "type": "account:notion2,notion3",
+              "label": "Connection",
+              "required": true
+             }
+            ]
+           },
+           "parameters": {
+            "__IMTCONN__": 0
+           },
+           "filter": {
+            "name": "簽退",
+            "conditions": [
+             [
+              {
+               "a": "{{2.data.client_id}}",
+               "o": "text:equal",
+               "b": "<LIFF 所在的 LINE Login channel ID>"
+              },
+              {
+               "a": "{{3.id}}",
+               "o": "exist"
+              },
+              {
+               "a": "{{3.properties_value.`啟用中`}}",
+               "o": "boolean:equal",
+               "b": "true"
+              },
+              {
+               "a": "{{3.properties_value.`簽到狀態`.name}}",
+               "o": "text:equal",
+               "b": "上班中"
+              },
+              {
+               "a": "{{1.a}}",
+               "o": "text:equal",
+               "b": "signout"
+              }
+             ]
+            ]
+           }
+          },
+          {
+           "id": 211,
+           "module": "line:makeApiCall",
+           "version": 1,
+           "parameters": {
+            "__IMTCONN__": 0
+           },
+           "mapper": {
+            "url": "/v2/bot/user/{{4.data.userId}}/richmenu",
+            "method": "DELETE",
+            "headers": []
+           },
+           "metadata": {
+            "designer": {
+             "x": 900,
+             "y": 16350,
+             "name": "解除加乘選單（頁面）"
+            },
+            "parameters": [
+             {
+              "name": "__IMTCONN__",
+              "type": "account:line2",
+              "label": "Connection",
+              "required": true
+             }
+            ]
+           },
+           "onerror": [
+            {
+             "id": 212,
+             "module": "builtin:Ignore",
+             "version": 1,
+             "mapper": null,
+             "metadata": {
+              "designer": {
+               "x": 900,
+               "y": 16500,
+               "name": "略過"
+              }
+             }
+            }
+           ]
+          },
+          {
+           "id": 213,
+           "module": "gateway:WebhookRespond",
+           "version": 1,
+           "parameters": {},
+           "mapper": {
+            "status": "200",
+            "body": "{\"ok\":true,\"name\":\"{{3.properties_value.`姓名`[].plain_text}}\"}",
+            "headers": [
+             {
+              "key": "Content-Type",
+              "value": "application/json; charset=utf-8"
+             },
+             {
+              "key": "Access-Control-Allow-Origin",
+              "value": "https://miaoliemic.github.io"
+             }
+            ]
+           },
+           "metadata": {
+            "designer": {
+             "x": 900,
+             "y": 16650,
+             "name": "回傳已簽退"
+            }
+           }
+          },
+          {
+           "id": 209,
+           "module": "notion:searchObjects1",
+           "version": 1,
+           "mapper": {
+            "limit": "1",
+            "filter": [
+             [
+              {
+               "a": "人員 |&*^%$#@| relation",
+               "o": "relation:contains",
+               "b": "{{3.id}}"
+              },
+              {
+               "a": "簽退時間 |&*^%$#@| date",
+               "o": "date:is_empty",
+               "b": "true"
+              }
+             ]
+            ],
+            "select": "data_source_item",
+            "data_source": "<出勤紀錄 的 data source ID>",
+            "sorts": [
+             {
+              "select": "timestamp",
+              "direction": "descending",
+              "timestamp": "created_time"
+             }
+            ]
+           },
+           "metadata": {
+            "designer": {
+             "x": 900,
+             "y": 16050,
+             "name": "找未簽退的出勤（頁面）"
+            },
+            "parameters": [
+             {
+              "name": "__IMTCONN__",
+              "type": "account:notion2,notion3",
+              "label": "Connection",
+              "required": true
+             }
+            ]
+           },
+           "parameters": {
+            "__IMTCONN__": 0
+           }
+          },
+          {
+           "id": 214,
+           "module": "notion:updateADatabaseItem",
+           "version": 1,
+           "mapper": {
+            "page": "{{209.id}}",
+            "fields": [
+             {
+              "key": "簽退時間",
+              "type": "date",
+              "date": {
+               "start": "{{now}}",
+               "includeTime": true
+              }
+             },
+             {
+              "key": "簽退方式",
+              "type": "select",
+              "value": "自行簽退"
+             }
+            ],
+            "select": "map",
+            "updateBy": "data_source",
+            "data_source": "<出勤紀錄 的 data source ID>"
+           },
+           "metadata": {
+            "designer": {
+             "x": 900,
+             "y": 16800,
+             "name": "出勤補簽退時間（頁面）"
+            },
+            "parameters": [
+             {
+              "name": "__IMTCONN__",
+              "type": "account:notion2,notion3",
+              "label": "Connection",
+              "required": true
+             }
+            ]
+           },
+           "parameters": {
+            "__IMTCONN__": 0
+           }
+          }
+         ]
+        },
+        {
+         "flow": [
+          {
+           "id": 216,
+           "module": "line:makeApiCall",
+           "version": 1,
+           "parameters": {
+            "__IMTCONN__": 0
+           },
+           "mapper": {
+            "url": "/v2/bot/user/{{4.data.userId}}/richmenu",
+            "method": "DELETE",
+            "headers": []
+           },
+           "metadata": {
+            "designer": {
+             "x": 900,
+             "y": 17100,
+             "name": "解除加乘選單（不在班，頁面）"
+            },
+            "parameters": [
+             {
+              "name": "__IMTCONN__",
+              "type": "account:line2",
+              "label": "Connection",
+              "required": true
+             }
+            ]
+           },
+           "onerror": [
+            {
+             "id": 217,
+             "module": "builtin:Ignore",
+             "version": 1,
+             "mapper": null,
+             "metadata": {
+              "designer": {
+               "x": 900,
+               "y": 17250,
+               "name": "略過"
+              }
+             }
+            }
+           ],
+           "filter": {
+            "name": "簽退（不在班）",
+            "conditions": [
+             [
+              {
+               "a": "{{2.data.client_id}}",
+               "o": "text:equal",
+               "b": "<LIFF 所在的 LINE Login channel ID>"
+              },
+              {
+               "a": "{{3.id}}",
+               "o": "notexist"
+              },
+              {
+               "a": "{{1.a}}",
+               "o": "text:equal",
+               "b": "signout"
+              }
+             ],
+             [
+              {
+               "a": "{{2.data.client_id}}",
+               "o": "text:equal",
+               "b": "<LIFF 所在的 LINE Login channel ID>"
+              },
+              {
+               "a": "{{3.properties_value.`啟用中`}}",
+               "o": "boolean:notequal",
+               "b": "true"
+              },
+              {
+               "a": "{{1.a}}",
+               "o": "text:equal",
+               "b": "signout"
+              }
+             ],
+             [
+              {
+               "a": "{{2.data.client_id}}",
+               "o": "text:equal",
+               "b": "<LIFF 所在的 LINE Login channel ID>"
+              },
+              {
+               "a": "{{3.properties_value.`簽到狀態`.name}}",
+               "o": "text:notequal",
+               "b": "上班中"
+              },
+              {
+               "a": "{{1.a}}",
+               "o": "text:equal",
+               "b": "signout"
+              }
+             ]
+            ]
+           }
+          },
+          {
+           "id": 218,
+           "module": "gateway:WebhookRespond",
+           "version": 1,
+           "parameters": {},
+           "mapper": {
+            "status": "200",
+            "body": "{\"ok\":true,\"already\":true}",
+            "headers": [
+             {
+              "key": "Content-Type",
+              "value": "application/json; charset=utf-8"
+             },
+             {
+              "key": "Access-Control-Allow-Origin",
+              "value": "https://miaoliemic.github.io"
+             }
+            ]
+           },
+           "metadata": {
+            "designer": {
+             "x": 900,
+             "y": 17400,
+             "name": "回傳不在班（簽退）"
+            }
            }
           }
          ]

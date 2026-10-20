@@ -174,6 +174,32 @@ body.ops .sheet textarea{font-size:24px;min-height:110px}
 body.ops .sheet .pick button{font-size:24px;padding:10px 16px}
 body.ops .sheet .acts button{font-size:24px;padding:16px 0}
 body.ops .err{font-size:22px}
+/* 一般畫面（民眾、志工、工作人員專區、簽退）：圖文選單每一格直接打開；字稍大、按鈕大 */
+body.pub{font-size:17px}
+.pub-h{padding:18px 16px 8px}
+.pub-h h1{font-size:24px}
+.pub-h p{color:var(--soft);font-size:15px;margin-top:4px}
+.card{margin:10px 16px 0;padding:14px 16px;border-radius:16px;background:var(--card);border:1px solid var(--line)}
+.card h3{font-size:18px;margin-bottom:6px}
+.card .body{white-space:pre-wrap;font-size:16px}
+.card.notice{border-color:var(--blue);box-shadow:inset 4px 0 0 var(--blue)}
+.card small{color:var(--soft);font-size:13px}
+.biglinks{display:grid;gap:10px;margin:12px 16px 0}
+.biglink{display:flex;align-items:center;gap:12px;padding:18px 16px;border-radius:16px;background:var(--card);border:1px solid var(--line);font-size:19px;font-weight:700;color:var(--text);text-decoration:none;text-align:left;width:100%}
+.biglink small{display:block;font-size:14px;font-weight:400;color:var(--soft)}
+/* 文字用 --card：淺色主題是白字，深色主題（按鈕底色較淺）是深字 */
+.biglink.red{background:var(--red);border-color:var(--red);color:var(--card)}
+.biglink.blue{background:var(--blue);border-color:var(--blue);color:var(--card)}
+.biglink.red small,.biglink.blue small{color:inherit;opacity:.9}
+.card a{color:var(--blue);font-weight:700}
+.biglink .ic{font-size:26px;width:32px;text-align:center}
+.shelters{margin:0 16px;background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.shelters div{padding:12px 14px;border-top:1px solid var(--line)}
+.shelters div:first-child{border-top:none}
+.done{margin:40px 20px;text-align:center}
+.done .big{font-size:56px}
+.done h2{font-size:22px;margin-top:8px}
+.done p{color:var(--soft);margin-top:8px}
 .blocked{margin:60px 24px;text-align:center}
 .blocked h2{font-size:20px;margin-bottom:8px}
 .blocked p{color:var(--soft)}
@@ -290,6 +316,8 @@ const real = {
   async move(tag, kind, hours) { return await post({ a: "move", tag, kind, hours: String(hours || "") }); },
   // 本所：status 狀況｜report 記錄事件｜update 認領・追加紀錄・解決｜prep 整備回報｜prepDone 送出整備完成
   async ops(a, f) { return await post({ a, ...(f || {}) }); },
+  // 一般畫面：info 收容所資訊｜me 我的狀態｜apply 申請開通｜feedback 我要反映｜signout 簽退
+  async pub(a, f) { return await post({ a, ...(f || {}) }); },
 };
 const mockOps = {
   stage: params0().get("stage") || "開設中", n: 3,
@@ -301,6 +329,7 @@ const mockOps = {
   ],
 };
 function params0() { return new URLSearchParams(location.search); }
+const mockPub = { state: params0().get("me") || "on" };   // 原型：?me=none｜pending｜off｜on
 function mockStatus() {
   const open = mockOps.events.filter(e => !/已解決|已結案/.test(e.status));
   return { ok: true, me: { id: "s1", name: mock.me.name, role: mock.me.role },
@@ -346,6 +375,20 @@ const mockApi = {
     return { results };
   },
   ops: (a, f) => mockOps.call(a, f),
+  async pub(a, f) {
+    await wait(400);
+    if (a === "info") return { ok: true, shelters: [{ id: "o1", name: "【模擬】清華里活動中心" }, { id: "o2", name: "【模擬】大同國小" }], qa: [
+      { title: "【演練】豪雨水災：收容所已開設", text: "受豪雨影響，苗栗市清華里、大同里一帶已開設收容所。請持號碼牌進出。", kw: "最新公告", type: "公告" },
+      { title: "用餐與物資領取", text: "用餐：早餐 07:00、午餐 12:00、晚餐 18:00，在服務台旁領取。\n物資：飲用水、毛毯、盥洗用品請向服務台登記領取。", kw: "用餐與物資", type: "物資領取" },
+      { title: "生活規定", text: "1. 進出請出示號碼牌。\n2. 外出請告知預計返回時間。\n3. 22:00 熄燈。", kw: "生活規定", type: "常見問題" },
+      { title: "緊急聯絡", text: "緊急救護、火警：119\n報案：110\n在收容所內有緊急狀況，請直接找穿背心的現場工作人員。", kw: "緊急聯絡", type: "常見問題" }] };
+    const st = mockPub.state;
+    const me = { ok: true, state: st, name: st === "none" ? "" : mock.me.name, role: st === "none" ? "" : mock.me.role, kind: params.get("kind") || "工作人員", line: "測試帳號" };
+    if (a === "me") return me;
+    if (a === "apply") { if (st === "none") mockPub.state = "pending"; return { ...me, state: mockPub.state }; }
+    if (a === "feedback") return { ok: true };
+    if (a === "signout") { if (st !== "on") return { ok: true, already: true }; mockPub.state = "off"; return { ok: true, name: mock.me.name }; }
+  },
   async tagInfo(tag) {
     await wait(300);
     const v = mock.tags[tag], base = { ok: true, tag, role: mock.me.role, staff: mock.me.name, opening: mock.me.opening, openStatus: "開設中" };
@@ -379,6 +422,7 @@ let REAL = false;
 
 // ===== 狀態 =====
 const params = new URLSearchParams(location.search);
+const PUB_VIEWS = ["info", "report", "sos", "staff", "signout"];
 const S = {
   me: null, items: [], recent: [],
   mode: "in", cat: "全部", q: "",
@@ -389,7 +433,9 @@ const S = {
   // 以最後掃到的號碼牌為準：掃錯了直接掃正確的那張就好，不用先取消。一位家人可以代領全家（數量不設限）
   recip: null,
   // 居民頁面：掃號碼牌 QR（?r=MLS-xxxxx）進來。view＝resident 顯示居民；supply 是物資
-  view: params.get("r") ? "resident" : params.get("v") === "ops" ? "ops" : "supply",
+  // 一般畫面（?v=info｜report｜sos｜staff｜signout）：圖文選單直接打開，不需要在班
+  view: params.get("r") ? "resident" : PUB_VIEWS.includes(params.get("v")) || params.get("v") === "ops" ? params.get("v") : "supply",
+  pub: { info: null, me: null, msg: "", done: "", form: { cat: "", o: "", where: "", text: "" } },
   ops: null, opsShow: "", reportRes: null,   // 本所畫面的資料、展開的名單、記錄事件時帶入的居民
   rtag: params.get("r"), rinfo: null, rform: null, rmsg: "",
   guest: params.get("as") === "guest",
@@ -421,6 +467,8 @@ function lines() {
 // ===== 畫面 =====
 function render() {
   document.body.classList.toggle("ops", S.view === "ops");
+  document.body.classList.toggle("pub", PUB_VIEWS.includes(S.view));
+  if (PUB_VIEWS.includes(S.view)) return renderPub();
   document.documentElement.style.setProperty("--accent", ACCENT[S.mode]);
   const app = $("#app");
   if (S.guest || (S.me && !S.me.onDuty)) {
@@ -751,6 +799,7 @@ function setQty(id, qty, keepFocus) {
   if (keepFocus) renderBar(); else render();
 }
 document.addEventListener("click", async e => {
+  if (PUB_VIEWS.includes(S.view)) return;   // 一般畫面有自己的點擊處理（在下方）
   const b = e.target.closest("button"); if (!b) return;
   if (b.dataset.mode && !b.disabled) {
     if (b.dataset.mode !== S.mode && Object.keys(S.pick).length && !confirm("切換模式會清除已填的數量，確定嗎？")) return;
@@ -934,9 +983,139 @@ function sheet(html, onMount) {
 }
 function closeSheet() { const s = $("#sheet"); if (s) s.remove(); }
 
+// ===== 一般畫面：圖文選單每一格直接打開（收容所資訊｜我要反映｜緊急聯絡｜工作人員專區｜簽退） =====
+const PUB_TITLE = { info: "收容所資訊", report: "我要反映", sos: "緊急聯絡", staff: "工作人員專區", signout: "簽退" };
+const REPORT_CATS = ["身體不適", "缺物資", "環境問題", "其他"];
+const go = q => { location.href = location.pathname + q; };
+const closeLiff = () => { try { if (window.liff && liff.isInClient()) return liff.closeWindow(); } catch (e) {} history.length > 1 ? history.back() : go("?v=info"); };
+// LINE 的 QR 掃描器（掃簽到碼、物資標籤、號碼牌）
+const openScanner = () => { try { if (REAL) return liff.openWindow({ url: "https://line.me/R/nv/QRCode", external: false }); } catch (e) {} location.href = "https://line.me/R/nv/QRCode"; };
+const linkify = t => esc(t).replace(/\b(119|110|1999|0\d{1,2}-?\d{6,8})\b/g, n => `<a href="tel:${n.replace(/-/g, "")}">${n}</a>`);
+
+function pubHead(title, sub) { return `<div class="pub-h"><h1>${esc(title)}</h1>${sub ? `<p>${esc(sub)}</p>` : ""}</div>`; }
+function renderPub() {
+  $("#bar").hidden = REAL; $("#bar .in").style.display = "none";   // 原型只留示範切換列
+  document.title = PUB_TITLE[S.view];
+  const P = S.pub, app = $("#app");
+  if (P.done) { app.innerHTML = P.done; return; }
+  if (S.view === "sos") return renderSos();
+  if (S.view === "info") {
+    if (!P.info) { app.innerHTML = pubHead("收容所資訊") + `<div class="blocked"><p>${esc(P.msg || "載入中…")}</p></div>`; return; }
+    const qa = P.info.qa.filter(q => q.kw !== "緊急聯絡");
+    const order = q => q.type === "公告" ? 0 : 1;
+    app.innerHTML = pubHead("收容所資訊", "最新公告、用餐與物資、生活規定") +
+      qa.sort((a, b) => order(a) - order(b)).map(q => `<div class="card ${q.type === "公告" ? "notice" : ""}">
+        ${q.type === "公告" ? "<small>公告</small>" : ""}<h3>${esc(q.title)}</h3><div class="body">${linkify(q.text)}</div></div>`).join("") +
+      `<div class="sec">開設中的收容所 <small>${P.info.shelters.length} 所</small></div>
+       <div class="shelters">${P.info.shelters.map(o => `<div>🏠 ${esc(o.name)}</div>`).join("") || "<div>目前沒有開設中的收容所</div>"}</div>
+       <div class="card"><small>地址與交通請洽現場工作人員或縣府服務專線。</small></div>
+       <div class="biglinks"><button class="biglink" data-go="?v=report"><span class="ic">🙋</span><span>我要反映<small>身體不適、缺物資、環境問題</small></span></button>
+         <button class="biglink" data-go="?v=sos"><span class="ic">📞</span><span>緊急聯絡</span></button></div>`;
+    return;
+  }
+  if (S.view === "report") return renderReport();
+  if (S.view === "staff") return renderStaff();
+  if (S.view === "signout") return renderSignout();
+}
+function renderSos() {
+  // 電話按鈕不等資料載入，打開就能撥
+  const em = S.pub.info && S.pub.info.qa.find(q => q.kw === "緊急聯絡");
+  $("#app").innerHTML = pubHead("緊急聯絡", "有生命危險請直接撥打") + `<div class="biglinks">
+      <a class="biglink red" href="tel:119"><span class="ic">🚑</span><span>撥打 119<small>緊急救護、火警</small></span></a>
+      <a class="biglink blue" href="tel:110"><span class="ic">🚓</span><span>撥打 110<small>報案</small></span></a></div>
+    ${em ? `<div class="card"><h3>${esc(em.title)}</h3><div class="body">${linkify(em.text)}</div></div>` : `<div class="card"><small>${esc(S.pub.msg || "載入其他聯絡方式…")}</small></div>`}
+    <div class="biglinks"><button class="biglink" data-go="?v=report"><span class="ic">🙋</span><span>不緊急，我要反映</span></button></div>`;
+}
+function renderReport() {
+  const P = S.pub, f = P.form;
+  if (!P.info) { $("#app").innerHTML = pubHead("我要反映") + `<div class="blocked"><p>${esc(P.msg || "載入中…")}</p></div>`; return; }
+  const places = [...P.info.shelters, { id: "", name: "不在收容所" }];
+  $("#app").innerHTML = pubHead("我要反映", "現場工作人員會盡快處理") + `<div class="form">
+      <label>要反映什麼？<b>*</b></label><div class="pick" id="cats">${REPORT_CATS.map(c => `<button data-cat="${c}" class="${f.cat === c ? "on" : ""}">${c}</button>`).join("")}</div>
+      ${f.cat === "身體不適" ? `<p class="err">情況緊急請直接撥 119，或找現場工作人員。</p>` : ""}
+      <label>您在哪裡？<b>*</b></label><div class="pick" id="places">${places.map(o => `<button data-o="${o.id}" data-where="${esc(o.name)}" class="${f.where === o.name ? "on" : ""}">${esc(o.name)}</button>`).join("")}</div>
+      <label>說明（可不填）</label><textarea id="rtext" placeholder="例：A 區 3 號床，頭很暈">${esc(f.text)}</textarea>
+      ${P.msg ? `<p class="err">${esc(P.msg)}</p>` : ""}
+    </div>
+    <div class="biglinks"><button class="biglink blue" id="sendReport" ${f.cat && f.where && !S.busy ? "" : "disabled style='opacity:.4'"}><span class="ic">📨</span><span>${S.busy ? "送出中…" : "送出反映"}</span></button></div>`;
+}
+function renderStaff() {
+  const me = S.pub.me, app = $("#app");
+  if (!me) { app.innerHTML = pubHead("工作人員專區") + `<div class="blocked"><p>${esc(S.pub.msg || "載入中…")}</p></div>`; return; }
+  const hello = me.name ? `${me.name}（${me.role || me.kind}）您好` : "";
+  if (me.state === "none") app.innerHTML = pubHead("工作人員專區", "開通後才能使用工作人員功能") + `<div class="card"><div class="body">社會處派出的人員、支援社工和志工，請先申請開通，由管理者審核。</div></div>
+      <div class="biglinks"><button class="biglink blue" id="apply" ${S.busy ? "disabled" : ""}><span class="ic">📝</span><span>${S.busy ? "送出中…" : "申請開通"}<small>以 LINE 名稱「${esc(me.line || "")}」申請</small></span></button></div>`;
+  else if (me.state === "pending") app.innerHTML = pubHead("工作人員專區") + `<div class="done"><div class="big">⏳</div><h2>開通申請審核中</h2><p>管理者審核通過後，到現場掃服務台的「工作人員簽到」QR 就能開始上班。</p></div>`;
+  else if (me.state === "off") app.innerHTML = pubHead("工作人員專區", hello + "，目前未上班") + `<div class="card"><div class="body">到現場後，掃服務台張貼的「工作人員簽到」QR Code 簽到。</div></div>
+      <div class="biglinks"><button class="biglink blue" id="scanner"><span class="ic">📷</span><span>打開 QR 掃描器<small>掃簽到 QR</small></span></button></div>`;
+  else app.innerHTML = pubHead("工作人員專區", hello + "，上班中") + `<div class="biglinks">
+      ${me.kind === "工作人員" ? `<button class="biglink" data-go="?v=ops"><span class="ic">📊</span><span>本所畫面<small>狀況、待處理事項、記錄事件</small></span></button>` : ""}
+      <button class="biglink" id="scanner"><span class="ic">📷</span><span>掃描 QR<small>物資標籤、居民號碼牌</small></span></button>
+      <button class="biglink" data-go="?"><span class="ic">📦</span><span>物資<small>入庫、發放、盤點</small></span></button>
+      <button class="biglink" data-go="?v=signout"><span class="ic">👋</span><span>簽退（下班）</span></button></div>`;
+}
+function renderSignout() {
+  const me = S.pub.me, app = $("#app");
+  if (!me) { app.innerHTML = pubHead("簽退") + `<div class="blocked"><p>${esc(S.pub.msg || "載入中…")}</p></div>`; return; }
+  app.innerHTML = pubHead("簽退", "確認後就會下班，選單恢復成一般版") + `<div class="rcard"><h2>${esc(me.name)}</h2><div class="meta">${esc(me.role || me.kind)}・上班中</div></div>
+    ${S.pub.msg ? `<p class="err" style="margin:10px 16px">${esc(S.pub.msg)}</p>` : ""}
+    <div class="ract"><button class="main" id="doSignout" style="background:var(--red);border-color:var(--red)" ${S.busy ? "disabled" : ""}>${S.busy ? "簽退中…" : "確定簽退"}</button>
+      <button id="cancel" style="grid-column:1 / -1">取消，繼續上班</button></div>`;
+}
+function pubDone(icon, title, text, again) {
+  S.pub.done = `<div class="done"><div class="big">${icon}</div><h2>${esc(title)}</h2><p>${esc(text)}</p></div>
+    <div class="biglinks">${again ? `<button class="biglink" id="again"><span class="ic">↺</span><span>${esc(again)}</span></button>` : ""}
+    <button class="biglink" id="close"><span class="ic">✕</span><span>關閉</span></button></div>`;
+  render();
+}
+async function pubCall(a, f) {
+  try { return await api.pub(a, f); }
+  catch (e) { if (!handleApiError(e)) { S.pub.msg = "網路不穩，請稍後再試。"; S.busy = false; render(); } return null; }
+}
+async function loadPub() {
+  const P = S.pub;
+  if (S.view === "info" || S.view === "report" || S.view === "sos") { const d = await pubCall("info"); if (d) { P.info = d; P.msg = ""; } return render(); }
+  const me = await pubCall("me"); if (!me) return;
+  P.me = me; P.msg = "";
+  // 簽退畫面但不在班：順手解除加乘選單（名冊和選單對不上時讓它自己恢復）
+  if (S.view === "signout" && me.state !== "on") { await pubCall("signout"); return pubDone("🙂", "您目前不在班", "不需要簽退，下方選單已恢復成一般版。"); }
+  render();
+}
+document.addEventListener("click", async e => {
+  if (!PUB_VIEWS.includes(S.view)) return;
+  const t = e.target.closest("button, a"); if (!t) return;
+  const P = S.pub, f = P.form;
+  if (t.dataset.go != null) return go(t.dataset.go);
+  if (t.id === "close") return closeLiff();
+  if (t.id === "scanner") return openScanner();
+  if (t.id === "cancel") return closeLiff();
+  if (t.id === "again") { P.done = ""; P.form = { cat: "", o: "", where: "", text: "" }; return render(); }
+  if (t.dataset.cat) { f.text = ($("#rtext") || {}).value || f.text; f.cat = t.dataset.cat; P.msg = ""; return render(); }
+  if (t.dataset.where != null) { f.text = ($("#rtext") || {}).value || f.text; f.o = t.dataset.o; f.where = t.dataset.where; P.msg = ""; return render(); }
+  if (t.id === "sendReport" && f.cat && f.where && !S.busy) {
+    f.text = $("#rtext").value.trim(); S.busy = true; render();
+    const d = await pubCall("feedback", { cat: f.cat, o: f.o, where: f.where, text: f.text }); S.busy = false;
+    if (d) pubDone("🙋", "已收到您的反映", `（${f.cat}）現場工作人員會盡快處理。緊急狀況請直接找現場工作人員或撥 119。`, "再反映一件事");
+    return;
+  }
+  if (t.id === "apply" && !S.busy) {
+    S.busy = true; render();
+    const d = await pubCall("apply"); S.busy = false;
+    if (d) { P.me = { ...P.me, ...d }; render(); }
+    return;
+  }
+  if (t.id === "doSignout" && !S.busy) {
+    S.busy = true; render();
+    const d = await pubCall("signout"); S.busy = false;
+    if (d) pubDone("👋", d.already ? "您目前不在班" : `${P.me.name} 已簽退`, d.already ? "下方選單已恢復成一般版。" : "辛苦了！下方選單已恢復成一般版。");
+  }
+});
+
 // ===== 原型示範切換（正式版移除） =====
 function demoBar() {
-  const base = location.pathname, links = [["一般進入", ""], ["掃物資標籤", "?item=SUP-7K2QX"], ["掃號碼牌（在所）", "?r=MLS-W8AGZ"], ["掃號碼牌（外出）", "?r=MLS-K7PQ2"], ["空白牌報到", "?r=MLS-NEW01"], ["失效牌", "?r=MLS-RXKK3"], ["本所", "?v=ops"], ["本所（整備中）", "?v=ops&stage=整備中"], ["非工作人員", "?as=guest"]];
+  const base = location.pathname, links = [["一般進入", ""], ["掃物資標籤", "?item=SUP-7K2QX"], ["掃號碼牌（在所）", "?r=MLS-W8AGZ"], ["掃號碼牌（外出）", "?r=MLS-K7PQ2"], ["空白牌報到", "?r=MLS-NEW01"], ["失效牌", "?r=MLS-RXKK3"], ["本所", "?v=ops"], ["本所（整備中）", "?v=ops&stage=整備中"], ["非工作人員", "?as=guest"],
+    ["收容所資訊", "?v=info"], ["我要反映", "?v=report"], ["緊急聯絡", "?v=sos"], ["專區（上班中）", "?v=staff"], ["專區（志工）", "?v=staff&kind=志工"],
+    ["專區（未上班）", "?v=staff&me=off"], ["專區（未申請）", "?v=staff&me=none"], ["簽退", "?v=signout"], ["簽退（不在班）", "?v=signout&me=off"]];
   $("#demo").innerHTML = `原型示範：` + links.map(([t, q]) => `<button onclick="location.href='${base}${q}'">${t}</button>`).join("");
 }
 
@@ -978,6 +1157,7 @@ function showAuthProblem(code) {
     <p style="margin-top:12px;font-size:13px">請截圖給管理者。${esc(info || "沒有取得憑證內容")}（${esc(code)}）</p></div>`;
 }
 async function boot() {
+  if (PUB_VIEWS.includes(S.view)) return loadPub();
   if (S.view === "ops" && !S.items.length) return loadOps();
   if (S.view === "resident" && !S.items.length) return loadResident(S.rtag);
   let d;
