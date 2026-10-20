@@ -297,7 +297,7 @@
               "value": "application/json"
              }
             ],
-            "body": "{\"replyToken\": \"{{1.events[1].replyToken}}\", \"messages\": [{\"type\": \"text\", \"text\": \"✅ {{2.properties_value.`姓名`[].plain_text}} 已在【{{11.properties_value.`開設名稱`[].plain_text}}】簽到。\\n開設狀態：{{11.properties_value.`開設狀態`.name}}\\n要做什麼？也可以用下方選單最後一列。\", \"quickReply\": {\"items\": [{\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"本所狀況\", \"text\": \"本所狀況\"}}, {\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"現場回報\", \"text\": \"現場回報\"}}, {\"type\": \"action\", \"action\": {\"type\": \"uri\", \"label\": \"物資\", \"uri\": \"https://liff.line.me/<物資頁面的 LIFF ID；留空則「物資」按鈕維持聊天室流程>\"}}, {\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"簽退\", \"text\": \"簽退\"}}]}}]}"
+            "body": "{\"replyToken\": \"{{1.events[1].replyToken}}\", \"messages\": [{\"type\": \"text\", \"text\": \"✅ {{2.properties_value.`姓名`[].plain_text}} 已在【{{11.properties_value.`開設名稱`[].plain_text}}】簽到。\\n開設狀態：{{11.properties_value.`開設狀態`.name}}\\n要做什麼？也可以用下方選單最後一列。\", \"quickReply\": {\"items\": [{\"type\": \"action\", \"action\": {\"type\": \"uri\", \"label\": \"本所狀況\", \"uri\": \"https://liff.line.me/<物資頁面的 LIFF ID；留空則「物資」按鈕維持聊天室流程>?v=ops\"}}, {\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"現場回報\", \"text\": \"現場回報\"}}, {\"type\": \"action\", \"action\": {\"type\": \"uri\", \"label\": \"物資\", \"uri\": \"https://liff.line.me/<物資頁面的 LIFF ID；留空則「物資」按鈕維持聊天室流程>\"}}, {\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"簽退\", \"text\": \"簽退\"}}]}}]}"
            },
            "metadata": {
             "designer": {
@@ -403,7 +403,7 @@
               "value": "application/json"
              }
             ],
-            "body": "{\"replyToken\": \"{{1.events[1].replyToken}}\", \"messages\": [{\"type\": \"text\", \"text\": \"{{2.properties_value.`姓名`[].plain_text}} 您目前在班中，要做什麼？\", \"quickReply\": {\"items\": [{\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"本所狀況\", \"text\": \"本所狀況\"}}, {\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"現場回報\", \"text\": \"現場回報\"}}, {\"type\": \"action\", \"action\": {\"type\": \"uri\", \"label\": \"物資\", \"uri\": \"https://liff.line.me/<物資頁面的 LIFF ID；留空則「物資」按鈕維持聊天室流程>\"}}, {\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"簽退\", \"text\": \"簽退\"}}]}}]}"
+            "body": "{\"replyToken\": \"{{1.events[1].replyToken}}\", \"messages\": [{\"type\": \"text\", \"text\": \"{{2.properties_value.`姓名`[].plain_text}} 您目前在班中，要做什麼？\", \"quickReply\": {\"items\": [{\"type\": \"action\", \"action\": {\"type\": \"uri\", \"label\": \"本所狀況\", \"uri\": \"https://liff.line.me/<物資頁面的 LIFF ID；留空則「物資」按鈕維持聊天室流程>?v=ops\"}}, {\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"現場回報\", \"text\": \"現場回報\"}}, {\"type\": \"action\", \"action\": {\"type\": \"uri\", \"label\": \"物資\", \"uri\": \"https://liff.line.me/<物資頁面的 LIFF ID；留空則「物資」按鈕維持聊天室流程>\"}}, {\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"簽退\", \"text\": \"簽退\"}}]}}]}"
            },
            "metadata": {
             "designer": {
@@ -8734,7 +8734,7 @@
               "value": "application/json"
              }
             ],
-            "body": "{\"replyToken\": \"{{1.events[1].replyToken}}\", \"messages\": [{\"type\": \"text\", \"text\": \"{{2.properties_value.`姓名`[].plain_text}}（{{2.properties_value.`角色`.name}}）您好，目前上班中。工作功能在下方選單最下列。\", \"quickReply\": {\"items\": [{\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"本所狀況\", \"text\": \"本所狀況\"}}, {\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"我要簽退\", \"text\": \"我要簽退\"}}]}}]}"
+            "body": "{\"replyToken\": \"{{1.events[1].replyToken}}\", \"messages\": [{\"type\": \"text\", \"text\": \"{{2.properties_value.`姓名`[].plain_text}}（{{2.properties_value.`角色`.name}}）您好，目前上班中。工作功能在下方選單最下列。\", \"quickReply\": {\"items\": [{\"type\": \"action\", \"action\": {\"type\": \"uri\", \"label\": \"本所狀況\", \"uri\": \"https://liff.line.me/<物資頁面的 LIFF ID；留空則「物資」按鈕維持聊天室流程>?v=ops\"}}, {\"type\": \"action\", \"action\": {\"type\": \"message\", \"label\": \"我要簽退\", \"text\": \"我要簽退\"}}]}}]}"
            },
            "metadata": {
             "designer": {

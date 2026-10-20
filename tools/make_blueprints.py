@@ -36,6 +36,8 @@ MENU_PAGE = CFG["notion"]["richmenu_page_id"]
 # 物資頁面（LIFF）：設定了 liff_id 才把「物資」「領物資」按鈕改成打開物資頁面；沒設定時維持聊天室一步一步的流程
 LIFF_ID = CFG["line"].get("liff_id", "")
 SUPPLY_BTN = f"https://liff.line.me/{LIFF_ID}" if LIFF_ID else "物資"
+# 「本所狀況」按鈕：有 LIFF 時打開本所畫面，沒有時維持聊天室的狀況文字
+OPS_BTN = f"https://liff.line.me/{LIFF_ID}?v=ops" if LIFF_ID else "本所狀況"
 
 _ds = CFG["notion"]["data_sources"]
 DS_STAFF = _ds["工作人員名冊"]
@@ -218,7 +220,7 @@ def build_main():
 
     # ---------- R1 簽到 ----------
     # 掃簽到 QR：沒在班就直接簽到（少一步），在班就問要做什麼；兩種都附同一組常用功能按鈕
-    DUTY_BTNS = [("本所狀況", "本所狀況"), ("現場回報", "現場回報"), ("物資", SUPPLY_BTN), ("簽退", "簽退")]
+    DUTY_BTNS = [("本所狀況", OPS_BTN), ("現場回報", "現場回報"), ("物資", SUPPLY_BTN), ("簽退", "簽退")]
     code = '{{trim(replace(1.events[1].message.text; "簽到"; ""))}}'
     op = b.search("找簽到碼對應的開設", DS_OPEN, [c("簽到代碼 |&*^%$#@| rich_text", "text:equals", code)])
     O = op["id"]
@@ -799,7 +801,7 @@ def build_main():
     # ---------- R9 工作人員專區：依在班狀態顯示「我要簽到」或「我要簽退」 ----------
     r9 = b.router("專區分流", [
         (flt("在班", [[EXIST, EN, DUTY]]), [b.quick("專區按鈕（在班）", f"{NAME}（{ROLE}）您好，目前上班中。工作功能在下方選單最下列。", [
-            ("本所狀況", "本所狀況"), ("我要簽退", "我要簽退")])]),
+            ("本所狀況", OPS_BTN), ("我要簽退", "我要簽退")])]),
         (flt("未在班", [[EXIST, EN, NDUTY]]), [b.quick("專區按鈕（未在班）", f"{NAME}（{ROLE}）您好，目前未上班。到現場後請先簽到。", [
             ("我要簽到", "我要簽到")])]),
         (flt("審核中", [[EXIST, NEN]]), [b.reply("回覆審核中", "您的開通申請審核中，請稍候。")]),
