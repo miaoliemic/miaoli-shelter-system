@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<meta name="robots" content="noindex">
+<title>QR Code 產生器｜苗栗縣災時避難所管理系統</title>
+<style>
+:root { --ink:#1E2A36; --soft:#5B6573; --line:#DAD7CF; --bg:#F4F3EE; --card:#FFFFFF; --blue:#1F5FA8; --blue-bg:#E4EEF9; --green:#2B7A3D; --warn-bg:#FFF4DC; --warn:#8A5300; }
+* { box-sizing:border-box; margin:0; padding:0 }
+body { font-family:"Noto Sans TC","Microsoft JhengHei",sans-serif; color:var(--ink); background:var(--bg); line-height:1.5 }
+header { background:var(--ink); color:#F4F3EE; padding:18px 32px }
+header h1 { font-size:22px; font-weight:700 }
+header p { font-size:14px; color:#C9D3DD; margin-top:2px }
+nav { display:flex; gap:4px; padding:0 32px; background:var(--ink) }
+nav button { font:inherit; font-size:15px; font-weight:700; border:0; padding:10px 20px; border-radius:10px 10px 0 0; background:#33414F; color:#C9D3DD; cursor:pointer }
+nav button.on { background:var(--bg); color:var(--ink) }
+nav button:disabled { cursor:default; opacity:.55 }
+main { max-width:1180px; margin:0 auto; padding:24px 32px 64px }
+section.step { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:20px 24px; margin-top:16px }
+.step h2 { font-size:18px; display:flex; align-items:center; gap:10px }
+.step h2 .n { width:28px; height:28px; border-radius:50%; background:var(--blue); color:#fff; font-size:15px; display:inline-flex; align-items:center; justify-content:center }
+.step .hint { font-size:14px; color:var(--soft); margin-top:4px }
+.fields { display:grid; grid-template-columns:2fr 1fr 1fr; gap:16px; margin-top:14px }
+label.f { display:flex; flex-direction:column; gap:6px; font-size:14px; font-weight:700 }
+label.f input, label.f select { font:inherit; font-weight:400; font-size:16px; padding:9px 12px; border:1px solid var(--line); border-radius:10px; background:#fff }
+.notice { background:var(--warn-bg); color:var(--warn); border:1px solid #E8C98A; border-radius:12px; padding:12px 16px; font-size:14px; margin-top:16px }
+.notice b { color:#6B4000 }
+.bar { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:14px; flex-wrap:wrap }
+.bar .sum { font-size:15px; font-weight:700; color:var(--blue) }
+.btn { font:inherit; font-size:15px; font-weight:700; border:1px solid var(--line); background:#fff; color:var(--ink); padding:9px 18px; border-radius:10px; cursor:pointer }
+.btn.primary { background:var(--blue); color:#fff; border-color:var(--blue) }
+.btn.green { background:var(--green); color:#fff; border-color:var(--green) }
+.btn:disabled { opacity:.45; cursor:default }
+.chk { font-size:14px; display:inline-flex; align-items:center; gap:6px; cursor:pointer }
+.grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(250px, 1fr)); gap:10px; margin-top:12px }
+.sh { border:2px solid var(--line); border-radius:12px; padding:10px 12px; cursor:pointer; display:flex; gap:10px; align-items:flex-start; background:#fff }
+.sh.on { border-color:var(--blue); background:var(--blue-bg) }
+.sh.dim { opacity:.45 }
+.sh input { margin-top:5px; width:18px; height:18px; flex:none }
+.sh .nm { font-weight:700; font-size:15px }
+.sh .meta { font-size:13px; color:var(--soft) }
+.tag { display:inline-block; font-size:12px; padding:0 7px; border-radius:6px; background:#EEF0F2; color:var(--soft); margin:3px 4px 0 0 }
+.tag.hit { background:#DCEFE0; color:var(--green); font-weight:700 }
+.tag.weak { background:#FDE9D7; color:#9A4A00 }
+.empty { color:var(--soft); font-size:15px; padding:18px 0 }
+table.out { width:100%; border-collapse:collapse; margin-top:12px; font-size:14px }
+table.out th, table.out td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--line) }
+table.out th { background:#F7F6F2 }
+table.out code { font-family:Consolas,monospace; font-size:14px }
+.cards { display:grid; grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); gap:16px; margin-top:16px }
+/* 簽到卡：螢幕上是縮圖；列印時一張 A4 一張卡 */
+.card { background:#fff; border:1px solid var(--line); border-radius:12px; overflow:hidden; display:flex; flex-direction:column; align-items:center; text-align:center; aspect-ratio:210/297 }
+.card .band { width:100%; background:var(--green); color:#fff; padding:5% 6% 4%; display:flex; flex-direction:column; align-items:center; gap:2px }
+.card .band .logo { width:13%; aspect-ratio:1; border-radius:50%; background:#fff; padding:1%; display:none }
+.card .band .logo.ok { display:block }
+.card .band .t { font-size:17px; font-weight:700; letter-spacing:2px }
+.card .band .ev { font-size:10px; background:rgba(255,255,255,.18); padding:1px 8px; border-radius:6px }
+.card .band .pl { font-size:15px; font-weight:700 }
+.card .qr { width:66%; margin-top:6% }
+.card .qr svg { width:100%; height:auto; display:block }
+.card .who { font-size:12px; font-weight:700; margin-top:4% }
+.card .how { font-size:9px; color:var(--soft); margin-top:1% }
+.card .foot { font-size:8px; color:#8A93A0; margin-top:auto; padding-bottom:4% }
+footer { font-size:13px; color:var(--soft); margin-top:28px }
+footer a { color:var(--blue) }
+#sheet { display:none }
+@media (max-width:760px) { .fields { grid-template-columns:1fr } main { padding:16px } header, nav { padding-left:16px; padding-right:16px } }
+@page { size:A4 portrait; margin:0 }
+@media print {
+  body { background:#fff }
+  header, nav, main { display:none !important }
+  #sheet { display:block }
+  #sheet .card { width:210mm; height:297mm; border:0; border-radius:0; aspect-ratio:auto; page-break-after:always; break-after:page }
+  #sheet .card .band { padding:18mm 16mm 12mm; gap:4mm }
+  #sheet .card .band .t { font-size:34pt }
+  #sheet .card .band .ev { font-size:16pt; padding:1mm 5mm; border-radius:3mm }
+  #sheet .card .band .pl { font-size:30pt }
+  #sheet .card .qr { width:125mm; margin-top:14mm }
+  #sheet .card .who { font-size:22pt; margin-top:8mm }
+  #sheet .card .how { font-size:15pt; margin-top:3mm }
+  #sheet .card .foot { font-size:11pt; padding-bottom:12mm }
+  .band, .tag { -webkit-print-color-adjust:exact; print-color-adjust:exact }
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>QR Code 產生器</h1>
+  <p>苗栗縣政府災時避難所管理系統・第一版（不連系統：印出 QR，再把 CSV 匯入 Notion）</p>
+</header>
+<nav>
+  <button class="on" data-tab="open">① 開設收容所（簽到 QR）</button>
+  <button disabled title="下一階段製作">② 居民號碼牌</button>
+  <button disabled title="下一階段製作">③ 物資標籤</button>
+</nav>
+
+<main id="tab-open">
+  <section class="step">
+    <h2><span class="n">1</span>災害資訊</h2>
+    <p class="hint">同一場災害開設的每一所，都會各自產生一張簽到 QR。</p>
+    <div class="fields">
+      <label class="f">災害名稱<input id="ev" maxlength="40" placeholder="例：2026-10 ○○颱風"></label>
+      <label class="f">災害類別<select id="kind"></select></label>
+      <label class="f">開設時間<input id="time" type="datetime-local"></label>
+    </div>
+  </section>
+
+  <section class="step">
+    <h2><span class="n">2</span>選擇收容所</h2>
+    <p class="hint">依災害類別標出適用的收容所（綠色標籤）。橘色「弱者安置」表示適合安置避難弱者。</p>
+    <div class="bar">
+      <label class="chk"><input type="checkbox" id="onlyFit" checked>只顯示適用此災害類別的收容所</label>
+      <span><button class="btn" id="selFit">全選適用的</button> <button class="btn" id="selNone">全部取消</button></span>
+    </div>
+    <div class="grid" id="list"></div>
+    <div class="bar"><span class="sum" id="sum">尚未選擇</span></div>
+  </section>
+
+  <section class="step">
+    <h2><span class="n">3</span>產生簽到 QR</h2>
+    <p class="hint">每一所產生一組隨機簽到代碼（例：SIGN-7K3Q9）。已產生過的收容所會沿用原本的代碼，不會因為重新整理而改變。</p>
+    <div class="notice">
+      <b>重要：</b>這一版不連系統。印好 QR 之後，請下載 CSV 匯入 Notion「收容所開設」，QR 才會生效（系統要能查到這組簽到代碼）。
+      匯入前，請先在 Notion「災害事件」建立同名的災害，CSV 的「災害事件」、「收容所」欄才會自動連上。
+    </div>
+    <div class="bar">
+      <button class="btn primary" id="gen" disabled>產生簽到 QR</button>
+      <span>
+        <button class="btn green" id="print" disabled>列印（一所一張 A4）</button>
+        <button class="btn" id="csv" disabled>下載 CSV</button>
+        <button class="btn" id="reset" disabled>清除這批，重新開始</button>
+      </span>
+    </div>
+    <div id="result"></div>
+  </section>
+
+  <footer>
+    QR 內容：<code>https://line.me/R/oaMessage/@796juukk/?簽到 SIGN-代碼</code>，規則見
+    <a href="../docs/QR編碼規則.md">docs/QR編碼規則.md</a>。本頁不連網路、不送出任何資料；這一批的代碼只存在這台電腦的瀏覽器裡。
+  </footer>
+</main>
+
+<div id="sheet"></div>
+
+<script src="vendor/qrcode.js"></script>
+<script src="shelters.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

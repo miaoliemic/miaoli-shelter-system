@@ -96,6 +96,7 @@ https://line.me/R/oaMessage/@796juukk/?<網址編碼後的文字>
 
 ## 六、印製
 
+- **社會處開設收容所時**：用 [qr-generator/](../qr-generator/)（網頁，不連系統）選災害與收容所，一所一張 A4 簽到卡，另外下載 CSV 匯入 Notion「收容所開設」。
 - 用 `tools/make_qr.py` 產生可列印的 A4 圖片（輸出在 `output/qr/`，不進版本庫）：
   ```
   python tools/make_qr.py --sign SIGN-XXXXX --event "2026-10 ○○颱風" --place "清華里活動中心" --tags MLS-AAAAA MLS-BBBBB
