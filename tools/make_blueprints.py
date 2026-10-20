@@ -201,6 +201,29 @@ def f_now(k): return {"key": k, "type": "date", "date": {"start": "{{now}}", "in
 def f_date(k, expr): return {"key": k, "type": "date", "date": {"start": expr, "includeTime": True}}
 
 
+# ---- 回應與輸入的安全處理（情境 13） ----
+def enc(expr):
+    """自由文字放進回應 JSON 前先 URL 編碼：姓名裡有引號、反斜線也不會弄壞 JSON 或插入欄位。頁面收到後解碼。"""
+    return "{{encodeURL(" + expr[2:-2] + ")}}"
+
+
+def cut(field, n):
+    """頁面送來的文字限制長度（Notion 文字欄位上限 2000 字，也避免被灌大量內容）"""
+    return "{{substring(" + field + "; 0; " + str(n) + ")}}"
+
+
+def pick(field, options, default):
+    """選項欄位只接受固定值，其他一律改成預設值（不讓外部請求在 Notion 新增奇怪的選項）"""
+    pairs = "; ".join(f'"{o}"; "{o}"' for o in options)
+    return "{{switch(" + field + "; " + pairs + '; "' + default + '")}}'
+
+
+FIELD_CATS = ["緊急事件", "重大事件", "人員相關", "物資相關", "設施環境", "交班紀錄"]
+SEVS = ["緊急", "高", "中", "低"]
+REPORT_CATS = ["身體不適", "缺物資", "環境問題", "其他"]
+AGES = ["成人", "長者", "兒童", "嬰幼兒"]
+
+
 def build_main():
     b = B()
     routes = []
@@ -423,8 +446,8 @@ def build_supply_api():
     js_id = b.nid()
     js = {"id": js_id, "module": "json:TransformToJSON", "version": 1, "parameters": {"space": ""},
           "mapper": {"object": f"{{{{{agg_id}.array}}}}"}, "metadata": b.meta("品項轉成 JSON")}
-    load_body = ('{"ok":true,"me":{"name":"' + w_name + '","role":"' + w_role + '","opening":"'
-                 + sp(O, "開設名稱", "[].plain_text") + '","openingId":"' + f"{{{{{O}.id}}}}" + '"},"items":'
+    load_body = ('{"ok":true,"me":{"name":"' + enc(w_name) + '","role":"' + w_role + '","opening":"'
+                 + enc(sp(O, "開設名稱", "[].plain_text")) + '","openingId":"' + f"{{{{{O}.id}}}}" + '"},"items":'
                  + f"{{{{{js_id}.json}}}}" + "}")
     load_flow = [g_open, items, agg, js, respond("回傳庫存", load_body)]
 
@@ -469,18 +492,18 @@ def build_supply_api():
     who = b.get("讀居民（領物資）", sp(TG, "綁定居民", "[].id"))
     WHO = who["id"]
     resident_body = ('{"ok":true,"found":"{{if(' + f"{TG}.id" + '; "yes"; "no")}}","tagStatus":"' + sp(TG, "狀態", ".name")
-                     + '","residentId":"' + f"{{{{{WHO}.id}}}}" + '","name":"' + sp(WHO, "姓名", "[].plain_text")
+                     + '","residentId":"' + f"{{{{{WHO}.id}}}}" + '","name":"' + enc(sp(WHO, "姓名", "[].plain_text"))
                      + '","status":"' + sp(WHO, "在所狀態", ".name") + '"}')
     resident_flow = [tg, who, respond("回傳居民", resident_body)]
 
     # ---- addItem：管理者在物資頁面新增品項（物資代碼由頁面產生，期初庫存 0，之後用入庫加上數量） ----
     g_open3 = b.get("讀派駐開設（新增品項）", w_open)
     new_item = b.create("新增物資品項（物資頁面）", DS_ITEM, [
-        f_title("品名", "{{1.name}}"), f_text("單位", "{{1.unit}}"), f_text("包裝單位", "{{1.pack}}"),
+        f_title("品名", cut("1.name", 40)), f_text("單位", cut("1.unit", 10)), f_text("包裝單位", cut("1.pack", 10)),
         {"key": "每包裝數量", "type": "number", "value": "{{ifempty(1.per; 1)}}"},
         {"key": "期初庫存", "type": "number", "value": "{{0}}"},
         {"key": "安全庫存", "type": "number", "value": "{{ifempty(1.safety; 0)}}"},
-        f_sel("類別", "{{ifempty(1.cat; \"其他\")}}"), f_text("物資代碼", "{{1.code}}"),
+        f_sel("類別", "{{ifempty(1.cat; \"其他\")}}"), f_text("物資代碼", cut("1.code", 12)),
         f_rel("收容所", sp(g_open3["id"], "收容所", "[].id")), f_text("備註", f"物資頁面新增：{w_name}")])
     add_flow = [g_open3, new_item, respond("回傳新品項", '{"ok":true,"itemId":"' + f"{{{{{new_item['id']}.id}}}}" + '"}')]
     is_mgr = c(w_role, "text:contain", "管理者")
@@ -505,15 +528,15 @@ def build_supply_api():
     TI = ti["id"]
     ri = b.get("讀居民（居民頁面）", sp(TI, "綁定居民", "[].id"))
     RI = ri["id"]
-    common = ('"tag":"{{1.tag}}","role":"' + w_role + '","staff":"' + w_name + '","opening":"' + sp(OI, "開設名稱", "[].plain_text")
+    common = ('"tag":"{{encodeURL(1.tag)}}","role":"' + w_role + '","staff":"' + enc(w_name) + '","opening":"' + enc(sp(OI, "開設名稱", "[].plain_text"))
               + '","openStatus":"' + sp(OI, "開設狀態", ".name") + '"')
     res_body = ('{"ok":true,"state":"used",' + common + ',"resident":{"id":"' + f"{{{{{RI}.id}}}}"
                 # 志工只看得到號碼牌編號，不回傳姓名和特殊關懷（docs/QR編碼規則.md）
-                + '","name":"{{if(' + w_role[2:-2] + ' = "志工"; ""; ' + sp(RI, "姓名", "[].plain_text")[2:-2] + ')}}'
+                + '","name":"{{encodeURL(if(' + w_role[2:-2] + ' = "志工"; ""; ' + sp(RI, "姓名", "[].plain_text")[2:-2] + '))}}'
                 + '","age":"' + sp(RI, "年齡層", ".name")
                 + '","care":"{{if(' + w_role[2:-2] + ' = "志工"; ""; join(map(' + f"{RI}.properties_value.`特殊關懷`" + '; "name"); "、"))}}'
                 + '","status":"' + sp(RI, "在所狀態", ".name") + '","back":"' + sp(RI, "預計返回時間", ".start")
-                + '","area":"' + sp(RI, "分配區域", "[].plain_text") + '"}}')
+                + '","area":"' + enc(sp(RI, "分配區域", "[].plain_text")) + '"}}')
     t_stat = sp(TI, "狀態", ".name")
     taginfo_flow = [oi, ti, b.router("號碼牌狀態", [
         (flt("不是本所的號碼牌", not_ours(TI, OI)), [respond("回傳不是本所", '{"ok":true,"state":"none",' + common + '}')]),
@@ -530,13 +553,13 @@ def build_supply_api():
     tg2 = b.search("找號碼牌（報到）", DS_TAG, [c("編號 |&*^%$#@| title", "text:equals", "{{1.tag}}")])
     TG2 = tg2["id"]
     new_res = b.create("新增收容登記（居民頁面）", DS_RES, [
-        f_title("姓名", "{{1.name}}"), f_sel("年齡層", "{{1.age}}"), f_sel("在所狀態", "在所"), f_now("報到時間"),
+        f_title("姓名", cut("1.name", 40)), f_sel("年齡層", pick("1.age", AGES, "成人")), f_sel("在所狀態", "在所"), f_now("報到時間"),
         f_rel("收容所開設", w_open), f_rel("號碼牌", f"{{{{{TG2}.id}}}}"), f_chk("是否在名冊", False),
         f_sel("查核狀態", '{{ifempty(1.verify; "不需查核")}}'),
         {"key": "特殊關懷", "type": "multi_select", "value": '{{if(1.care; split(1.care; ","); emptyarray)}}'},
         {"key": "聯絡電話", "type": "phone_number", "value": "{{1.phone}}"},
-        f_text("緊急聯絡人", "{{1.contact}}"), f_text("身分證後四碼", "{{1.id4}}"),
-        f_text("照護需求說明", "{{1.note}}"), f_text("分配區域", "{{1.area}}")])
+        f_text("緊急聯絡人", cut("1.contact", 60)), f_text("身分證後四碼", cut("1.id4", 4)),
+        f_text("照護需求說明", cut("1.note", 500)), f_text("分配區域", cut("1.area", 40))])
     NR2 = new_res["id"]
     reg_ok = tag_checks(TG2, OG) + [c(sp(TG2, "狀態", ".name"), "text:equal", "可用"),
                                      c(sp(OG, "開設狀態", ".name"), "text:equal", "開設中")]
@@ -545,7 +568,7 @@ def build_supply_api():
             new_res,
             b.update("號碼牌改使用中（居民頁面）", DS_TAG, f"{{{{{TG2}.id}}}}", [f_sel("狀態", "使用中"), f_rel("綁定居民", f"{{{{{NR2}.id}}}}")]),
             b.create("新增進出紀錄：報到（居民頁面）", DS_IO, [
-                f_title("摘要", "{{1.name}} 報到"), f_sel("類型", "報到"), f_rel("居民", f"{{{{{NR2}.id}}}}"),
+                f_title("摘要", cut("1.name", 40) + " 報到"), f_sel("類型", "報到"), f_rel("居民", f"{{{{{NR2}.id}}}}"),
                 f_rel("號碼牌", f"{{{{{TG2}.id}}}}"), f_rel("收容所開設", w_open), f_rel("經手人", f"{{{{{W}.id}}}}"),
                 f_now("時間"), f_sel("來源", "工作人員掃描")]),
             respond("回傳報到完成", '{"ok":true,"residentId":"' + f"{{{{{NR2}.id}}}}" + '"}')]),
@@ -598,11 +621,17 @@ def build_supply_api():
             ])]),
     ])]
 
+    all_acts = ["load", "submit", "resident", "addItem", "tagInfo", "register", "move",
+                "status", "report", "update", "prep", "prepDone"] + PUBLIC_ACTS
     flow = [
         {"id": 1, "module": "gateway:CustomWebHook", "version": 1, "parameters": {"hook": hook, "maxResults": 1},
          "mapper": {}, "metadata": {"designer": {"x": -300, "y": 0, "name": "現場頁面送來的請求"}, "parameters": [
              {"name": "hook", "type": "hook:gateway-webhook", "label": "Webhook", "required": True},
              {"name": "maxResults", "type": "number", "label": "Maximum number of results"}]}},
+        b.router("請求格式", [
+        (flt("格式不對", [[c("{{1.t}}", "notexist")], [c("{{1.a}}", "text:notequal", a) for a in all_acts]]), [
+            respond("回傳格式不對", '{"ok":false,"error":"bad_request"}', "400")]),
+        (flt("格式正確", [[c("{{1.t}}", "exist"), act(a)] for a in all_acts]), [
         verify,
         # 憑證不對時使用者編號是空的，不能拿去查名冊（Notion 會報錯、執行中斷），所以先分流再查
         b.router("身分驗證", [
@@ -627,6 +656,7 @@ def build_supply_api():
                 respond("回傳沒有權限", '{"ok":false,"error":"no_permission"}', "403")]),
             *ops_routes(b, respond, W, on, act),
             *public_routes(b, respond, W, auth_ok, on, act),
+        ])]),
         ])]),
         ]),
     ]
@@ -689,8 +719,8 @@ def ops_routes(b, respond, W, on, act):
         "owner": sp(L, "負責人", "[].id"), "by": sp(L, "回報人", "[].id"), "item": sp(L, "整備項目", ".name"),
         "at": f"{{{{{L}.created_time}}}}"})
     num = lambda p: "{{ifempty(" + sp(O, p, ".number")[2:-2] + "; 0)}}"
-    status_body = ('{"ok":true,"me":{"id":"' + f"{{{{{W}.id}}}}" + '","name":"' + w_name + '","role":"' + w_role + '"},'
-                   '"opening":{"name":"' + sp(O, "開設名稱", "[].plain_text") + '","stage":"' + sp(O, "開設狀態", ".name")
+    status_body = ('{"ok":true,"me":{"id":"' + f"{{{{{W}.id}}}}" + '","name":"' + enc(w_name) + '","role":"' + w_role + '"},'
+                   '"opening":{"name":"' + enc(sp(O, "開設名稱", "[].plain_text")) + '","stage":"' + sp(O, "開設狀態", ".name")
                    + '","light":"' + sp(O, "狀況燈號", ".string") + '","inside":' + num("在所人數") + ',"capacity":' + num("容納人數")
                    + ',"out":' + num("外出人數") + ',"late":' + num("未返人數") + ',"care":' + num("需關懷人數")
                    + ',"open":' + num("未結日誌數") + ',"urgent":' + num("緊急未結數")
@@ -701,8 +731,9 @@ def ops_routes(b, respond, W, on, act):
     # ---- report：記錄事件（cat 類別、sev 嚴重程度、text 說明、g 相關居民 ID 可空白） ----
     urgent = '{{if(contains("緊急,高"; 1.sev); true; false)}}'
     new_log = b.create("新增事件（本所頁面）", DS_LOG, [
-        f_title("日誌標題", "{{1.cat}}：{{substring(1.text; 0; 24)}}"), f_sel("日誌類別", "{{1.cat}}"),
-        f_sel("嚴重程度", "{{1.sev}}"), f_sel("處理進度", "待處理"), f_text("內容說明", "{{1.text}}"),
+        f_title("日誌標題", pick("1.cat", FIELD_CATS, "交班紀錄") + "：{{substring(1.text; 0; 24)}}"),
+        f_sel("日誌類別", pick("1.cat", FIELD_CATS, "交班紀錄")),
+        f_sel("嚴重程度", pick("1.sev", SEVS, "中")), f_sel("處理進度", "待處理"), f_text("內容說明", cut("1.text", 1000)),
         f_rel("回報人", f"{{{{{W}.id}}}}"), f_rel("收容所開設", w_open), f_now("發生時間"), f_sel("來源", "LINE 回報"),
         f_chk("需回報社會處", urgent),
         {"key": "相關居民", "type": "relation", "value": '{{if(1.g; split(1.g; ","); emptyarray)}}'}])
@@ -723,14 +754,14 @@ def ops_routes(b, respond, W, on, act):
             respond("回傳不是本所事件", '{"ok":false,"error":"not_ours"}', "403")]),
         (flt("我來處理", [[ours, kind("claim")]]), [
             upd("認領事件", [f_rel("負責人", f"{{{{{W}.id}}}}"), f_sel("處理進度", "處理中"),
-                         f_text("處理紀錄", old_log + stamp + " 認領處理{{if(1.text; \"：\"; \"\")}}{{1.text}}")]),
+                         f_text("處理紀錄", old_log + stamp + " 認領處理{{if(1.text; \"：\"; \"\")}}" + cut("1.text", 500))]),
             respond("回傳已認領", ok_body)]),
         (flt("追加紀錄", [[ours, kind("note")]]), [
-            upd("追加處理紀錄", [f_text("處理紀錄", old_log + stamp + "：{{1.text}}")]),
+            upd("追加處理紀錄", [f_text("處理紀錄", old_log + stamp + "：" + cut("1.text", 500))]),
             respond("回傳已追加", ok_body)]),
         (flt("已解決", [[ours, kind("resolve")]]), [
             upd("事件已解決", [f_sel("處理進度", "已解決"),
-                          f_text("處理紀錄", old_log + stamp + " 標記已解決{{if(1.text; \"：\"; \"\")}}{{1.text}}")]),
+                          f_text("處理紀錄", old_log + stamp + " 標記已解決{{if(1.text; \"：\"; \"\")}}" + cut("1.text", 500))]),
             respond("回傳已解決", ok_body)]),
     ])]
 
@@ -739,7 +770,7 @@ def ops_routes(b, respond, W, on, act):
     prep_log = b.create("新增整備回報（本所頁面）", DS_LOG, [
         f_title("日誌標題", "整備回報：{{1.item}}{{1.result}}"), f_sel("日誌類別", "整備回報"), f_sel("整備項目", "{{1.item}}"),
         f_sel("處理進度", "{{" + done + '; "已解決"; "待處理")}}'), f_sel("嚴重程度", "{{" + done + '; "低"; "中")}}'),
-        f_text("內容說明", "{{1.text}}"), f_rel("收容所開設", w_open), f_rel("回報人", f"{{{{{W}.id}}}}"),
+        f_text("內容說明", cut("1.text", 1000)), f_rel("收容所開設", w_open), f_rel("回報人", f"{{{{{W}.id}}}}"),
         f_now("發生時間"), f_sel("來源", "LINE 回報")])
     prep_flow = [prep_log, respond("回傳整備已記錄", ok_body)]
 
@@ -806,8 +837,8 @@ def public_routes(b, respond, W, auth_ok, on, act):
     # ---- me：名冊狀態（none 未申請｜pending 審核中｜off 未上班｜on 上班中） ----
     state = ('{{if(' + f"{W}.id" + '; if(' + sp(W, "啟用中")[2:-2] + '; if(' + sp(W, "簽到狀態", ".name")[2:-2]
              + ' = "上班中"; "on"; "off"); "pending"); "none")}}')
-    me_body = ('{"ok":true,"state":"' + state + '","name":"' + sp(W, "姓名", "[].plain_text") + '","role":"'
-               + sp(W, "角色", ".name") + '","kind":"' + sp(W, "身分類別", ".name") + '","line":"{{4.data.displayName}}"}')
+    me_body = ('{"ok":true,"state":"' + state + '","name":"' + enc(sp(W, "姓名", "[].plain_text")) + '","role":"'
+               + sp(W, "角色", ".name") + '","kind":"' + sp(W, "身分類別", ".name") + '","line":"{{encodeURL(4.data.displayName)}}"}')
 
     # ---- apply：申請開通（新增一筆待審名冊；已在名冊就回目前狀態） ----
     apply_flow = [b.router("申請開通分流", [
@@ -822,10 +853,11 @@ def public_routes(b, respond, W, auth_ok, on, act):
 
     # ---- feedback：我要反映（cat 類別、o 收容所開設 ID 可空白、where 地點名稱、text 說明） ----
     rlog = b.create("新增居民反映（頁面）", DS_LOG, [
-        f_title("日誌標題", "居民反映：{{1.cat}}"), f_sel("日誌類別", "居民反映"), f_sel("協助類別", "{{1.cat}}"),
+        f_title("日誌標題", "居民反映：" + pick("1.cat", REPORT_CATS, "其他")), f_sel("日誌類別", "居民反映"),
+        f_sel("協助類別", pick("1.cat", REPORT_CATS, "其他")),
         f_sel("嚴重程度", '{{if(1.cat = "身體不適"; "高"; "中")}}'), f_sel("處理進度", "待處理"),
         f_text("反映者 LINE ID", uid), f_now("發生時間"), f_sel("來源", "LINE 回報"),
-        f_text("內容說明", "反映地點：{{1.where}}\n{{1.text}}"),
+        f_text("內容說明", "反映地點：" + cut("1.where", 40) + "\n" + cut("1.text", 500)),
         {"key": "收容所開設", "type": "relation", "value": '{{if(1.o; split(1.o; ","); emptyarray)}}'}])
     feedback_flow = [rlog, respond("回傳已收到反映", '{"ok":true}')]
 
@@ -844,7 +876,7 @@ def public_routes(b, respond, W, auth_ok, on, act):
         b.update("名冊改已簽退（頁面）", DS_STAFF, f"{{{{{W}.id}}}}", [
             f_sel("簽到狀態", "已簽退"), f_sel("選單狀態", "一般"), f_text("對話暫存", TMP_CLEAR)]),
         unlink("解除加乘選單（頁面）"),
-        respond("回傳已簽退", '{"ok":true,"name":"' + sp(W, "姓名", "[].plain_text") + '"}'),
+        respond("回傳已簽退", '{"ok":true,"name":"' + enc(sp(W, "姓名", "[].plain_text")) + '"}'),
         # 找不到出勤時後面不會執行，所以放在回應之後
         att,
         b.update("出勤補簽退時間（頁面）", DS_ATT, f"{{{{{att['id']}.id}}}}", [f_now("簽退時間"), f_sel("簽退方式", "自行簽退")])]
