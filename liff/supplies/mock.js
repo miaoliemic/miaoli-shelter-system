@@ -2,7 +2,7 @@
 // 依賴 app.js 的全域：S、ApiError、wait、recipName、$
 // ===== 模擬後端（原型用）。正式版由 Make 情境 13 提供相同格式的回應 =====
 const mock = {
-  me: { name: "佳璇", role: "管理者（收容所負責人）", onDuty: true,
+  me: { name: "測試小芳", role: "管理者（收容所負責人）", onDuty: true,
         opening: "【模擬】清華里活動中心", event: "【模擬】2026-10 風災" },
   items: [
     { id: "i1", code: "SUP-7K2QX", name: "飲用水", cat: "飲用水", unit: "瓶", pack: "箱", per: 24, stock: 216, safety: 48 },
@@ -33,7 +33,7 @@ const mockOps = {
   stage: params0().get("stage") || "開設中", n: 3,
   events: [
     { id: "e1", title: "設施環境：2 樓男廁漏水", cat: "設施環境", sev: "高", status: "待處理", text: "2 樓男廁洗手台下方漏水，地板濕滑", log: "", owner: "", by: "s2", item: "", at: new Date(Date.now() - 50 * 60e3).toISOString() },
-    { id: "e2", title: "人員相關：夜班志工不足", cat: "人員相關", sev: "中", status: "處理中", text: "今晚 22:00 後只有 1 位志工", log: "\n10/19 14:20 佳璇 認領處理：已聯絡社會處調派", owner: "s1", by: "s1", item: "", at: new Date(Date.now() - 3 * 3600e3).toISOString() },
+    { id: "e2", title: "人員相關：夜班志工不足", cat: "人員相關", sev: "中", status: "處理中", text: "今晚 22:00 後只有 1 位志工", log: "\n10/19 14:20 測試小芳 認領處理：已聯絡社會處調派", owner: "s1", by: "s1", item: "", at: new Date(Date.now() - 3 * 3600e3).toISOString() },
     { id: "e3", title: "緊急事件：長者跌倒", cat: "緊急事件", sev: "緊急", status: "待處理", text: "A 區 3 號床長者跌倒，意識清楚，右手腕疼痛", log: "", owner: "", by: "s2", item: "", at: new Date(Date.now() - 8 * 60e3).toISOString() },
     { id: "p1", title: "整備回報：場地清潔已完成", cat: "整備回報", sev: "低", status: "已解決", text: "", log: "", owner: "", by: "s1", item: "場地清潔", at: new Date().toISOString() },
   ],
@@ -130,6 +130,12 @@ const mockApi = {
 
 // ===== 原型示範切換（正式版移除） =====
 function demoBar() {
+  // 截圖模式（?shot=1）：不顯示示範切換列，一般畫面連同底部列一起隱藏
+  if (new URLSearchParams(location.search).get("shot")) {
+    $("#demo").style.display = "none";
+    if (PUB_VIEWS.includes(S.view)) $("#bar").style.display = "none";
+    return;
+  }
   const base = location.pathname, links = [["一般進入", ""], ["掃物資標籤", "?item=SUP-7K2QX"], ["掃號碼牌（在所）", "?r=MLS-W8AGZ"], ["掃號碼牌（外出）", "?r=MLS-K7PQ2"], ["空白牌報到", "?r=MLS-NEW01"], ["失效牌", "?r=MLS-RXKK3"], ["本所", "?v=ops"], ["本所（整備中）", "?v=ops&stage=整備中"], ["非工作人員", "?as=guest"],
     ["收容所資訊", "?v=info"], ["我要反映", "?v=report"], ["緊急聯絡", "?v=sos"], ["專區（上班中）", "?v=staff"], ["專區（志工）", "?v=staff&kind=志工"],
     ["專區（未上班）", "?v=staff&me=off"], ["專區（未申請）", "?v=staff&me=none"], ["簽退", "?v=signout"], ["簽退（不在班）", "?v=signout&me=off"]];
