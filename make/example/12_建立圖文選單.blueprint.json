@@ -361,8 +361,8 @@
        "height": 843
       },
       "action": {
-       "type": "message",
-       "text": "本所狀況"
+       "type": "uri",
+       "uri": "https://liff.line.me/<物資頁面的 LIFF ID；留空則「物資」按鈕維持聊天室流程>?v=ops"
       }
      },
      {
