@@ -17,6 +17,23 @@ const H = {
   lastNew: [],                         // 剛開設的收容所 id（QR 卡片標藍框）
 };
 
+// 後端（Make）回傳的欄位整理成頁面要的型別：編號、容量是數字，適用災害是陣列，關聯只取第一個 ID
+const first = v => Array.isArray(v) ? (v[0] || "") : (v || "");
+const toNum = v => typeof v === "number" ? v : (v && typeof v.number === "number" ? v.number : +v || 0);
+function normInit(d) {
+  d.shelters = (d.shelters || []).map(s => ({ ...s, no: toNum(s.no), cap: toNum(s.cap),
+    kinds: Array.isArray(s.kinds) ? s.kinds : String(s.kinds || "").split(",").filter(Boolean),
+    weak: s.weak === true || s.weak === "適合" })).sort((a, b) => a.no - b.no);
+  d.openings = (d.openings || []).map(o => ({ ...o, eventId: first(o.eventId), shelterId: first(o.shelterId) }));
+  d.events = d.events || [];
+  return d;
+}
+// 簽到代碼：SIGN- 加 5 碼（去掉容易看錯的 0 O 1 I L），由頁面產生、後端寫入（規則見 docs/QR編碼規則.md）
+function newSignCode(used) {
+  const A = "23456789ABCDEFGHJKMNPQRSTUVWXYZ", r = new Uint32Array(5);
+  for (;;) { crypto.getRandomValues(r); const c = "SIGN-" + Array.from(r, x => A[x % A.length]).join(""); if (!used.has(c)) return c; }
+}
+
 function qrSvg(text) {
   const q = qrcode(0, "M"); q.addData(text); q.make();
   return q.createSvgTag({ cellSize: 4, margin: 2, scalable: true });
@@ -37,7 +54,7 @@ async function loadHq() {
   if (S.view === "hq") {
     const d = await hqCall("hqInit");
     if (d) {
-      H.init = d;
+      H.init = normInit(d);
       if (!H.ev || (H.ev !== "new" && !d.events.some(e => e.id === H.ev))) {
         const act = d.events.find(e => e.status === "應變中");
         H.ev = act ? act.id : "new";
@@ -45,7 +62,13 @@ async function loadHq() {
     }
   }
   if (S.view === "inbox") { const d = await hqCall("hqApps"); if (d) H.apps = d.apps || []; }
-  if (S.view === "sites") { const d = await hqCall("hqSites"); if (d) H.sites = d.sites || []; }
+  if (S.view === "sites") {
+    const d = await hqCall("hqSites");
+    if (d) {
+      const evName = id => ((d.events || []).find(e => e.id === id) || {}).name || "其他";
+      H.sites = (d.sites || []).map(s => ({ ...s, event: s.event || evName(first(s.eventId)) }));
+    }
+  }
   render();
 }
 
@@ -131,9 +154,11 @@ async function doOpen() {
   const names = H.sel.map(id => d.shelters.find(s => s.id === id).name);
   if (!confirm(`在「${evName}」開設以下 ${names.length} 所？\n\n${names.join("\n")}\n\n開設後直接是「開設中」，民眾的收容所資訊會列出這幾所。`)) return;
   H.busy = true; H.msg = ""; render();
-  const r = await hqCall("hqOpen", { ev: ev ? ev.id : "", evName, evKind: ev ? ev.kind : H.newEv.kind, sh: H.sel.join(",") });
+  const used = new Set(d.openings.map(o => o.code));
+  const sh = H.sel.map(id => { const code = newSignCode(used); used.add(code); return `${id}:${code}`; }).join(",");
+  const r = await hqCall("hqOpen", { ev: ev ? ev.id : "", evName, evKind: ev ? ev.kind : H.newEv.kind, sh });
   H.busy = false;
-  if (!r) return;
+  if (!r) { H.init = null; render(); await loadHq(); return; }   // 網路中斷時重新讀取，看實際開了哪幾所
   H.ev = r.eventId; H.lastNew = H.sel.slice(); H.sel = []; H.newEv = { name: "", kind: H.newEv.kind };
   toast(`已開設 ${names.length} 所，簽到 QR 已產生`);
   await loadHq();

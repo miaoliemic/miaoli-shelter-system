@@ -1,5 +1,5 @@
 {
- "name": "90 清理舊圖文選單（保留使用中的兩張）",
+ "name": "90 清理舊圖文選單（保留使用中的三張）",
  "flow": [
   {
    "id": 1,
@@ -86,6 +86,34 @@
    }
   },
   {
+   "id": 7,
+   "module": "line:makeApiCall",
+   "version": 1,
+   "parameters": {
+    "__IMTCONN__": 0
+   },
+   "mapper": {
+    "url": "/v2/bot/richmenu/alias/hq-plus",
+    "method": "GET",
+    "headers": []
+   },
+   "metadata": {
+    "designer": {
+     "x": 750,
+     "y": 0,
+     "name": "目前的社會處選單（保留）"
+    },
+    "parameters": [
+     {
+      "name": "__IMTCONN__",
+      "type": "account:line2",
+      "label": "Connection",
+      "required": true
+     }
+    ]
+   }
+  },
+  {
    "id": 4,
    "module": "builtin:BasicFeeder",
    "version": 1,
@@ -128,7 +156,7 @@
     ]
    },
    "filter": {
-    "name": "不是目前使用中的兩張",
+    "name": "不是目前使用中的三張",
     "conditions": [
      [
       {
@@ -140,6 +168,11 @@
        "a": "{{4.richMenuId}}",
        "o": "text:notequal",
        "b": "{{3.body.richMenuId}}"
+      },
+      {
+       "a": "{{4.richMenuId}}",
+       "o": "text:notequal",
+       "b": "{{7.body.richMenuId}}"
       }
      ]
     ]

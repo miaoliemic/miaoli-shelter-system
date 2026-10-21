@@ -1,5 +1,5 @@
 {
- "name": "12 建立圖文選單（一般＋加乘）",
+ "name": "12 建立圖文選單（一般＋加乘＋社會處）",
  "flow": [
   {
    "id": 20,
@@ -509,6 +509,290 @@
            "y": 450
           }
          }
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "flow": [
+      {
+       "id": 30,
+       "module": "notion:makeApiCall",
+       "version": 1,
+       "parameters": {
+        "__IMTCONN__": 0
+       },
+       "mapper": {
+        "url": "/v1/blocks/{{get(map(21.body.results; \"id\"); 3)}}/children",
+        "method": "GET",
+        "version": "2022-06-28",
+        "headers": [],
+        "qs": [
+         {
+          "key": "page_size",
+          "value": "100"
+         }
+        ]
+       },
+       "metadata": {
+        "designer": {
+         "x": 0,
+         "y": 600,
+         "name": "讀社會處選單欄"
+        },
+        "parameters": [
+         {
+          "name": "__IMTCONN__",
+          "type": "account:notion2,notion3",
+          "label": "Connection",
+          "required": true
+         }
+        ]
+       }
+      },
+      {
+       "id": 31,
+       "module": "http:ActionGetFile",
+       "version": 3,
+       "parameters": {
+        "handleErrors": false
+       },
+       "mapper": {
+        "url": "{{ifempty(get(last(map(30.body.results; \"image\"; \"type\"; \"image\")); \"file.url\"); get(last(map(30.body.results; \"image\"; \"type\"; \"image\")); \"external.url\"))}}",
+        "method": "get",
+        "serializeUrl": false,
+        "shareCookies": false
+       },
+       "metadata": {
+        "designer": {
+         "x": 300,
+         "y": 600,
+         "name": "下載社會處選單圖片"
+        }
+       }
+      },
+      {
+       "id": 32,
+       "module": "line:createARichMenu",
+       "version": 1,
+       "parameters": {
+        "__IMTCONN__": 0
+       },
+       "mapper": {
+        "name": "hq-plus",
+        "chatBarText": "選單",
+        "selected": false,
+        "height": 1686,
+        "areas": [
+         {
+          "bounds": {
+           "x": 0,
+           "y": 0,
+           "width": 833,
+           "height": 843
+          },
+          "action": {
+           "type": "uri",
+           "uri": "https://liff.line.me/<現場頁面的 LIFF ID（必填：圖文選單每一格都打開它）>?v=info"
+          }
+         },
+         {
+          "bounds": {
+           "x": 833,
+           "y": 0,
+           "width": 834,
+           "height": 843
+          },
+          "action": {
+           "type": "uri",
+           "uri": "https://liff.line.me/<現場頁面的 LIFF ID（必填：圖文選單每一格都打開它）>?v=report"
+          }
+         },
+         {
+          "bounds": {
+           "x": 1667,
+           "y": 0,
+           "width": 833,
+           "height": 843
+          },
+          "action": {
+           "type": "uri",
+           "uri": "https://liff.line.me/<現場頁面的 LIFF ID（必填：圖文選單每一格都打開它）>?v=sos"
+          }
+         },
+         {
+          "bounds": {
+           "x": 0,
+           "y": 843,
+           "width": 833,
+           "height": 843
+          },
+          "action": {
+           "type": "uri",
+           "uri": "https://liff.line.me/<現場頁面的 LIFF ID（必填：圖文選單每一格都打開它）>?v=hq"
+          }
+         },
+         {
+          "bounds": {
+           "x": 833,
+           "y": 843,
+           "width": 834,
+           "height": 843
+          },
+          "action": {
+           "type": "uri",
+           "uri": "https://liff.line.me/<現場頁面的 LIFF ID（必填：圖文選單每一格都打開它）>?v=inbox"
+          }
+         },
+         {
+          "bounds": {
+           "x": 1667,
+           "y": 843,
+           "width": 833,
+           "height": 843
+          },
+          "action": {
+           "type": "uri",
+           "uri": "https://liff.line.me/<現場頁面的 LIFF ID（必填：圖文選單每一格都打開它）>?v=sites"
+          }
+         }
+        ],
+        "data": "{{31.data}}",
+        "filename": "hq-plus.png"
+       },
+       "metadata": {
+        "designer": {
+         "x": 600,
+         "y": 600,
+         "name": "建立社會處選單"
+        },
+        "parameters": [
+         {
+          "name": "__IMTCONN__",
+          "type": "account:line2",
+          "label": "Connection",
+          "required": true
+         }
+        ]
+       }
+      },
+      {
+       "id": 40,
+       "module": "builtin:BasicRouter",
+       "version": 1,
+       "mapper": null,
+       "metadata": {
+        "designer": {
+         "x": 900,
+         "y": 600,
+         "name": "設定別名 hq-plus"
+        }
+       },
+       "routes": [
+        {
+         "flow": [
+          {
+           "id": 41,
+           "module": "line:makeApiCall",
+           "version": 1,
+           "parameters": {
+            "__IMTCONN__": 0
+           },
+           "mapper": {
+            "url": "/v2/bot/richmenu/alias/hq-plus",
+            "method": "POST",
+            "body": "{\"richMenuId\": \"{{32.richMenuId}}\"}",
+            "headers": [
+             {
+              "key": "Content-Type",
+              "value": "application/json"
+             }
+            ]
+           },
+           "metadata": {
+            "designer": {
+             "x": 1200,
+             "y": 600,
+             "name": "更新別名 hq-plus"
+            },
+            "parameters": [
+             {
+              "name": "__IMTCONN__",
+              "type": "account:line2",
+              "label": "Connection",
+              "required": true
+             }
+            ]
+           },
+           "onerror": [
+            {
+             "id": 42,
+             "module": "builtin:Ignore",
+             "version": 1,
+             "mapper": null,
+             "metadata": {
+              "designer": {
+               "x": 1500,
+               "y": 600
+              }
+             }
+            }
+           ]
+          }
+         ]
+        },
+        {
+         "flow": [
+          {
+           "id": 43,
+           "module": "line:makeApiCall",
+           "version": 1,
+           "parameters": {
+            "__IMTCONN__": 0
+           },
+           "mapper": {
+            "url": "/v2/bot/richmenu/alias",
+            "method": "POST",
+            "body": "{\"richMenuAliasId\": \"hq-plus\", \"richMenuId\": \"{{32.richMenuId}}\"}",
+            "headers": [
+             {
+              "key": "Content-Type",
+              "value": "application/json"
+             }
+            ]
+           },
+           "metadata": {
+            "designer": {
+             "x": 1200,
+             "y": 750,
+             "name": "新建別名 hq-plus"
+            },
+            "parameters": [
+             {
+              "name": "__IMTCONN__",
+              "type": "account:line2",
+              "label": "Connection",
+              "required": true
+             }
+            ]
+           },
+           "onerror": [
+            {
+             "id": 44,
+             "module": "builtin:Ignore",
+             "version": 1,
+             "mapper": null,
+             "metadata": {
+              "designer": {
+               "x": 1500,
+               "y": 750
+              }
+             }
+            }
+           ]
+          }
+         ]
         }
        ]
       }

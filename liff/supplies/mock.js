@@ -81,17 +81,18 @@ function mockCode() {
 async function mockHqCall(a, f) {
   await wait(400);
   if (!window.SHELTERS) await loadScript("../../qr-generator/shelters.js");
-  const shelters = SHELTERS.map(x => ({ id: "sh" + x.no, no: x.no, name: x.name, addr: x.addr, cap: x.cap, kinds: x.kinds, weak: x.weak }));
+  const shelters = SHELTERS.map(x => ({ id: "sh" + x.no, no: x.no, name: x.name, addr: x.addr, cap: x.cap, kinds: x.kinds.join(","), weak: x.weak ? "適合" : "不適合" }));
   if (params0().get("role") === "staff") throw new ApiError("not_hq");
   if (a === "hqInit") return { ok: true, me: { name: "測試社會處長" }, events: mockHq.events, shelters, openings: mockHq.openings };
   if (a === "hqOpen") {
     let ev = mockHq.events.find(e => e.id === f.ev);
     if (!ev) { ev = { id: "ev" + (mockHq.events.length + 1), name: f.evName, kind: f.evKind, status: "應變中" }; mockHq.events.unshift(ev); }
     const created = [];
-    for (const id of f.sh.split(",")) {
+    for (const pair of f.sh.split(",")) {
+      const [id, code] = pair.split(":");
       if (mockHq.openings.some(o => o.eventId === ev.id && o.shelterId === id)) continue;
       const sh = shelters.find(x => x.id === id);
-      const o = { id: "o" + (++mockHq.n), eventId: ev.id, shelterId: id, name: sh.name, code: mockCode(), status: "開設中" };
+      const o = { id: "o" + (++mockHq.n), eventId: ev.id, shelterId: id, name: `${ev.name}｜${sh.name}`, code, status: "開設中" };
       mockHq.openings.push(o); created.push(o);
     }
     return { ok: true, eventId: ev.id, created };
@@ -100,9 +101,9 @@ async function mockHqCall(a, f) {
   if (a === "hqApprove" || a === "hqReject") { mockHq.apps = mockHq.apps.filter(x => x.id !== f.id); return { ok: true }; }
   if (a === "hqSites") return { ok: true, sites: mockHq.openings.filter(o => o.status === "開設中").map((o, i) => {
     const ev = mockHq.events.find(e => e.id === o.eventId), sh = shelters.find(x => x.id === o.shelterId);
-    return i === 0 ? { id: o.id, event: ev.name, name: o.name, light: "🔴", inside: 37, capacity: 120, out: 2, late: 1, care: 4, open: 2, urgent: 1, needStaff: 1, needVol: 2, low: 1 }
-                   : { id: o.id, event: ev.name, name: o.name, light: "🟢", inside: 12 * i, capacity: sh.cap, out: 0, late: 0, care: 1, open: 0, urgent: 0, needStaff: 0, needVol: 0, low: 0 };
-  }) };
+    return i === 0 ? { id: o.id, eventId: ev.id, name: o.name, light: "🔴", inside: 37, capacity: 120, out: 2, late: 1, care: 4, open: 2, urgent: 1, needStaff: 1, needVol: 2, low: 1 }
+                   : { id: o.id, eventId: ev.id, name: o.name, light: "🟢", inside: 12 * i, capacity: sh.cap, out: 0, late: 0, care: 1, open: 0, urgent: 0, needStaff: 0, needVol: 0, low: 0 };
+  }), events: mockHq.events.map(e => ({ id: e.id, name: e.name })) };
 }
 
 const mockApi = {

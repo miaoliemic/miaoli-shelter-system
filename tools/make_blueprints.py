@@ -32,6 +32,7 @@ HOOK = CFG["make"]["line_webhook_id"]
 CONN_LINE = CFG["make"]["line_connection_id"]
 CONN_NOTION = CFG["make"]["notion_connection_id"]
 MENU_ALIAS = CFG["line"]["staff_menu_alias"]
+HQ_ALIAS = CFG["line"].get("hq_menu_alias", "hq-plus")   # 社會處選單（一般選單＋指揮列）
 MENU_PAGE = CFG["notion"]["richmenu_page_id"]
 # 現場頁面（LIFF）：圖文選單每一格都打開這個 LIFF 的不同畫面，必須設定
 LIFF_ID = CFG["line"]["liff_id"]
@@ -47,6 +48,8 @@ DS_IO = _ds["進出紀錄"]
 DS_QA = _ds["問答與公告"]
 DS_ITEM = _ds["物資品項"]
 DS_MOVE = _ds["物資異動紀錄"]
+DS_EVENT = _ds["災害事件"]
+DS_SHELTER = _ds["收容所"]
 
 MGR = "管理者（收容所負責人）"
 ROLES_CHECKIN = f"{MGR},門禁組"
@@ -183,7 +186,8 @@ class B:
         rs = []
         for f, mods in routes:
             mods = [dict(m) for m in mods]
-            mods[0]["filter"] = f
+            if f:   # None＝這條路線不設篩選，一律執行
+                mods[0]["filter"] = f
             rs.append({"flow": mods})
         self.y += 150
         return {"id": mid, "module": "builtin:BasicRouter", "version": 1, "mapper": None,
@@ -222,6 +226,10 @@ FIELD_CATS = ["緊急事件", "重大事件", "人員相關", "物資相關", "�
 SEVS = ["緊急", "高", "中", "低"]
 REPORT_CATS = ["身體不適", "缺物資", "環境問題", "其他"]
 AGES = ["成人", "長者", "兒童", "嬰幼兒"]
+KINDS = ["風災", "水災", "震災", "土石流", "海嘯", "其他"]
+HQ = "社會處"
+HQ_GRANT_ROLES = [MGR, "門禁組", "物資組", "醫療組", "志工"]   # 社會處核准時能給的角色（不含社會處本身）
+HQ_ACTS = ["hqInit", "hqOpen", "hqApps", "hqApprove", "hqReject", "hqSites"]
 
 
 def build_main():
@@ -317,6 +325,7 @@ def build_menu():
     top = [cell(i, 0, liff(v)) for i, v in enumerate(["info", "report", "sos"])]
     public_bottom = [{"bounds": {"x": 0, "y": ROW, "width": 2500, "height": ROW}, "action": liff("staff")}]
     staff_row = [cell(0, 1, {"type": "uri", "uri": "https://line.me/R/nv/QRCode"}), cell(1, 1, liff("ops")), cell(2, 1, liff("signout"))]
+    hq_row = [cell(i, 1, liff(v)) for i, v in enumerate(["hq", "inbox", "sites"])]   # 社會處：指揮台｜待我處理｜各所現況
 
     notion_meta = [{"name": "__IMTCONN__", "type": "account:notion2,notion3", "label": "Connection", "required": True}]
     line_meta = [{"name": "__IMTCONN__", "type": "account:line2", "label": "Connection", "required": True}]
@@ -372,9 +381,30 @@ def build_menu():
                         "metadata": {"designer": {"x": 1200, "y": 450, "name": f"新建別名 {MENU_ALIAS}"}, "parameters": line_meta},
                         "onerror": [{"id": 7, "module": "builtin:Ignore", "version": 1, "mapper": None,
                                      "metadata": {"designer": {"x": 1500, "y": 450}}}]}]},
+             # 第三條路線：社會處選單（讀第三欄的圖 → 建立 → 設定別名）。路由後面不能再接模組，所以放在這裡
+             {"flow": menu_steps((30, 31, 32), '{{get(map(21.body.results; "id"); 3)}}', "hq-plus", top + hq_row, "社會處選單", 600)
+              + [alias_router(40, "{{32.richMenuId}}", HQ_ALIAS, 600)]},
          ]},
     ]
-    return blueprint("12 建立圖文選單（一般＋加乘）", flow, instant=False)
+    return blueprint("12 建立圖文選單（一般＋加乘＋社會處）", flow, instant=False)
+
+
+def alias_router(base, menu_id_expr, alias, y):
+    """別名：同時試「更新」和「新建」，各自出錯就略過（已有別名時更新成功；第一次部署時新建成功）"""
+    line_meta = [{"name": "__IMTCONN__", "type": "account:line2", "label": "Connection", "required": True}]
+
+    def call(mid, url, body, name, yy):
+        return {"id": mid, "module": "line:makeApiCall", "version": 1, "parameters": {"__IMTCONN__": CONN_LINE},
+                "mapper": {"url": url, "method": "POST", "body": json.dumps(body),
+                           "headers": [{"key": "Content-Type", "value": "application/json"}]},
+                "metadata": {"designer": {"x": 1200, "y": yy, "name": name}, "parameters": line_meta},
+                "onerror": [{"id": mid + 1, "module": "builtin:Ignore", "version": 1, "mapper": None,
+                             "metadata": {"designer": {"x": 1500, "y": yy}}}]}
+    return {"id": base, "module": "builtin:BasicRouter", "version": 1, "mapper": None,
+            "metadata": {"designer": {"x": 900, "y": y, "name": f"設定別名 {alias}"}},
+            "routes": [{"flow": [call(base + 1, f"/v2/bot/richmenu/alias/{alias}", {"richMenuId": menu_id_expr}, f"更新別名 {alias}", y)]},
+                       {"flow": [call(base + 3, "/v2/bot/richmenu/alias", {"richMenuAliasId": alias, "richMenuId": menu_id_expr},
+                                      f"新建別名 {alias}", y + 150)]}]}
 
 
 def build_supply_api():
@@ -433,23 +463,26 @@ def build_supply_api():
     # 民眾畫面的動作（不需要在班）：從「不是在班工作人員」的擋下條件排除
     not_pub = [c("{{1.a}}", "text:notequal", a) for a in PUBLIC_ACTS]
 
-    # ---- load：本所品項與目前庫存 ----
-    g_open = b.get("讀派駐開設", w_open)
-    O = g_open["id"]
-    items = b.search("找本所物資品項", DS_ITEM, [c("收容所 |&*^%$#@| relation", "relation:contains", sp(O, "收容所", "[].id"))])
-    items["mapper"]["limit"] = "100"
-    IT = items["id"]
-    agg_id = b.nid()
-    agg = {"id": agg_id, "module": "builtin:BasicAggregator", "version": 1, "parameters": {"feeder": IT},
-           "mapper": {"id": f"{{{{{IT}.id}}}}", "properties_value": f"{{{{{IT}.properties_value}}}}"},
-           "metadata": b.meta("彙整品項")}
-    js_id = b.nid()
-    js = {"id": js_id, "module": "json:TransformToJSON", "version": 1, "parameters": {"space": ""},
-          "mapper": {"object": f"{{{{{agg_id}.array}}}}"}, "metadata": b.meta("品項轉成 JSON")}
-    load_body = ('{"ok":true,"me":{"name":"' + enc(w_name) + '","role":"' + w_role + '","opening":"'
-                 + enc(sp(O, "開設名稱", "[].plain_text")) + '","openingId":"' + f"{{{{{O}.id}}}}" + '"},"items":'
-                 + f"{{{{{js_id}.json}}}}" + "}")
-    load_flow = [g_open, items, agg, js, respond("回傳庫存", load_body)]
+    # ---- load：本所品項與目前庫存（社會處看某一所時，開設改用頁面送來的 1.o） ----
+    def load_flow_for(open_expr, sfx=""):
+        g_open = b.get("讀派駐開設" + sfx, open_expr)
+        O = g_open["id"]
+        items = b.search("找本所物資品項" + sfx, DS_ITEM, [c("收容所 |&*^%$#@| relation", "relation:contains", sp(O, "收容所", "[].id"))])
+        items["mapper"]["limit"] = "100"
+        IT = items["id"]
+        agg_id = b.nid()
+        agg = {"id": agg_id, "module": "builtin:BasicAggregator", "version": 1, "parameters": {"feeder": IT},
+               "mapper": {"id": f"{{{{{IT}.id}}}}", "properties_value": f"{{{{{IT}.properties_value}}}}"},
+               "metadata": b.meta("彙整品項" + sfx)}
+        js_id = b.nid()
+        js = {"id": js_id, "module": "json:TransformToJSON", "version": 1, "parameters": {"space": ""},
+              "mapper": {"object": f"{{{{{agg_id}.array}}}}"}, "metadata": b.meta("品項轉成 JSON" + sfx)}
+        load_body = ('{"ok":true,"me":{"name":"' + enc(w_name) + '","role":"' + w_role + '","opening":"'
+                     + enc(sp(O, "開設名稱", "[].plain_text")) + '","openingId":"' + f"{{{{{O}.id}}}}" + '"},"items":'
+                     + f"{{{{{js_id}.json}}}}" + "}")
+        return [g_open, items, agg, js, respond("回傳庫存" + sfx, load_body)]
+    load_flow = load_flow_for(w_open)
+    no_o = c("{{1.o}}", "notexist")
 
     # ---- submit：每一行新增一筆物資異動紀錄（請求編號重複就不再寫） ----
     dup = b.search("請求編號是否已登記", DS_MOVE, [c("請求編號 |&*^%$#@| rich_text", "text:equals", "{{1.r}}")])
@@ -622,7 +655,14 @@ def build_supply_api():
     ])]
 
     all_acts = ["load", "submit", "resident", "addItem", "tagInfo", "register", "move",
-                "status", "report", "update", "prep", "prepDone"] + PUBLIC_ACTS
+                "status", "report", "update", "prep", "prepDone"] + PUBLIC_ACTS + HQ_ACTS
+    # 社會處的動作與「看某一所」：不需要在班，從「不是在班工作人員」排除
+    not_hq = [c("{{1.a}}", "text:notequal", a) for a in HQ_ACTS]
+    off_groups = [[auth_ok, c(f"{{{{{W}.id}}}}", "notexist")],
+                  [auth_ok, c(sp(W, "啟用中"), "boolean:notequal", "true")],
+                  [auth_ok, c(sp(W, "簽到狀態", ".name"), "text:notequal", "上班中")]]
+    off_duty = [g + not_pub + not_hq + extra for g in off_groups
+                for extra in ([no_o], [c(w_role, "text:notequal", HQ)])]
     flow = [
         {"id": 1, "module": "gateway:CustomWebHook", "version": 1, "parameters": {"hook": hook, "maxResults": 1},
          "mapper": {}, "metadata": {"designer": {"x": -300, "y": 0, "name": "現場頁面送來的請求"}, "parameters": [
@@ -638,11 +678,9 @@ def build_supply_api():
             (flt("不是本系統的憑證", [[c("{{2.data.client_id}}", "text:notequal", channel)]]), [
                 respond("回傳驗證失敗", '{"ok":false,"error":"auth"}', "401")]),
             (flt("身分驗證成功", [[auth_ok]]), [profile, staff, b.router("依身分與動作分流", [
-            (flt("不是在班工作人員", [[auth_ok, c(f"{{{{{W}.id}}}}", "notexist")] + not_pub,
-                                     [auth_ok, c(sp(W, "啟用中"), "boolean:notequal", "true")] + not_pub,
-                                     [auth_ok, c(sp(W, "簽到狀態", ".name"), "text:notequal", "上班中")] + not_pub]), [
+            (flt("不是在班工作人員", off_duty), [
                 respond("回傳不在班", '{"ok":false,"error":"not_on_duty"}', "403")]),
-            (flt("讀庫存", [on + [act("load")]]), load_flow),
+            (flt("讀庫存", [on + [act("load"), no_o]]), load_flow),
             (flt("送出登記", [on + [act("submit")]]), submit_flow),
             (flt("查號碼牌", [on + [act("resident")]]), resident_flow),
             (flt("新增品項", [on + [act("addItem"), is_mgr]]), add_flow),
@@ -656,11 +694,73 @@ def build_supply_api():
                 respond("回傳沒有權限", '{"ok":false,"error":"no_permission"}', "403")]),
             *ops_routes(b, respond, W, on, act),
             *public_routes(b, respond, W, auth_ok, on, act),
+            *hq_routes(b, respond, W, auth_ok, on, act, load_flow_for),
         ])]),
         ])]),
         ]),
     ]
     return blueprint("13 現場頁面 API（物資・居民・本所）", flow, instant=True)
+
+
+def status_flow_for(b, respond, W, open_expr, all_res=False, sfx=""):
+    """本所狀況（數字、在班人員、居民名單、未結事件與整備回報）。open_expr 是開設 ID：
+    工作人員用名冊的派駐開設；社會處從「各所現況」看某一所時用頁面送來的 1.o（all_res＝列出全部在所居民）。"""
+    w_name = sp(W, "姓名", "[].plain_text")
+    w_role = sp(W, "角色", ".name")
+    w_open = open_expr
+    open_rel = lambda: c("收容所開設 |&*^%$#@| relation", "relation:contains", w_open)
+
+    def agg_json(name, feeder, fields):
+        a = {"id": b.nid(), "module": "builtin:BasicAggregator", "version": 1, "parameters": {"feeder": feeder},
+             "mapper": fields, "metadata": b.meta(f"彙整{name}{sfx}")}
+        j = {"id": b.nid(), "module": "json:TransformToJSON", "version": 1, "parameters": {"space": ""},
+             "mapper": {"object": f"{{{{{a['id']}.array}}}}"}, "metadata": b.meta(f"{name}轉成 JSON{sfx}")}
+        return [a, j], j["id"]
+
+    og = b.get("讀派駐開設（本所）" + sfx, w_open)
+    O = og["id"]
+    duty = b.search("找本所在班人員" + sfx, DS_STAFF, [c("派駐開設 |&*^%$#@| relation", "relation:contains", w_open),
+                                            c("簽到狀態 |&*^%$#@| select", "select:equals", "上班中")])
+    duty["mapper"]["limit"] = "50"
+    D = duty["id"]
+    duty_mods, DJ = agg_json("在班人員", D, {"id": f"{{{{{D}.id}}}}", "name": sp(D, "姓名", "[].plain_text"),
+                                          "role": sp(D, "角色", ".name"), "kind": sp(D, "身分類別", ".name")})
+    # 居民：外出、未返，或在所且有特殊關懷
+    res_filter = ([[open_rel(), c("在所狀態 |&*^%$#@| select", "select:does_not_equal", "已離所")]] if all_res else [
+            [open_rel(), c("在所狀態 |&*^%$#@| select", "select:equals", "外出")],
+            [open_rel(), c("在所狀態 |&*^%$#@| select", "select:equals", "未返")],
+            [open_rel(), c("在所狀態 |&*^%$#@| select", "select:equals", "在所"),
+             c("特殊關懷 |&*^%$#@| multi_select", "multi_select:is_not_empty", "true")]])
+    res = b.notion("searchObjects1", "找本所居民" + sfx, {
+        "limit": "100", "select": "data_source_item", "data_source": DS_RES, "filter": res_filter})
+    R = res["id"]
+    res_mods, RJ = agg_json("居民名單", R, {"id": f"{{{{{R}.id}}}}", "name": sp(R, "姓名", "[].plain_text"),
+                                         "status": sp(R, "在所狀態", ".name"), "back": sp(R, "預計返回時間", ".start"),
+                                         "care": "{{join(map(" + f"{R}.properties_value.`特殊關懷`" + '; "name"); "、")}}'})
+    # 事件：未結的（居民反映除外），加上所有整備回報（整備清單要看已完成的項目）
+    logs = b.notion("searchObjects1", "找本所未結事件與整備回報" + sfx, {
+        "limit": "60", "select": "data_source_item", "data_source": DS_LOG,
+        "sorts": [{"select": "timestamp", "direction": "descending", "timestamp": "created_time"}], "filter": [
+            [open_rel(), c("處理進度 |&*^%$#@| select", "select:does_not_equal", "已解決"),
+             c("處理進度 |&*^%$#@| select", "select:does_not_equal", "已結案"),
+             c("日誌類別 |&*^%$#@| select", "select:does_not_equal", "居民反映")],
+            [open_rel(), c("日誌類別 |&*^%$#@| select", "select:equals", "整備回報")]]})
+    L = logs["id"]
+    log_mods, LJ = agg_json("事件", L, {
+        "id": f"{{{{{L}.id}}}}",
+        "title": sp(L, "日誌標題", "[].plain_text"), "cat": sp(L, "日誌類別", ".name"), "sev": sp(L, "嚴重程度", ".name"),
+        "status": sp(L, "處理進度", ".name"), "text": sp(L, "內容說明", "[].plain_text"), "log": sp(L, "處理紀錄", "[].plain_text"),
+        "owner": sp(L, "負責人", "[].id"), "by": sp(L, "回報人", "[].id"), "item": sp(L, "整備項目", ".name"),
+        "at": f"{{{{{L}.created_time}}}}"})
+    num = lambda p: "{{ifempty(" + sp(O, p, ".number")[2:-2] + "; 0)}}"
+    status_body = ('{"ok":true,"me":{"id":"' + f"{{{{{W}.id}}}}" + '","name":"' + enc(w_name) + '","role":"' + w_role + '"},'
+                   '"opening":{"name":"' + enc(sp(O, "開設名稱", "[].plain_text")) + '","stage":"' + sp(O, "開設狀態", ".name")
+                   + '","light":"' + sp(O, "狀況燈號", ".string") + '","inside":' + num("在所人數") + ',"capacity":' + num("容納人數")
+                   + ',"out":' + num("外出人數") + ',"late":' + num("未返人數") + ',"care":' + num("需關懷人數")
+                   + ',"open":' + num("未結日誌數") + ',"urgent":' + num("緊急未結數")
+                   + ',"needStaff":' + num("缺工作人員") + ',"needVol":' + num("缺志工") + '},'
+                   '"duty":' + f"{{{{{DJ}.json}}}}" + ',"residents":' + f"{{{{{RJ}.json}}}}" + ',"events":' + f"{{{{{LJ}.json}}}}" + '}')
+    return [og, duty, *duty_mods, res, *res_mods, logs, *log_mods, respond("回傳本所狀況" + sfx, status_body)]
 
 
 def ops_routes(b, respond, W, on, act):
@@ -683,50 +783,10 @@ def ops_routes(b, respond, W, on, act):
              "mapper": {"object": f"{{{{{a['id']}.array}}}}"}, "metadata": b.meta(f"{name}轉成 JSON")}
         return [a, j], j["id"]
 
-    # ---- status：本所狀況（數字、在班人員、外出・未返・需關懷名單、未結事件與整備回報） ----
-    og = b.get("讀派駐開設（本所）", w_open)
-    O = og["id"]
-    duty = b.search("找本所在班人員", DS_STAFF, [c("派駐開設 |&*^%$#@| relation", "relation:contains", w_open),
-                                            c("簽到狀態 |&*^%$#@| select", "select:equals", "上班中")])
-    duty["mapper"]["limit"] = "50"
-    D = duty["id"]
-    duty_mods, DJ = agg_json("在班人員", D, {"id": f"{{{{{D}.id}}}}", "name": sp(D, "姓名", "[].plain_text"),
-                                          "role": sp(D, "角色", ".name"), "kind": sp(D, "身分類別", ".name")})
-    # 居民：外出、未返，或在所且有特殊關懷
-    res = b.notion("searchObjects1", "找本所外出與需關懷居民", {
-        "limit": "100", "select": "data_source_item", "data_source": DS_RES, "filter": [
-            [open_rel(), c("在所狀態 |&*^%$#@| select", "select:equals", "外出")],
-            [open_rel(), c("在所狀態 |&*^%$#@| select", "select:equals", "未返")],
-            [open_rel(), c("在所狀態 |&*^%$#@| select", "select:equals", "在所"),
-             c("特殊關懷 |&*^%$#@| multi_select", "multi_select:is_not_empty", "true")]]})
-    R = res["id"]
-    res_mods, RJ = agg_json("居民名單", R, {"id": f"{{{{{R}.id}}}}", "name": sp(R, "姓名", "[].plain_text"),
-                                         "status": sp(R, "在所狀態", ".name"), "back": sp(R, "預計返回時間", ".start"),
-                                         "care": "{{join(map(" + f"{R}.properties_value.`特殊關懷`" + '; "name"); "、")}}'})
-    # 事件：未結的（居民反映除外），加上所有整備回報（整備清單要看已完成的項目）
-    logs = b.notion("searchObjects1", "找本所未結事件與整備回報", {
-        "limit": "60", "select": "data_source_item", "data_source": DS_LOG,
-        "sorts": [{"select": "timestamp", "direction": "descending", "timestamp": "created_time"}], "filter": [
-            [open_rel(), c("處理進度 |&*^%$#@| select", "select:does_not_equal", "已解決"),
-             c("處理進度 |&*^%$#@| select", "select:does_not_equal", "已結案"),
-             c("日誌類別 |&*^%$#@| select", "select:does_not_equal", "居民反映")],
-            [open_rel(), c("日誌類別 |&*^%$#@| select", "select:equals", "整備回報")]]})
-    L = logs["id"]
-    log_mods, LJ = agg_json("事件", L, {
-        "id": f"{{{{{L}.id}}}}",
-        "title": sp(L, "日誌標題", "[].plain_text"), "cat": sp(L, "日誌類別", ".name"), "sev": sp(L, "嚴重程度", ".name"),
-        "status": sp(L, "處理進度", ".name"), "text": sp(L, "內容說明", "[].plain_text"), "log": sp(L, "處理紀錄", "[].plain_text"),
-        "owner": sp(L, "負責人", "[].id"), "by": sp(L, "回報人", "[].id"), "item": sp(L, "整備項目", ".name"),
-        "at": f"{{{{{L}.created_time}}}}"})
-    num = lambda p: "{{ifempty(" + sp(O, p, ".number")[2:-2] + "; 0)}}"
-    status_body = ('{"ok":true,"me":{"id":"' + f"{{{{{W}.id}}}}" + '","name":"' + enc(w_name) + '","role":"' + w_role + '"},'
-                   '"opening":{"name":"' + enc(sp(O, "開設名稱", "[].plain_text")) + '","stage":"' + sp(O, "開設狀態", ".name")
-                   + '","light":"' + sp(O, "狀況燈號", ".string") + '","inside":' + num("在所人數") + ',"capacity":' + num("容納人數")
-                   + ',"out":' + num("外出人數") + ',"late":' + num("未返人數") + ',"care":' + num("需關懷人數")
-                   + ',"open":' + num("未結日誌數") + ',"urgent":' + num("緊急未結數")
-                   + ',"needStaff":' + num("缺工作人員") + ',"needVol":' + num("缺志工") + '},'
-                   '"duty":' + f"{{{{{DJ}.json}}}}" + ',"residents":' + f"{{{{{RJ}.json}}}}" + ',"events":' + f"{{{{{LJ}.json}}}}" + '}')
-    status_flow = [og, duty, *duty_mods, res, *res_mods, logs, *log_mods, respond("回傳本所狀況", status_body)]
+    status_flow = status_flow_for(b, respond, W, w_open)
+    no_o = c("{{1.o}}", "notexist")
+    # （status 的內容在 status_flow_for）
+
 
     # ---- report：記錄事件（cat 類別、sev 嚴重程度、text 說明、g 相關居民 ID 可空白） ----
     urgent = '{{if(contains("緊急,高"; 1.sev); true; false)}}'
@@ -791,9 +851,9 @@ def ops_routes(b, respond, W, on, act):
     is_mgr = c(w_role, "text:contain", "管理者")
     ops_acts = ["status", "report", "update", "prep", "prepDone"]
     return [
-        (flt("不是工作人員（本所）", [on + [act(a), c(w_kind, "text:notequal", "工作人員")] for a in ops_acts]), [
+        (flt("不是工作人員（本所）", [on + [act(a), c(w_kind, "text:notequal", "工作人員"), no_o] for a in ops_acts]), [
             respond("回傳不是工作人員", '{"ok":false,"error":"not_staff"}', "403")]),
-        (flt("本所狀況", [staff_on + [act("status")]]), status_flow),
+        (flt("本所狀況", [staff_on + [act("status"), no_o]]), status_flow),
         (flt("記錄事件", [staff_on + [act("report")]]), report_flow),
         (flt("事件處理", [staff_on + [act("update")]]), update_flow),
         (flt("整備回報", [staff_on + [act("prep")]]), prep_flow),
@@ -841,13 +901,23 @@ def public_routes(b, respond, W, auth_ok, on, act):
                + sp(W, "角色", ".name") + '","kind":"' + sp(W, "身分類別", ".name") + '","line":"{{encodeURL(4.data.displayName)}}"}')
 
     # ---- apply：申請開通（新增一筆待審名冊；已在名冊就回目前狀態） ----
+    hqs = b.search("找社會處（通知申請）", DS_STAFF, [c("角色 |&*^%$#@| select", "select:equals", HQ),
+                                                     c("啟用中 |&*^%$#@| checkbox", "checkbox:equals", "true")])
+    hqs["mapper"]["limit"] = "5"
     apply_flow = [b.router("申請開通分流", [
         (flt("新申請（頁面）", [[auth_ok, w_none]]), [
             b.create("新增名冊（待審，頁面）", DS_STAFF, [
-                f_title("姓名", "（待審）{{4.data.displayName}}"), f_text("LINE User ID", uid),
-                f_text("LINE 顯示名稱", "{{4.data.displayName}}"), f_now("申請時間"),
+                f_title("姓名", "{{ifempty(substring(1.name; 0; 40); 4.data.displayName)}}"), f_text("單位", cut("1.unit", 40)),
+                {"key": "聯絡電話", "type": "phone_number", "value": cut("1.phone", 20)},
+                f_text("LINE User ID", uid), f_text("LINE 顯示名稱", "{{4.data.displayName}}"), f_now("申請時間"),
                 f_chk("啟用中", False), f_sel("簽到狀態", "已簽退"), f_sel("選單狀態", "一般")]),
-            respond("回傳已申請", '{"ok":true,"state":"pending"}')]),
+            respond("回傳已申請", '{"ok":true,"state":"pending"}'),
+            # 回應之後才通知兩位社會處（每位一則推播）；訊息不放申請者填的文字，避免被插入內容
+            hqs,
+            b.line_api("推播新申請給社會處", "/v2/bot/message/push", body={
+                "to": sp(hqs["id"], "LINE User ID", "[].plain_text"),
+                "messages": [{"type": "text", "text": "📥 有新的工作人員申請，請到「待我處理」核准：\n"
+                                                      f"https://liff.line.me/{LIFF_ID}?v=inbox"}]})]),
         (flt("已在名冊（頁面）", [[auth_ok, w_exist]]), [respond("回傳名冊狀態（申請）", me_body)]),
     ])]
 
@@ -876,20 +946,193 @@ def public_routes(b, respond, W, auth_ok, on, act):
         b.update("名冊改已簽退（頁面）", DS_STAFF, f"{{{{{W}.id}}}}", [
             f_sel("簽到狀態", "已簽退"), f_sel("選單狀態", "一般"), f_text("對話暫存", TMP_CLEAR)]),
         unlink("解除加乘選單（頁面）"),
-        respond("回傳已簽退", '{"ok":true,"name":"' + enc(sp(W, "姓名", "[].plain_text")) + '"}'),
-        # 找不到出勤時後面不會執行，所以放在回應之後
-        att,
-        b.update("出勤補簽退時間（頁面）", DS_ATT, f"{{{{{att['id']}.id}}}}", [f_now("簽退時間"), f_sel("簽退方式", "自行簽退")])]
+        b.router("簽退後", [
+            (None, [
+                respond("回傳已簽退", '{"ok":true,"name":"' + enc(sp(W, "姓名", "[].plain_text")) + '"}'),
+                # 找不到出勤時後面不會執行，所以放在回應之後
+                att,
+                b.update("出勤補簽退時間（頁面）", DS_ATT, f"{{{{{att['id']}.id}}}}", [f_now("簽退時間"), f_sel("簽退方式", "自行簽退")])]),
+            (flt("社會處（簽退）", [[c(sp(W, "角色", ".name"), "text:equal", HQ)]]), hq_menu_link(b, W, "（簽退）", check=False)),
+        ])]
     w_off = [[auth_ok, w_none], [auth_ok, c(sp(W, "啟用中"), "boolean:notequal", "true")],
              [auth_ok, c(sp(W, "簽到狀態", ".name"), "text:notequal", "上班中")]]
     return [
         (flt("收容所資訊", [[auth_ok, act("info")]]), info_flow),
-        (flt("我的狀態", [[auth_ok, act("me")]]), [respond("回傳我的狀態", me_body)]),
+        (flt("我的狀態", [[auth_ok, act("me")]]), [respond("回傳我的狀態", me_body), *hq_menu_link(b, W, "（我的狀態）")]),
         (flt("申請開通", [[auth_ok, act("apply")]]), apply_flow),
         (flt("我要反映", [[auth_ok, act("feedback")]]), feedback_flow),
         (flt("簽退", [on + [act("signout")]]), signout_on),
         (flt("簽退（不在班）", [g + [act("signout")] for g in w_off]), [
-            unlink("解除加乘選單（不在班，頁面）"), respond("回傳不在班（簽退）", '{"ok":true,"already":true}')]),
+            unlink("解除加乘選單（不在班，頁面）"), respond("回傳不在班（簽退）", '{"ok":true,"already":true}'),
+            *hq_menu_link(b, W, "（不在班簽退）")]),
+    ]
+
+
+def hq_menu_link(b, W, label, check=True):
+    """把社會處選單（一般選單＋指揮列）綁給這位使用者。check＝只對啟用中、不在班的社會處執行（第一個模組上的篩選）"""
+    get_alias = b.line_api("取得社會處選單 ID" + label, f"/v2/bot/richmenu/alias/{HQ_ALIAS}", method="GET")
+    if check:
+        get_alias["filter"] = flt("啟用中、不在班的社會處" + label, [[
+            c(sp(W, "角色", ".name"), "text:equal", HQ), c(sp(W, "啟用中"), "boolean:equal", "true"),
+            c(sp(W, "簽到狀態", ".name"), "text:notequal", "上班中")]])
+    link = b.line_api("綁定社會處選單" + label,
+                      "/v2/bot/user/{{4.data.userId}}/richmenu/{{" + str(get_alias["id"]) + ".body.richMenuId}}")
+    return [get_alias, link]
+
+
+def hq_routes(b, respond, W, auth_ok, on, act, load_flow_for):
+    """社會處（liff/supplies/?v=hq｜inbox｜sites）的動作，掛在情境 13 的「依身分與動作分流」底下。
+    權限跟著身分走：角色＝社會處、啟用中，不需要在班。社會處由系統管理者在 Notion 名冊指定，不能自己申請。
+      a＝hqInit 指揮台資料｜hqOpen 開設（ev 災害 ID 或空白＋evName/evKind 建新災害、sh＝收容所ID:簽到代碼,…）｜
+         hqApps 待核准的申請｜hqApprove 核准（id、kind、role）｜hqReject 不核准（id）｜hqSites 開設中各所的數字
+      另外 status、load 帶 o（開設 ID）時，是社會處看某一所（只能看，寫入的動作都不接受 o）。"""
+    w_name = sp(W, "姓名", "[].plain_text")
+    w_role = sp(W, "角色", ".name")
+    is_hq = [auth_ok, c(f"{{{{{W}.id}}}}", "exist"), c(sp(W, "啟用中"), "boolean:equal", "true"), c(w_role, "text:equal", HQ)]
+    not_hq_groups = [[auth_ok, c(f"{{{{{W}.id}}}}", "notexist")], [auth_ok, c(sp(W, "啟用中"), "boolean:notequal", "true")],
+                     [auth_ok, c(w_role, "text:notequal", HQ)]]
+    has_o = c("{{1.o}}", "exist")
+    ok_body = '{"ok":true}'
+
+    def agg_json(name, feeder, fields):
+        a = {"id": b.nid(), "module": "builtin:BasicAggregator", "version": 1, "parameters": {"feeder": feeder},
+             "mapper": fields, "metadata": b.meta(f"彙整{name}")}
+        j = {"id": b.nid(), "module": "json:TransformToJSON", "version": 1, "parameters": {"space": ""},
+             "mapper": {"object": f"{{{{{a['id']}.array}}}}"}, "metadata": b.meta(f"{name}轉成 JSON")}
+        return [a, j], j["id"]
+
+    num = lambda X, p: "{{ifempty(" + sp(X, p, ".number")[2:-2] + "; 0)}}"
+
+    def search_all(name, ds, filters, limit, sort_created=False):
+        m = b.search(name, ds, filters, sort_created=sort_created)
+        m["mapper"]["limit"] = str(limit)
+        return m
+
+    # ---- hqInit：進行中的災害、收容所主檔、未撤收的開設 ----
+    ev = search_all("找進行中的災害", DS_EVENT, [c("狀態 |&*^%$#@| select", "select:does_not_equal", "已結束")], 20, True)
+    EV = ev["id"]
+    ev_mods, EJ = agg_json("災害", EV, {"id": f"{{{{{EV}.id}}}}", "name": sp(EV, "災害名稱", "[].plain_text"),
+                                       "kind": sp(EV, "災害類型", ".name"), "status": sp(EV, "狀態", ".name")})
+    sh = search_all("找收容所主檔", DS_SHELTER, [c("收容所名稱 |&*^%$#@| title", "text:is_not_empty", "true")], 100)
+    SH = sh["id"]
+    sh_mods, SJ = agg_json("收容所", SH, {
+        "id": f"{{{{{SH}.id}}}}", "no": sp(SH, "原表編號"), "name": sp(SH, "收容所名稱", "[].plain_text"),
+        "addr": sp(SH, "鄉鎮市", ".name") + sp(SH, "地址", "[].plain_text"), "cap": sp(SH, "容納人數"),
+        "kinds": "{{join(map(" + f"{SH}.properties_value.`適用災害`" + '; "name"); ",")}}',
+        "weak": sp(SH, "適合避難弱者安置", ".name")})
+    op = search_all("找未撤收的開設", DS_OPEN, [c("開設狀態 |&*^%$#@| select", "select:does_not_equal", "已撤收")], 100)
+    OP = op["id"]
+    op_mods, OJ = agg_json("開設", OP, {
+        "id": f"{{{{{OP}.id}}}}", "eventId": "{{first(" + f"{OP}.properties_value.`災害事件`" + "[].id)}}",
+        "shelterId": "{{first(" + f"{OP}.properties_value.`收容所`" + "[].id)}}",
+        "name": sp(OP, "開設名稱", "[].plain_text"), "code": sp(OP, "簽到代碼", "[].plain_text"), "status": sp(OP, "開設狀態", ".name")})
+    init_flow = [ev, *ev_mods, sh, *sh_mods, op, *op_mods, respond("回傳指揮台資料", (
+        '{"ok":true,"me":{"name":"' + enc(w_name) + '"},"events":' + f"{{{{{EJ}.json}}}}" + ',"shelters":' + f"{{{{{SJ}.json}}}}"
+        + ',"openings":' + f"{{{{{OJ}.json}}}}" + "}"))]
+
+    # ---- hqOpen：新災害或既有災害 → 每一所新增一筆開設（開設中）。同一場災害同一所已開設就略過 ----
+    def open_chain(E, EN, sfx):
+        feed = {"id": b.nid(), "module": "builtin:BasicFeeder", "version": 1, "mapper": {"array": '{{split(1.sh; ",")}}'},
+                "metadata": b.meta("逐所開設" + sfx)}
+        F = feed["id"]
+        sid = '{{first(split(' + f"{F}.value" + '; ":"))}}'
+        code = '{{substring(last(split(' + f"{F}.value" + '; ":")); 0; 10)}}'
+        dup = b.search("這一所是否已開設" + sfx, DS_OPEN, [c("災害事件 |&*^%$#@| relation", "relation:contains", E),
+                                                      c("收容所 |&*^%$#@| relation", "relation:contains", sid)])
+        shg = b.get("讀收容所" + sfx, sid, f=flt("還沒開設" + sfx, [[c(f"{{{{{dup['id']}.id}}}}", "notexist"),
+                                                                  c(code, "text:startwith", "SIGN-")]]))
+        new = b.create("新增收容所開設" + sfx, DS_OPEN, [
+            f_title("開設名稱", EN + "｜" + sp(shg["id"], "收容所名稱", "[].plain_text")),
+            f_rel("災害事件", E), f_rel("收容所", f"{{{{{shg['id']}.id}}}}"), f_now("開設時間"),
+            f_sel("開設狀態", "開設中"), f_text("簽到代碼", code), f_text("備註", "社會處指揮台開設：" + w_name)])
+        done = b.aggregate("彙整開設結果" + sfx, F, f"{{{{{F}.value}}}}", sep=",")
+        return [feed, dup, shg, new, done, respond("回傳開設完成" + sfx, '{"ok":true,"eventId":"' + E + '"}')]
+    new_ev = b.create("新增災害事件（指揮台）", DS_EVENT, [
+        f_title("災害名稱", cut("1.evName", 40)), f_sel("災害類型", pick("1.evKind", KINDS, "其他")),
+        f_sel("狀態", "應變中"), f_now("開始時間"), f_text("說明", "社會處指揮台建立：" + w_name)])
+    old_ev = b.get("讀既有災害（指揮台）", "{{1.ev}}")
+    open_flow = [b.router("新災害或既有災害", [
+        (flt("建立新災害", [[c("{{1.ev}}", "notexist"), c("{{1.evName}}", "exist")]]),
+         [new_ev, *open_chain(f"{{{{{new_ev['id']}.id}}}}", cut("1.evName", 40), "（新災害）")]),
+        (flt("既有災害", [[c("{{1.ev}}", "exist")]]),
+         [old_ev, *open_chain(f"{{{{{old_ev['id']}.id}}}}", sp(old_ev["id"], "災害名稱", "[].plain_text"), "（既有災害）")]),
+        (flt("缺災害名稱", [[c("{{1.ev}}", "notexist"), c("{{1.evName}}", "notexist")]]),
+         [respond("回傳缺災害名稱", '{"ok":false,"error":"bad_request"}', "400")]),
+    ])]
+
+    # ---- hqApps：待核准的申請（未啟用、有申請時間） ----
+    ap = search_all("找待核准的申請", DS_STAFF, [c("啟用中 |&*^%$#@| checkbox", "checkbox:equals", "false"),
+                                             c("申請時間 |&*^%$#@| date", "date:is_not_empty", "true")], 50, True)
+    AP = ap["id"]
+    ap_mods, AJ = agg_json("申請", AP, {"id": f"{{{{{AP}.id}}}}", "name": sp(AP, "姓名", "[].plain_text"),
+                                       "unit": sp(AP, "單位", "[].plain_text"), "phone": sp(AP, "聯絡電話"),
+                                       "line": sp(AP, "LINE 顯示名稱", "[].plain_text"), "at": sp(AP, "申請時間", ".start")})
+    apps_flow = [ap, *ap_mods, respond("回傳申請清單", '{"ok":true,"apps":' + f"{{{{{AJ}.json}}}}" + "}")]
+
+    # ---- hqApprove／hqReject：只處理「未啟用、不是社會處」的名冊（不能用來改別的社會處） ----
+    def target(sfx):
+        t = b.get("讀申請者" + sfx, "{{1.id}}")
+        T = t["id"]
+        ok = [c(f"{{{{{T}.id}}}}", "exist"), c(sp(T, "角色", ".name"), "text:notequal", HQ), c(sp(T, "LINE User ID", "[].plain_text"), "exist")]
+        bad = [[c(f"{{{{{T}.id}}}}", "notexist")], [c(sp(T, "角色", ".name"), "text:equal", HQ)]]
+        return t, T, ok, bad
+
+    def push(name, T, text):
+        return b.line_api(name, "/v2/bot/message/push", body={"to": sp(T, "LINE User ID", "[].plain_text"),
+                                                             "messages": [{"type": "text", "text": text}]})
+    t1, T1, ok1, bad1 = target("（核准）")
+    role = pick("1.role", HQ_GRANT_ROLES, "門禁組")
+    approve_flow = [t1, b.router("可否核准", [
+        (flt("可以核准", [ok1]), [
+            b.update("核准：啟用並設定角色", DS_STAFF, f"{{{{{T1}.id}}}}", [
+                f_chk("啟用中", True), f_sel("身分類別", pick("1.kind", ["工作人員", "志工"], "工作人員")), f_sel("角色", role)]),
+            respond("回傳已核准", ok_body),
+            push("通知申請者已核准", T1, "✅ 您的工作人員申請已核准（" + role + "）。\n到收容所後，用 LINE 掃服務台的「工作人員簽到」QR，按「傳送」就能開始上班。")]),
+        (flt("不能核准", bad1), [respond("回傳不能核准", '{"ok":false,"error":"bad_target"}', "409")]),
+    ])]
+    t2, T2, ok2, bad2 = target("（不核准）")
+    archive = {"id": b.nid(), "module": "notion:makeApiCall", "version": 1, "parameters": {"__IMTCONN__": CONN_NOTION},
+               "mapper": {"url": f"/v1/pages/{{{{{T2}.id}}}}", "method": "PATCH", "version": "2022-06-28",
+                          "headers": [{"key": "Content-Type", "value": "application/json"}], "body": '{"archived":true}'},
+               "metadata": b.meta("不核准：申請移到垃圾桶", "account:notion2,notion3")}
+    reject_flow = [t2, b.router("可否不核准", [
+        (flt("可以不核准", [ok2 + [c(sp(T2, "啟用中"), "boolean:notequal", "true")]]), [
+            push("通知申請者未通過", T2, "您的工作人員申請這次沒有通過。如有疑問，請洽苗栗縣政府社會處。之後可以重新申請。"),
+            archive, respond("回傳已不核准", ok_body)]),
+        (flt("不能不核准", bad2 + [[c(sp(T2, "啟用中"), "boolean:equal", "true")]]), [
+            respond("回傳不能不核准", '{"ok":false,"error":"bad_target"}', "409")]),
+    ])]
+
+    # ---- hqSites：開設中的各所數字＋進行中的災害名稱（頁面依災害分組） ----
+    st = search_all("找開設中的收容所（社會處）", DS_OPEN, [c("開設狀態 |&*^%$#@| select", "select:equals", "開設中")], 50)
+    ST = st["id"]
+    st_mods, STJ = agg_json("各所現況", ST, {
+        "id": f"{{{{{ST}.id}}}}", "eventId": "{{first(" + f"{ST}.properties_value.`災害事件`" + "[].id)}}",
+        "name": sp(ST, "開設名稱", "[].plain_text"), "light": sp(ST, "狀況燈號", ".string"),
+        "inside": num(ST, "在所人數"), "capacity": num(ST, "容納人數"), "out": num(ST, "外出人數"), "late": num(ST, "未返人數"),
+        "care": num(ST, "需關懷人數"), "open": num(ST, "未結日誌數"), "urgent": num(ST, "緊急未結數"),
+        "needStaff": num(ST, "缺工作人員"), "needVol": num(ST, "缺志工"), "low": num(ST, "低庫存品項數")})
+    ev2 = search_all("找進行中的災害（各所現況）", DS_EVENT, [c("狀態 |&*^%$#@| select", "select:does_not_equal", "已結束")], 20)
+    EV2 = ev2["id"]
+    ev2_mods, EJ2 = agg_json("災害（各所現況）", EV2, {"id": f"{{{{{EV2}.id}}}}", "name": sp(EV2, "災害名稱", "[].plain_text")})
+    sites_flow = [st, *st_mods, ev2, *ev2_mods,
+                  respond("回傳各所現況", '{"ok":true,"sites":' + f"{{{{{STJ}.json}}}}" + ',"events":' + f"{{{{{EJ2}.json}}}}" + "}")]
+
+    hq = lambda a: [is_hq + [act(a)]]
+    return [
+        (flt("不是社會處", [g + [act(a)] for g in not_hq_groups for a in HQ_ACTS]), [
+            respond("回傳不是社會處", '{"ok":false,"error":"not_hq"}', "403")]),
+        (flt("指揮台資料", hq("hqInit")), init_flow),
+        (flt("開設收容所", hq("hqOpen")), open_flow),
+        (flt("待核准的申請", hq("hqApps")), apps_flow),
+        (flt("核准申請", hq("hqApprove")), approve_flow),
+        (flt("不核准申請", hq("hqReject")), reject_flow),
+        (flt("各所現況", hq("hqSites")), sites_flow),
+        # 社會處看某一所（只能看）：status、load 帶 o
+        (flt("社會處看某一所的狀況", [is_hq + [act("status"), has_o]]), status_flow_for(b, respond, W, "{{1.o}}", True, "（社會處）")),
+        (flt("社會處看某一所的物資", [is_hq + [act("load"), has_o]]), load_flow_for("{{1.o}}", "（社會處）")),
+        (flt("不是社會處（指定收容所）", [on + [act(a), has_o, c(w_role, "text:notequal", HQ)] for a in ("status", "load")]), [
+            respond("回傳不是社會處（指定收容所）", '{"ok":false,"error":"not_hq"}', "403")]),
     ]
 
 
@@ -906,15 +1149,17 @@ def build_cleanup():
         call(1, "/v2/bot/richmenu/list", "GET", "列出所有圖文選單", 0),
         call(2, f"/v2/bot/richmenu/alias/{MENU_ALIAS}", "GET", "目前的加乘選單（保留）", 300),
         call(3, "/v2/bot/user/all/richmenu", "GET", "目前的一般選單（保留）", 600),
+        call(7, f"/v2/bot/richmenu/alias/{HQ_ALIAS}", "GET", "目前的社會處選單（保留）", 750),
         {"id": 4, "module": "builtin:BasicFeeder", "version": 1, "mapper": {"array": "{{1.body.richmenus}}"},
          "metadata": {"designer": {"x": 900, "y": 0, "name": "逐張檢查"}}},
         call(5, "/v2/bot/richmenu/{{4.richMenuId}}", "DELETE", "刪除舊選單", 1200,
-             filter=flt("不是目前使用中的兩張", [[c("{{4.richMenuId}}", "text:notequal", "{{2.body.richMenuId}}"),
-                                              c("{{4.richMenuId}}", "text:notequal", "{{3.body.richMenuId}}")]]),
+             filter=flt("不是目前使用中的三張", [[c("{{4.richMenuId}}", "text:notequal", "{{2.body.richMenuId}}"),
+                                              c("{{4.richMenuId}}", "text:notequal", "{{3.body.richMenuId}}"),
+                                              c("{{4.richMenuId}}", "text:notequal", "{{7.body.richMenuId}}")]]),
              onerror=[{"id": 6, "module": "builtin:Ignore", "version": 1, "mapper": None,
                        "metadata": {"designer": {"x": 1500, "y": 0}}}]),
     ]
-    return blueprint("90 清理舊圖文選單（保留使用中的兩張）", flow, instant=False)
+    return blueprint("90 清理舊圖文選單（保留使用中的三張）", flow, instant=False)
 
 
 def blueprint(name, flow, instant):
