@@ -7614,8 +7614,8 @@
                },
                "mapper": {
                 "id": "{{235.id}}",
-                "eventId": "{{first(235.properties_value.`災害事件`[].id)}}",
-                "shelterId": "{{first(235.properties_value.`收容所`[].id)}}",
+                "eventId": "{{first(map(235.properties_value.`災害事件`; \"id\"))}}",
+                "shelterId": "{{first(map(235.properties_value.`收容所`; \"id\"))}}",
                 "name": "{{235.properties_value.`開設名稱`[].plain_text}}",
                 "code": "{{235.properties_value.`簽到代碼`[].plain_text}}",
                 "status": "{{235.properties_value.`開設狀態`.name}}"
@@ -9074,7 +9074,7 @@
                },
                "mapper": {
                 "id": "{{271.id}}",
-                "eventId": "{{first(271.properties_value.`災害事件`[].id)}}",
+                "eventId": "{{first(map(271.properties_value.`災害事件`; \"id\"))}}",
                 "name": "{{271.properties_value.`開設名稱`[].plain_text}}",
                 "light": "{{271.properties_value.`狀況燈號`.string}}",
                 "inside": "{{ifempty(271.properties_value.`在所人數`.number; 0)}}",

@@ -1023,8 +1023,8 @@ def hq_routes(b, respond, W, auth_ok, on, act, load_flow_for):
     op = search_all("找未撤收的開設", DS_OPEN, [c("開設狀態 |&*^%$#@| select", "select:does_not_equal", "已撤收")], 100)
     OP = op["id"]
     op_mods, OJ = agg_json("開設", OP, {
-        "id": f"{{{{{OP}.id}}}}", "eventId": "{{first(" + f"{OP}.properties_value.`災害事件`" + "[].id)}}",
-        "shelterId": "{{first(" + f"{OP}.properties_value.`收容所`" + "[].id)}}",
+        "id": f"{{{{{OP}.id}}}}", "eventId": "{{first(map(" + f"{OP}.properties_value.`災害事件`" + '; "id"))}}',
+        "shelterId": "{{first(map(" + f"{OP}.properties_value.`收容所`" + '; "id"))}}',
         "name": sp(OP, "開設名稱", "[].plain_text"), "code": sp(OP, "簽到代碼", "[].plain_text"), "status": sp(OP, "開設狀態", ".name")})
     init_flow = [ev, *ev_mods, sh, *sh_mods, op, *op_mods, respond("回傳指揮台資料", (
         '{"ok":true,"me":{"name":"' + enc(w_name) + '"},"events":' + f"{{{{{EJ}.json}}}}" + ',"shelters":' + f"{{{{{SJ}.json}}}}"
@@ -1107,7 +1107,7 @@ def hq_routes(b, respond, W, auth_ok, on, act, load_flow_for):
     st = search_all("找開設中的收容所（社會處）", DS_OPEN, [c("開設狀態 |&*^%$#@| select", "select:equals", "開設中")], 50)
     ST = st["id"]
     st_mods, STJ = agg_json("各所現況", ST, {
-        "id": f"{{{{{ST}.id}}}}", "eventId": "{{first(" + f"{ST}.properties_value.`災害事件`" + "[].id)}}",
+        "id": f"{{{{{ST}.id}}}}", "eventId": "{{first(map(" + f"{ST}.properties_value.`災害事件`" + '; "id"))}}',
         "name": sp(ST, "開設名稱", "[].plain_text"), "light": sp(ST, "狀況燈號", ".string"),
         "inside": num(ST, "在所人數"), "capacity": num(ST, "容納人數"), "out": num(ST, "外出人數"), "late": num(ST, "未返人數"),
         "care": num(ST, "需關懷人數"), "open": num(ST, "未結日誌數"), "urgent": num(ST, "緊急未結數"),
@@ -1163,7 +1163,8 @@ def build_cleanup():
 
 
 def blueprint(name, flow, instant):
-    return {"name": name, "flow": flow, "metadata": {
+    # name_prefix：Make 帳號裡情境名稱的前綴（例：「苗栗｜」），匯入或用 API 更新時不會把名稱蓋掉
+    return {"name": CFG["make"].get("name_prefix", "") + name, "flow": flow, "metadata": {
         "instant": instant, "version": 1, "designer": {"orphans": []},
         "scenario": {"dlq": True, "slots": None, "dataloss": False, "maxErrors": 3, "autoCommit": True,
                      "roundtrips": 1, "sequential": False, "confidential": False,
