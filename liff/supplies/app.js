@@ -12,7 +12,7 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
 // ===== 正式後端：Make 情境 13（物資 API）。用表單格式送出，瀏覽器不會先送 CORS 預檢 =====
 class ApiError extends Error { constructor(code) { super(code); this.code = code; } }
 // 後端把姓名、收容所名稱等自由文字 URL 編碼後才放進 JSON（Make 沒有 JSON 跳脫函式），這些欄位在這裡解碼
-const ENC_KEYS = new Set(["name", "opening", "staff", "area", "line", "tag"]);
+const ENC_KEYS = new Set(["name", "opening", "staff", "area", "line", "tag", "unit", "phone", "event", "addr"]);
 const safeDecode = s => { try { return decodeURIComponent(s); } catch (e) { return s; } };
 function decodeFields(o) {
   if (Array.isArray(o)) return o.map(decodeFields);
@@ -43,8 +43,9 @@ function newCode() {
   return "SUP-" + Array.from(r, x => A[x % A.length]).join("");
 }
 const real = {
-  async load() {
-    const d = await post({ a: "load" });
+  // o：社會處檢視某一所時指定開設（後端只對社會處接受這個參數）
+  async load(o) {
+    const d = await post({ a: "load", ...(o ? { o } : {}) });
     const items = (d.items || []).map(r => {
       const p = r.properties_value || {};
       const unit = txt(p["單位"]) || "個", pack = txt(p["包裝單位"]);
@@ -85,6 +86,8 @@ const real = {
   async ops(a, f) { return await post({ a, ...(f || {}) }); },
   // 一般畫面：info 收容所資訊｜me 我的狀態｜apply 申請開通｜feedback 我要反映｜signout 簽退
   async pub(a, f) { return await post({ a, ...(f || {}) }); },
+  // 社會處（hq.js）：hqInit 指揮台資料｜hqOpen 開設｜hqApps 申請清單｜hqApprove 核准｜hqReject 不核准｜hqSites 各所現況
+  async hq(a, f) { return await post({ a, ...(f || {}) }); },
 };
 let api = null;               // 正式網址用 real；本機預覽載入 mock.js 後改用模擬資料
 let REAL = false;
@@ -103,8 +106,10 @@ const S = {
   recip: null,
   // 居民頁面：掃號碼牌 QR（?r=MLS-xxxxx）進來。view＝resident 顯示居民；supply 是物資
   // 一般畫面（?v=info｜report｜sos｜staff｜signout）：圖文選單直接打開，不需要在班
-  view: params.get("r") ? "resident" : PUB_VIEWS.includes(params.get("v")) || params.get("v") === "ops" ? params.get("v") : "supply",
-  pub: { info: null, me: null, msg: "", done: "", form: { cat: "", o: "", where: "", text: "" } },
+  view: params.get("r") ? "resident" : PUB_VIEWS.includes(params.get("v")) || HQ_VIEWS.includes(params.get("v")) || params.get("v") === "ops" ? params.get("v") : "supply",
+  hqO: params.get("v") === "ops" ? params.get("o") : null,   // 社會處從「各所現況」點進來看某一所（只能看）
+  hqItems: null,
+  pub: { info: null, me: null, msg: "", done: "", form: { cat: "", o: "", where: "", text: "" }, ap: { name: "", unit: "", phone: "" } },
   ops: null, opsShow: "", reportRes: null,   // 本所畫面的資料、展開的名單、記錄事件時帶入的居民
   rtag: params.get("r"), rinfo: null, rform: null, rmsg: "",
   guest: params.get("as") === "guest",
@@ -136,11 +141,12 @@ function lines() {
 // ===== 畫面 =====
 function render() {
   document.body.classList.toggle("ops", S.view === "ops");
-  document.body.classList.toggle("pub", PUB_VIEWS.includes(S.view));
+  document.body.classList.toggle("pub", PUB_VIEWS.includes(S.view) || HQ_VIEWS.includes(S.view));
+  if (HQ_VIEWS.includes(S.view)) return renderHq();
   if (PUB_VIEWS.includes(S.view)) return renderPub();
   document.documentElement.style.setProperty("--accent", ACCENT[S.mode]);
   const app = $("#app");
-  if (S.guest || (S.me && !S.me.onDuty)) {
+  if (S.guest || (S.me && !S.me.onDuty && !S.hqO)) {
     app.innerHTML = `<div class="blocked"><h2>這個頁面限在班的工作人員使用</h2><p>請先到服務台掃「工作人員簽到 QR」簽到。</p></div>`;
     $("#bar").hidden = false; $("#bar .in").hidden = true; return;
   }
@@ -202,24 +208,29 @@ function renderOps() {
   const app = $("#app"), d = S.ops;
   document.documentElement.style.setProperty("--accent", "var(--blue)");
   $("#bar").hidden = false; $("#bar .in").hidden = false;
-  const o = d && d.opening;
-  const head = `<header>${tabs()}<div class="title"><h1>${esc((o && o.name) || (S.me && S.me.opening) || "本所")}・本所</h1>
+  const o = d && d.opening, ro = !!S.hqO;   // ro：社會處檢視，只能看
+  if (ro) { $("#bar").hidden = REAL; $("#bar .in").style.display = "none"; document.title = (o && o.name) || "各所現況"; }
+  const head = ro ? `<header><div class="title"><button class="iconbtn" id="hqBack" aria-label="回各所現況">‹</button><h1>${esc((o && o.name) || "收容所")}</h1>
+      <button class="iconbtn" id="opsReload" aria-label="重新整理">↻</button></div>
+    <div class="sub">${o ? `${esc(o.stage)}　${esc(o.light || "")}` : ""}</div></header><div class="hqbanner" style="margin-top:10px">社會處檢視中（只能看，現場操作由該所工作人員處理）</div>`
+    : `<header>${tabs()}<div class="title"><h1>${esc((o && o.name) || (S.me && S.me.opening) || "本所")}・本所</h1>
       <button class="iconbtn" id="opsReload" aria-label="重新整理">↻</button></div>
     <div class="sub">${o ? `${esc(o.stage)}　${esc(o.light || "")}　` : ""}經手人：${esc((d && d.me.name) || "")}</div></header>`;
   if (!d) { app.innerHTML = head + `<div class="blocked"><p>${esc(S.rmsg || "讀取本所狀況中…")}</p></div>`; $("#sum").textContent = ""; $("#go").textContent = "＋記錄事件"; return; }
   const evs = openEvents(), urgent = evs.filter(e => e.sev === "緊急").length;
   const stat = (k, n, label, cls) => `<button class="stat ${cls || ""}" data-show="${k}"><b>${n}</b><span>${label}</span></button>`;
   let body = "";
-  if (o.stage === "整備中") body += prepView(d);
-  if (o.stage === "待核准") body += `<div class="rcard"><b>已送出整備完成</b><div class="meta">等社會處核准開放進駐。核准後這裡會改顯示開設中的狀況。</div></div>`;
-  body += `<div class="stats">${stat("", `${o.inside}<small style="font-size:13px">／${o.capacity}</small>`, "在所／容量")}
+  if (o.stage === "整備中" && !ro) body += prepView(d);
+  if (o.stage === "待核准" && !ro) body += `<div class="rcard"><b>已送出整備完成</b><div class="meta">等社會處核准開放進駐。核准後這裡會改顯示開設中的狀況。</div></div>`;
+  body += `<div class="stats">${stat("all", `${o.inside}<small style="font-size:13px">／${o.capacity}</small>`, "在所／容量")}
     ${stat("out", o.out, "外出", o.out ? "warn" : "")}${stat("late", o.late, "未返", o.late ? "alert" : "")}
     ${stat("care", o.care, "需關懷", o.care ? "warn" : "")}${stat("", evs.length, urgent ? `未結・緊急 ${urgent}` : "未結事件", urgent ? "alert" : evs.length ? "warn" : "")}
     ${stat("", o.needStaff + o.needVol, `缺工 ${o.needStaff}・缺志 ${o.needVol}`, o.needStaff + o.needVol ? "warn" : "")}</div>`;
   if (S.opsShow) {
-    const rs = d.residents.filter(r => S.opsShow === "care" ? r.care : r.status === (S.opsShow === "late" ? "未返" : "外出"));
-    body += `<div class="sec">${{ out: "外出中", late: "未返", care: "需關懷" }[S.opsShow]} <small>${rs.length} 人</small></div>
-      <div class="plist">${rs.map(r => `<div class="prow"><span class="n">${esc(r.name)}</span><span class="meta">${S.opsShow === "care" ? esc(r.care) : r.back ? `預計 ${esc(fmtTime(r.back))}` : ""}</span></div>`).join("") || `<div class="prow">沒有</div>`}</div>`;
+    const rs = d.residents.filter(r => S.opsShow === "all" ? true : S.opsShow === "care" ? r.care : r.status === (S.opsShow === "late" ? "未返" : "外出"));
+    const meta = r => S.opsShow === "all" ? [r.status, r.care].filter(Boolean).join("・") : S.opsShow === "care" ? r.care : r.back ? `預計 ${fmtTime(r.back)}` : "";
+    body += `<div class="sec">${{ all: "居民名單", out: "外出中", late: "未返", care: "需關懷" }[S.opsShow]} <small>${rs.length} 人</small></div>
+      <div class="plist">${rs.map(r => `<div class="prow"><span class="n">${esc(r.name)}</span><span class="meta">${esc(meta(r))}</span></div>`).join("") || `<div class="prow">沒有</div>`}</div>`;
   }
   body += `<div class="sec">在班人員 <small>${d.duty.length} 人</small></div><div class="chips2">${d.duty.map(x => `<span>${esc(x.name)}${x.kind === "志工" ? "（志工）" : x.role ? `・${esc(x.role.replace("（收容所負責人）", ""))}` : ""}</span>`).join("")}</div>`;
   body += `<div class="sec">待處理事項 <small>${evs.length} 件，緊急的排最上面</small></div>`
@@ -228,7 +239,13 @@ function renderOps() {
       return `<button class="evt ${esc(e.sev)}" data-evt="${esc(e.id)}"><div class="t">${esc(e.title)}</div>
         <div class="m"><span class="sev ${esc(e.sev)}">${esc(e.sev)}</span>${own}<span>${esc(ago(e.at))}</span></div></button>`;
     }).join("") || `<div class="hint" style="margin:0 16px">目前沒有待處理的事項。</div>`);
+  if (ro && S.hqItems) {
+    const low = S.hqItems.filter(it => it.stock < it.safety);
+    body += `<div class="sec">物資庫存 <small>${low.length ? `${low.length} 項低於安全庫存` : "都在安全庫存以上"}</small></div>
+      <div class="plist">${[...low, ...S.hqItems.filter(it => !low.includes(it))].map(it => `<div class="prow"><span class="n">${esc(it.name)}${it.stock < it.safety ? " ⚠" : ""}</span><span class="meta">${esc(stockText(it))}</span></div>`).join("") || `<div class="prow">沒有品項</div>`}</div>`;
+  }
   app.innerHTML = head + body;
+  if (ro) return;
   $("#sum").innerHTML = evs.length ? `未結 <b>${evs.length}</b>${urgent ? `・緊急 <b>${urgent}</b>` : ""}` : "沒有未結事項";
   $("#go").textContent = "＋記錄事件"; $("#go").disabled = false;
 }
@@ -248,7 +265,8 @@ function prepView(d) {
 async function loadOps() {
   S.view = "ops"; S.ops = null; S.rmsg = ""; render();
   try {
-    const d = await api.ops("status");
+    const d = await api.ops("status", S.hqO ? { o: S.hqO } : undefined);
+    if (S.hqO) { S.ops = d; S.hqItems = (await api.load(S.hqO)).items; return render(); }
     S.ops = d; S.me = { ...(S.me || {}), name: d.me.name, role: d.me.role, opening: d.opening.name, onDuty: true, event: (S.me && S.me.event) || "" };
   } catch (e) { if (handleApiError(e)) return; S.rmsg = "網路不穩，沒讀到本所狀況。請按右上角重新整理。"; }
   render();
@@ -271,6 +289,11 @@ async function opsAct(a, f, okMsg) {
 }
 function eventSheet(id) {
   const e = S.ops.events.find(x => x.id === id); if (!e) return;
+  if (S.hqO) return sheet(`<h2>${esc(e.title)}</h2>
+    <div class="meta"><span class="sev ${esc(e.sev)}">${esc(e.sev)}</span>　${esc(e.cat)}・${esc(e.status)}・${esc(fmtTime(e.at))}${ownerName(e) ? `・${esc(ownerName(e))} 負責` : ""}</div>
+    ${e.text ? `<div class="pre">${esc(e.text)}</div>` : ""}
+    <label>處理紀錄</label><div class="pre">${esc((e.log || "").trim() || "（還沒有）")}</div>
+    <div class="acts" style="grid-template-columns:1fr"><button data-close>關閉</button></div>`);
   const mine = e.owner === S.ops.me.id;
   sheet(`<h2>${esc(e.title)}</h2>
     <div class="meta"><span class="sev ${esc(e.sev)}">${esc(e.sev)}</span>　${esc(e.cat)}・${esc(e.status)}・${esc(fmtTime(e.at))}${staffName(e.by) ? `・${esc(staffName(e.by))} 記錄` : ""}</div>
@@ -468,7 +491,7 @@ function setQty(id, qty, keepFocus) {
   if (keepFocus) renderBar(); else render();
 }
 document.addEventListener("click", async e => {
-  if (PUB_VIEWS.includes(S.view)) return;   // 一般畫面有自己的點擊處理（在下方）
+  if (PUB_VIEWS.includes(S.view) || HQ_VIEWS.includes(S.view)) return;   // 一般畫面、社會處畫面有自己的點擊處理
   const b = e.target.closest("button"); if (!b) return;
   if (b.dataset.mode && !b.disabled) {
     if (b.dataset.mode !== S.mode && Object.keys(S.pick).length && !confirm("切換模式會清除已填的數量，確定嗎？")) return;
@@ -490,6 +513,7 @@ document.addEventListener("click", async e => {
     else { S.view = "resident"; render(); }
   }
   else if (b.id === "opsReload") loadOps();
+  else if (b.id === "hqBack") go("?v=sites");
   else if (b.dataset.show !== undefined && b.dataset.show !== "") { S.opsShow = S.opsShow === b.dataset.show ? "" : b.dataset.show; render(); }
   else if (b.dataset.evt) eventSheet(b.dataset.evt);
   else if (b.dataset.prep) {
@@ -712,16 +736,28 @@ function renderStaff() {
   const me = S.pub.me, app = $("#app");
   if (!me) { app.innerHTML = pubHead("工作人員專區") + `<div class="blocked"><p>${esc(S.pub.msg || "載入中…")}</p></div>`; return; }
   const hello = me.name ? `${me.name}（${me.role || me.kind}）您好` : "";
-  if (me.state === "none") app.innerHTML = pubHead("工作人員專區", "開通後才能使用工作人員功能") + `<div class="card"><div class="body">社會處派出的人員、支援社工和志工，請先申請開通，由管理者審核。</div></div>
-      <div class="biglinks"><button class="biglink blue" id="apply" ${S.busy ? "disabled" : ""}><span class="ic">📝</span><span>${S.busy ? "送出中…" : "申請開通"}<small>以 LINE 名稱「${esc(me.line || "")}」申請</small></span></button></div>`;
-  else if (me.state === "pending") app.innerHTML = pubHead("工作人員專區") + `<div class="done"><div class="big">⏳</div><h2>開通申請審核中</h2><p>管理者審核通過後，到現場掃服務台的「工作人員簽到」QR 就能開始上班。</p></div>`;
+  const ap = S.pub.ap;
+  if (me.state === "none") app.innerHTML = pubHead("工作人員專區", "開通後才能使用工作人員功能") + `<div class="card"><div class="body">社會處派出的人員、支援社工和志工，請填寫以下資料申請開通，由社會處審核。</div></div>
+      <div class="form"><label>姓名 <b>*</b><input id="ap-name" maxlength="40" value="${esc(ap.name)}" placeholder="請填真實姓名" autocomplete="name"></label>
+        <label>單位 <b>*</b><input id="ap-unit" maxlength="40" value="${esc(ap.unit)}" placeholder="例：苗栗縣社會處、○○社福協會"></label>
+        <label>聯絡電話 <b>*</b><input id="ap-phone" maxlength="20" inputmode="tel" value="${esc(ap.phone)}" placeholder="例：0912345678" autocomplete="tel"></label>
+        <p class="err" id="ap-err">${esc(S.pub.msg || "")}</p></div>
+      <div class="biglinks"><button class="biglink blue" id="apply" ${S.busy ? "disabled" : ""}><span class="ic">📝</span><span>${S.busy ? "送出中…" : "送出申請"}<small>LINE 名稱「${esc(me.line || "")}」</small></span></button></div>`;
+  else if (me.state === "pending") app.innerHTML = pubHead("工作人員專區") + `<div class="done"><div class="big">⏳</div><h2>開通申請審核中</h2><p>社會處審核通過後，LINE 會通知您。到現場掃服務台的「工作人員簽到」QR 就能開始上班。</p></div>`;
+  else if (me.role === "社會處" && me.state === "off") app.innerHTML = pubHead("工作人員專區", hello) + hqLinks();
   else if (me.state === "off") app.innerHTML = pubHead("工作人員專區", hello + "，目前未上班") + `<div class="card"><div class="body">到現場後，掃服務台張貼的「工作人員簽到」QR Code 簽到。</div></div>
       <div class="biglinks"><button class="biglink blue" id="scanner"><span class="ic">📷</span><span>打開 QR 掃描器<small>掃簽到 QR</small></span></button></div>`;
-  else app.innerHTML = pubHead("工作人員專區", hello + "，上班中") + `<div class="biglinks">
+  else app.innerHTML = pubHead("工作人員專區", hello + "，上班中") + (me.role === "社會處" ? hqLinks() : "") + `<div class="biglinks">
       ${me.kind === "工作人員" ? `<button class="biglink" data-go="?v=ops"><span class="ic">📊</span><span>本所畫面<small>狀況、待處理事項、記錄事件</small></span></button>` : ""}
       <button class="biglink" id="scanner"><span class="ic">📷</span><span>掃描 QR<small>物資標籤、居民號碼牌</small></span></button>
       <button class="biglink" data-go="?"><span class="ic">📦</span><span>物資<small>入庫、發放、盤點</small></span></button>
       <button class="biglink" data-go="?v=signout"><span class="ic">👋</span><span>簽退（下班）</span></button></div>`;
+}
+// 社會處的入口（選單之外，也從工作人員專區進得去）
+function hqLinks() {
+  return `<div class="biglinks"><button class="biglink blue" data-go="?v=hq"><span class="ic">🧭</span><span>指揮台<small>建立災害、開設收容所、簽到 QR</small></span></button>
+    <button class="biglink" data-go="?v=inbox"><span class="ic">📥</span><span>待我處理<small>工作人員申請核准</small></span></button>
+    <button class="biglink" data-go="?v=sites"><span class="ic">🏠</span><span>各所現況<small>開設中的收容所狀況</small></span></button></div>`;
 }
 function renderSignout() {
   const me = S.pub.me, app = $("#app");
@@ -768,8 +804,12 @@ document.addEventListener("click", async e => {
     return;
   }
   if (t.id === "apply" && !S.busy) {
-    S.busy = true; render();
-    const d = await pubCall("apply"); S.busy = false;
+    const ap = P.ap, val = id => $(id).value.replace(/["\\]/g, "").trim();
+    ap.name = val("#ap-name"); ap.unit = val("#ap-unit"); ap.phone = val("#ap-phone");
+    if (!ap.name || !ap.unit || !ap.phone) { P.msg = "姓名、單位、聯絡電話都要填"; return render(); }
+    if (!/^[0-9+\-#() ]{6,20}$/.test(ap.phone)) { P.msg = "聯絡電話格式不對，請只填數字"; return render(); }
+    P.msg = ""; S.busy = true; render();
+    const d = await pubCall("apply", { name: ap.name, unit: ap.unit, phone: ap.phone }); S.busy = false;
     if (d) { P.me = { ...P.me, ...d }; render(); }
     return;
   }
@@ -819,6 +859,7 @@ function showAuthProblem(code) {
     <p style="margin-top:12px;font-size:13px">請截圖給管理者，並告知時間。（${esc(code)}）</p></div>`;
 }
 async function boot() {
+  if (HQ_VIEWS.includes(S.view)) return loadHq();
   if (PUB_VIEWS.includes(S.view)) return loadPub();
   if (S.view === "ops" && !S.items.length) return loadOps();
   if (S.view === "resident" && !S.items.length) return loadResident(S.rtag);

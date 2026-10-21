@@ -206,16 +206,74 @@ body.pub{font-size:17px}
 .blocked{margin:60px 24px;text-align:center}
 .blocked h2{font-size:20px;margin-bottom:8px}
 .blocked p{color:var(--soft)}
+/* ===== 社會處：指揮台｜待我處理｜各所現況 ===== */
+.hq-step{margin:12px 16px 0;padding:14px 16px;border-radius:16px;background:var(--card);border:1px solid var(--line)}
+.hq-step h2{font-size:17px;display:flex;align-items:center;gap:8px}
+.hq-step h2 .n{width:24px;height:24px;border-radius:50%;background:var(--blue);color:#fff;font-size:14px;display:inline-flex;align-items:center;justify-content:center}
+.hq-step .hint{font-size:13px;color:var(--soft);margin-top:2px}
+.hq-step input,.hq-step select{width:100%;min-height:44px;border-radius:10px;border:1px solid var(--line);background:var(--bg);padding:8px 10px;margin-top:4px}
+.hq-step label{display:block;font-size:14px;color:var(--soft);margin-top:10px}
+.opt{display:flex;gap:10px;align-items:flex-start;width:100%;text-align:left;padding:10px 12px;margin-top:8px;border-radius:12px;border:2px solid var(--line);background:var(--bg)}
+.opt.on{border-color:var(--blue);background:var(--blue-bg)}
+.opt.dim{opacity:.5}
+.opt .box{flex:none;width:22px;height:22px;border-radius:6px;border:2px solid var(--muted);margin-top:2px;display:flex;align-items:center;justify-content:center;font-size:14px;color:#fff}
+.opt.on .box{background:var(--blue);border-color:var(--blue)}
+.opt .nm{font-weight:700}
+.opt .meta{font-size:13px;color:var(--soft)}
+.opt .done-tag{margin-left:auto;flex:none;font-size:12px;font-weight:700;color:var(--green);background:var(--green-bg);padding:2px 8px;border-radius:999px}
+.ktag{display:inline-block;font-size:12px;padding:0 6px;border-radius:6px;background:var(--chip);color:var(--soft);margin:3px 4px 0 0}
+.ktag.hit{background:var(--green-bg);color:var(--green);font-weight:700}
+.ktag.weak{background:var(--amber-bg);color:var(--amber)}
+.hq-go{margin:14px 16px 0;width:calc(100% - 32px);min-height:52px;border-radius:14px;background:var(--blue);color:#fff;font-size:18px;font-weight:700}
+.hq-go:disabled{opacity:.4}
+.qrcards{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin:10px 16px 0}
+.qrcard{background:#fff;color:#1E2A36;border:1px solid var(--line);border-radius:12px;overflow:hidden;text-align:center;display:flex;flex-direction:column;align-items:center}
+.qrcard .band{width:100%;background:#2B7A3D;color:#fff;padding:8px 6px 6px}
+.qrcard .band b{display:block;font-size:14px;letter-spacing:1px}
+.qrcard .band span{display:block;font-size:11px;opacity:.9}
+.qrcard .band strong{display:block;font-size:14px;margin-top:2px}
+.qrcard .qr{width:78%;margin:8px 0 4px}
+.qrcard .qr svg{width:100%;height:auto;display:block}
+.qrcard p{font-size:11px;padding-bottom:8px}
+.qrcard.new{outline:3px solid var(--blue);outline-offset:-3px}
+.site{display:block;width:calc(100% - 32px);margin:8px 16px 0;padding:12px 14px;border-radius:14px;background:var(--card);border:1px solid var(--line);text-align:left}
+.site .t{font-weight:700;font-size:17px;display:flex;gap:6px;align-items:center}
+.site .t small{margin-left:auto;font-weight:400;color:var(--soft);font-size:13px}
+.site .nums{display:flex;flex-wrap:wrap;gap:6px 12px;font-size:14px;color:var(--soft);margin-top:4px}
+.site .nums b{color:var(--text)}
+.site .nums .alert b{color:var(--red)}
+.site .nums .warn b{color:var(--amber)}
+.app{display:block;width:calc(100% - 32px);margin:8px 16px 0;padding:12px 14px;border-radius:14px;background:var(--card);border:1px solid var(--line);text-align:left}
+.app .t{font-weight:700;font-size:17px}
+.app .meta{font-size:14px;color:var(--soft)}
+.hqbanner{margin:0 16px;padding:8px 12px;border-radius:10px;background:#EFE7FB;color:#5B2A9E;font-size:14px;font-weight:700}
+#printArea{display:none}
+@page{size:A4 portrait;margin:0}
+@media print{
+  body>*:not(#printArea){display:none !important}
+  #printArea{display:block}
+  #printArea .qrcard{width:210mm;height:297mm;border:0;border-radius:0;page-break-after:always;break-after:page;outline:none}
+  #printArea .qrcard .band{padding:22mm 14mm 14mm}
+  #printArea .qrcard .band b{font-size:34pt}
+  #printArea .qrcard .band span{font-size:16pt;margin-top:3mm}
+  #printArea .qrcard .band strong{font-size:30pt;margin-top:3mm}
+  #printArea .qrcard .qr{width:125mm;margin:16mm 0 8mm}
+  #printArea .qrcard p{font-size:18pt}
+  .qrcard .band{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}
 </style>
 </head>
 <body>
 <div class="wrap" id="app"></div>
+<div id="printArea"></div>
 <div class="bar" id="bar" hidden>
   <div class="in"><div class="sum" id="sum"></div><button class="go" id="go">確認登記</button></div>
   <div class="demo" id="demo"></div>
 </div>
 <!-- LIFF SDK 固定版本（LINE 的 CDN 不送 CORS 標頭，無法加 SRI；改用 CSP 限定來源） -->
 <script src="https://static.line-scdn.net/liff/edge/versions/2.31.2/sdk.js"></script>
+<script src="qrcode.js"></script>
+<script src="hq.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

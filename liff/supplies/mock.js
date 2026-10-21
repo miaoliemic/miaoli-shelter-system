@@ -65,6 +65,46 @@ mockOps.call = async (a, f) => {
   if (a === "prep") { mockOps.events.unshift({ id: "p" + (++mockOps.n), title: `整備回報：${f.item}${f.result}`, cat: "整備回報", sev: f.result === "已完成" ? "低" : "中", status: f.result === "已完成" ? "已解決" : "待處理", text: f.text, log: "", owner: "", by: "s1", item: f.item, at: now.toISOString() }); return { ok: true }; }
   if (a === "prepDone") { mockOps.stage = "待核准"; return { ok: true }; }
 };
+// ===== 社會處（hq.js）的模擬後端：收容所主檔借用 qr-generator/shelters.js（公開資訊） =====
+const mockHq = {
+  events: [{ id: "ev1", name: "【模擬】2026-10 風災", kind: "風災", status: "應變中" }],
+  openings: [{ id: "o1", eventId: "ev1", shelterId: "sh21", name: "【模擬】清華里活動中心", code: "SIGN-ZQ78G", status: "開設中" },
+             { id: "o2", eventId: "ev1", shelterId: "sh15", name: "【模擬】大同國小活動中心", code: "SIGN-7K3Q9", status: "開設中" }],
+  apps: [{ id: "a1", name: "測試陳志明", unit: "苗栗縣社會處", phone: "0912000111", line: "志明", at: new Date(Date.now() - 12 * 60e3).toISOString() },
+         { id: "a2", name: "測試李小華", unit: "○○社福協會", phone: "0933000222", line: "Hua", at: new Date(Date.now() - 2 * 3600e3).toISOString() }],
+  n: 2,
+};
+function mockCode() {
+  const A = "23456789ABCDEFGHJKMNPQRSTUVWXYZ", r = new Uint32Array(5); crypto.getRandomValues(r);
+  return "SIGN-" + Array.from(r, x => A[x % A.length]).join("");
+}
+async function mockHqCall(a, f) {
+  await wait(400);
+  if (!window.SHELTERS) await loadScript("../../qr-generator/shelters.js");
+  const shelters = SHELTERS.map(x => ({ id: "sh" + x.no, no: x.no, name: x.name, addr: x.addr, cap: x.cap, kinds: x.kinds, weak: x.weak }));
+  if (params0().get("role") === "staff") throw new ApiError("not_hq");
+  if (a === "hqInit") return { ok: true, me: { name: "測試社會處長" }, events: mockHq.events, shelters, openings: mockHq.openings };
+  if (a === "hqOpen") {
+    let ev = mockHq.events.find(e => e.id === f.ev);
+    if (!ev) { ev = { id: "ev" + (mockHq.events.length + 1), name: f.evName, kind: f.evKind, status: "應變中" }; mockHq.events.unshift(ev); }
+    const created = [];
+    for (const id of f.sh.split(",")) {
+      if (mockHq.openings.some(o => o.eventId === ev.id && o.shelterId === id)) continue;
+      const sh = shelters.find(x => x.id === id);
+      const o = { id: "o" + (++mockHq.n), eventId: ev.id, shelterId: id, name: sh.name, code: mockCode(), status: "開設中" };
+      mockHq.openings.push(o); created.push(o);
+    }
+    return { ok: true, eventId: ev.id, created };
+  }
+  if (a === "hqApps") return { ok: true, apps: mockHq.apps };
+  if (a === "hqApprove" || a === "hqReject") { mockHq.apps = mockHq.apps.filter(x => x.id !== f.id); return { ok: true }; }
+  if (a === "hqSites") return { ok: true, sites: mockHq.openings.filter(o => o.status === "開設中").map((o, i) => {
+    const ev = mockHq.events.find(e => e.id === o.eventId), sh = shelters.find(x => x.id === o.shelterId);
+    return i === 0 ? { id: o.id, event: ev.name, name: o.name, light: "🔴", inside: 37, capacity: 120, out: 2, late: 1, care: 4, open: 2, urgent: 1, needStaff: 1, needVol: 2, low: 1 }
+                   : { id: o.id, event: ev.name, name: o.name, light: "🟢", inside: 12 * i, capacity: sh.cap, out: 0, late: 0, care: 1, open: 0, urgent: 0, needStaff: 0, needVol: 0, low: 0 };
+  }) };
+}
+
 const mockApi = {
   async load() { await wait(300); return { me: mock.me, items: mock.items.map(x => ({ ...x })), recent: mock.recent.slice(0, 5) }; },
   async resident(tag) { await wait(150); return mock.residents[tag] || null; },
@@ -85,6 +125,7 @@ const mockApi = {
     return { results };
   },
   ops: (a, f) => mockOps.call(a, f),
+  hq: (a, f) => mockHqCall(a, f),
   async pub(a, f) {
     await wait(400);
     if (a === "info") return { ok: true, shelters: [{ id: "o1", name: "【模擬】清華里活動中心" }, { id: "o2", name: "【模擬】大同國小" }], qa: [
@@ -93,7 +134,8 @@ const mockApi = {
       { title: "生活規定", text: "1. 進出請出示號碼牌。\n2. 外出請告知預計返回時間。\n3. 22:00 熄燈。", kw: "生活規定", type: "常見問題" },
       { title: "緊急聯絡", text: "緊急救護、火警：119\n報案：110\n在收容所內有緊急狀況，請直接找穿背心的現場工作人員。", kw: "緊急聯絡", type: "常見問題" }] };
     const st = mockPub.state;
-    const me = { ok: true, state: st, name: st === "none" ? "" : mock.me.name, role: st === "none" ? "" : mock.me.role, kind: params.get("kind") || "工作人員", line: "測試帳號" };
+    const hq = params0().get("role") === "hq";   // 原型：?role=hq 模擬社會處身分
+    const me = { ok: true, state: st, name: st === "none" ? "" : hq ? "測試社會處長" : mock.me.name, role: st === "none" ? "" : hq ? "社會處" : mock.me.role, kind: params.get("kind") || "工作人員", line: "測試帳號" };
     if (a === "me") return me;
     if (a === "apply") { if (st === "none") mockPub.state = "pending"; return { ...me, state: mockPub.state }; }
     if (a === "feedback") return { ok: true };
@@ -138,6 +180,7 @@ function demoBar() {
   }
   const base = location.pathname, links = [["一般進入", ""], ["掃物資標籤", "?item=SUP-7K2QX"], ["掃號碼牌（在所）", "?r=MLS-W8AGZ"], ["掃號碼牌（外出）", "?r=MLS-K7PQ2"], ["空白牌報到", "?r=MLS-NEW01"], ["失效牌", "?r=MLS-RXKK3"], ["本所", "?v=ops"], ["本所（整備中）", "?v=ops&stage=整備中"], ["非工作人員", "?as=guest"],
     ["收容所資訊", "?v=info"], ["我要反映", "?v=report"], ["緊急聯絡", "?v=sos"], ["專區（上班中）", "?v=staff"], ["專區（志工）", "?v=staff&kind=志工"],
-    ["專區（未上班）", "?v=staff&me=off"], ["專區（未申請）", "?v=staff&me=none"], ["簽退", "?v=signout"], ["簽退（不在班）", "?v=signout&me=off"]];
+    ["專區（未上班）", "?v=staff&me=off"], ["專區（未申請）", "?v=staff&me=none"], ["簽退", "?v=signout"], ["簽退（不在班）", "?v=signout&me=off"],
+    ["社會處：指揮台", "?v=hq"], ["社會處：待我處理", "?v=inbox"], ["社會處：各所現況", "?v=sites"], ["社會處看某一所", "?v=ops&o=o1"], ["專區（社會處）", "?v=staff&me=off&role=hq"], ["非社會處開指揮台", "?v=hq&role=staff"]];
   $("#demo").innerHTML = `原型示範：` + links.map(([t, q]) => `<a href="${base}${q}">${t}</a>`).join("");
 }
