@@ -642,7 +642,7 @@
           },
           "action": {
            "type": "uri",
-           "uri": "https://liff.line.me/<現場頁面的 LIFF ID（必填：圖文選單每一格都打開它）>?v=inbox"
+           "uri": "https://liff.line.me/<現場頁面的 LIFF ID（必填：圖文選單每一格都打開它）>?v=sites"
           }
          },
          {
@@ -654,7 +654,7 @@
           },
           "action": {
            "type": "uri",
-           "uri": "https://liff.line.me/<現場頁面的 LIFF ID（必填：圖文選單每一格都打開它）>?v=sites"
+           "uri": "https://liff.line.me/<現場頁面的 LIFF ID（必填：圖文選單每一格都打開它）>?v=inbox"
           }
          }
         ],

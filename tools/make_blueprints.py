@@ -325,7 +325,7 @@ def build_menu():
     top = [cell(i, 0, liff(v)) for i, v in enumerate(["info", "report", "sos"])]
     public_bottom = [{"bounds": {"x": 0, "y": ROW, "width": 2500, "height": ROW}, "action": liff("staff")}]
     staff_row = [cell(0, 1, {"type": "uri", "uri": "https://line.me/R/nv/QRCode"}), cell(1, 1, liff("ops")), cell(2, 1, liff("signout"))]
-    hq_row = [cell(i, 1, liff(v)) for i, v in enumerate(["hq", "inbox", "sites"])]   # 社會處：指揮台｜待我處理｜各所現況
+    hq_row = [cell(i, 1, liff(v)) for i, v in enumerate(["hq", "sites", "inbox"])]   # 社會處：指揮台｜各所現況｜待我處理（照選單圖）
 
     notion_meta = [{"name": "__IMTCONN__", "type": "account:notion2,notion3", "label": "Connection", "required": True}]
     line_meta = [{"name": "__IMTCONN__", "type": "account:line2", "label": "Connection", "required": True}]

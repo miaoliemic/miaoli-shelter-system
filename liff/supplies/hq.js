@@ -1,7 +1,7 @@
 // ===== 社會處畫面：指揮台（?v=hq）｜待我處理（?v=inbox）｜各所現況（?v=sites） =====
 // 社會處的權限跟著身分走、不需要簽到；後端（Make 情境 13）每次都檢查角色＝社會處、啟用中。
 // 依賴 app.js 的全域（執行時才用到）：S、api、REAL、esc、$、toast、sheet、go、ago、handleApiError、pubHead、render
-const HQ_VIEWS = ["hq", "inbox", "sites"];
+const HQ_VIEWS = ["hq", "sites", "inbox"];   // 順序同社會處選單：指揮台｜各所現況｜待我處理
 const HQ_TITLE = { hq: "指揮台", inbox: "待我處理", sites: "各所現況" };
 const HQ_KINDS = ["風災", "水災", "震災", "土石流", "海嘯", "其他"];
 const HQ_ROLES = ["管理者（收容所負責人）", "門禁組", "物資組", "醫療組"];
