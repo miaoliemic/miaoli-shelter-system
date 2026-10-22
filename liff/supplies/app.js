@@ -124,6 +124,10 @@ const recipName = () => !S.recip ? "" : S.recip.kind === "public" ? "公共用�
 // 「給 王小明」或「・公共用途」
 const toWho = () => !S.recip ? "" : S.recip.kind === "public" ? "・公共用途" : `給 ${S.recip.name}`;
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+// 寫入畫面一律經過 DOMPurify（業界標準的 HTML 過濾，資安掃描認得）：資料本身已用 esc() 跳脫，這裡再擋一層。
+// SANITIZE_DOM 關閉：本頁的 id（例如 close）會和 document 的屬性同名，開著會被拿掉、按鈕失效
+const PURIFY = { SANITIZE_DOM: false };
+function setHTML(el, html) { el.innerHTML = DOMPurify.sanitize(html, PURIFY); }
 function toast(msg) { const d = document.createElement("div"); d.className = "toast"; d.textContent = msg; document.body.append(d); setTimeout(() => d.remove(), 2600); }
 function stockText(it) {
   const extra = it.pack && it.per > 1 ? `（約 ${Math.floor(it.stock / it.per)} ${it.pack}）` : "";
@@ -147,17 +151,17 @@ function render() {
   document.documentElement.style.setProperty("--accent", ACCENT[S.mode]);
   const app = $("#app");
   if (S.guest || (S.me && !S.me.onDuty && !S.hqO)) {
-    app.innerHTML = `<div class="blocked"><h2>這個頁面限在班的工作人員使用</h2><p>請先到服務台掃「工作人員簽到 QR」簽到。</p></div>`;
+    setHTML(app, `<div class="blocked"><h2>這個頁面限在班的工作人員使用</h2><p>請先到服務台掃「工作人員簽到 QR」簽到。</p></div>`);
     $("#bar").hidden = false; $("#bar .in").hidden = true; return;
   }
   if (S.view === "resident") return renderResident();
   if (S.view === "ops") return renderOps();
-  if (!S.me) { app.innerHTML = `<div class="blocked"><p>載入中…</p></div>`; return; }
+  if (!S.me) { setHTML(app, `<div class="blocked"><p>載入中…</p></div>`); return; }
   const focus = S.focusCode && S.items.find(x => x.code === S.focusCode);
   const cats = ["全部", ...new Set(S.items.map(x => x.cat))];
   const shown = S.items.filter(x => (S.cat === "全部" || x.cat === S.cat) && (!S.q || x.name.includes(S.q)) && x !== focus);
   const lockOut = !!S.tag;
-  app.innerHTML = `
+  setHTML(app, `
   <header>
     ${tabs()}<div class="title"><h1>${esc(S.me.opening)}・物資</h1><button class="iconbtn" id="reload" aria-label="重新整理">↻</button></div>
     <div class="sub">${esc(S.me.event)}　經手人：${esc(S.me.name)}</div>
@@ -175,7 +179,7 @@ function render() {
       <div class="top"><div class="name">${esc(it.name)}${it.stock < it.safety ? " ⚠" : ""}</div></div>
       <div class="stock">${stockText(it)}${it.stock < it.safety ? `，低於安全庫存 ${it.safety}` : ""}</div>${rowCtrl(it)}</div>`).join("") || `<div class="row">找不到符合的品項</div>`}
     ${(S.me.role || "").includes("管理者") && !lockOut ? `<button class="addnew" id="addnew">＋ 新增品項</button>` : ""}</div>` : ""}
-  ${S.recent.length ? `<div class="recent"><h3>${REAL ? "這次登記" : "本所最近登記"}</h3>${S.recent.slice(0, 5).map(r => `<div>${esc(r.t)}　${esc(r.text)}</div>`).join("")}</div>` : ""}`;
+  ${S.recent.length ? `<div class="recent"><h3>${REAL ? "這次登記" : "本所最近登記"}</h3>${S.recent.slice(0, 5).map(r => `<div>${esc(r.t)}　${esc(r.text)}</div>`).join("")}</div>` : ""}`);
   renderBar();
 }
 // ===== 分頁：本所｜居民｜物資 =====
@@ -216,7 +220,7 @@ function renderOps() {
     : `<header>${tabs()}<div class="title"><h1>${esc((o && o.name) || (S.me && S.me.opening) || "本所")}・本所</h1>
       <button class="iconbtn" id="opsReload" aria-label="重新整理">↻</button></div>
     <div class="sub">${o ? `${esc(o.stage)}　${esc(o.light || "")}　` : ""}經手人：${esc((d && d.me.name) || "")}</div></header>`;
-  if (!d) { app.innerHTML = head + `<div class="blocked"><p>${esc(S.rmsg || "讀取本所狀況中…")}</p></div>`; $("#sum").textContent = ""; $("#go").textContent = "＋記錄事件"; return; }
+  if (!d) { setHTML(app, head + `<div class="blocked"><p>${esc(S.rmsg || "讀取本所狀況中…")}</p></div>`); $("#sum").textContent = ""; $("#go").textContent = "＋記錄事件"; return; }
   const evs = openEvents(), urgent = evs.filter(e => e.sev === "緊急").length;
   const stat = (k, n, label, cls) => `<button class="stat ${cls || ""}" data-show="${k}"><b>${n}</b><span>${label}</span></button>`;
   let body = "";
@@ -245,9 +249,9 @@ function renderOps() {
     body += `<div class="sec">物資庫存 <small>${low.length ? `${low.length} 項低於安全庫存` : "都在安全庫存以上"}</small></div>
       <div class="plist">${[...low, ...S.hqItems.filter(it => !low.includes(it))].map(it => `<div class="prow"><span class="n">${esc(it.name)}${it.stock < it.safety ? " ⚠" : ""}</span><span class="meta">${esc(stockText(it))}</span></div>`).join("") || `<div class="prow">沒有品項</div>`}</div>`;
   }
-  app.innerHTML = head + body;
+  setHTML(app, head + body);
   if (ro) return;
-  $("#sum").innerHTML = evs.length ? `未結 <b>${evs.length}</b>${urgent ? `・緊急 <b>${urgent}</b>` : ""}` : "沒有未結事項";
+  setHTML($("#sum"), evs.length ? `未結 <b>${evs.length}</b>${urgent ? `・緊急 <b>${urgent}</b>` : ""}` : "沒有未結事項");
   $("#go").textContent = "＋記錄事件"; $("#go").disabled = false;
 }
 function prepView(d) {
@@ -314,8 +318,8 @@ function eventSheet(id) {
 function reportSheet() {
   const f = { cat: "", sev: "中" }, rr = S.reportRes;
   const draw = root => {
-    root.querySelector("#rp-cat").innerHTML = CATS.map(c => `<button data-c="${c}" class="${f.cat === c ? "on" : ""}">${c}</button>`).join("");
-    root.querySelector("#rp-sev").innerHTML = SEVS.map(v => `<button data-v="${v}" class="${f.sev === v ? "on" : ""}">${v}</button>`).join("");
+    setHTML(root.querySelector("#rp-cat"), CATS.map(c => `<button data-c="${c}" class="${f.cat === c ? "on" : ""}">${c}</button>`).join(""));
+    setHTML(root.querySelector("#rp-sev"), SEVS.map(v => `<button data-v="${v}" class="${f.sev === v ? "on" : ""}">${v}</button>`).join(""));
     root.querySelector("#rp-warn").textContent = /緊急|高/.test(f.sev) ? "⚠ 會標記「需回報社會處」。緊急狀況請同時電話通報。" : "";
   };
   sheet(`<h2>記錄事件</h2>
@@ -357,13 +361,13 @@ function renderResident() {
   document.documentElement.style.setProperty("--accent", "var(--blue)");
   const head = `<header>${tabs()}<div class="title"><h1>${esc((d && d.opening) || (S.me && S.me.opening) || "收容所")}・居民</h1></div>
     <div class="sub">經手人：${esc((d && d.staff) || (S.me && S.me.name) || "")}${S.rtag ? `　號碼牌 ${esc(S.rtag)}` : ""}</div></header>`;
-  if (!d) { app.innerHTML = head + `<div class="blocked"><p>${esc(S.rmsg || (S.rtag ? "讀取號碼牌中…" : "請按下方「掃描」，掃居民號碼牌。"))}</p></div>`; return; }
+  if (!d) { setHTML(app, head + `<div class="blocked"><p>${esc(S.rmsg || (S.rtag ? "讀取號碼牌中…" : "請按下方「掃描」，掃居民號碼牌。"))}</p></div>`); return; }
   let body = "";
   if (d.state === "none") body = `<div class="rcard void"><h2>不是本所的號碼牌</h2><div class="meta">${esc(S.rtag)}　請確認後再掃一次</div></div>`;
   else if (d.state === "void") body = `<div class="rcard void"><h2>⚠ 此號碼牌已失效</h2><div class="meta">${esc(S.rtag)}　請勿放行，並通知現場負責人</div></div>`;
   else if (d.state === "blank") body = blankView(d);
   else body = residentView(d);
-  app.innerHTML = head + body;
+  setHTML(app, head + body);
   $("#sum").textContent = d.state === "blank" && S.rform ? "填完按上方「完成報到」" : "下一位：掃號碼牌或物資標籤";
 }
 function blankView(d) {
@@ -477,8 +481,8 @@ function renderBar() {
   bar.hidden = false;
   const label = S.mode === "count" ? "盤點" : MODES[S.mode];
   const needWho = S.mode === "out" && !S.recip;   // 發放：物資和領取對象兩個都要有，先後不拘
-  $("#sum").innerHTML = !ls.length ? (S.mode === "out" && S.recip ? `請選要發放的物資（${esc(recipName())}）` : `尚未填寫數量`)
-    : `${label} <b>${ls.length}</b> 項` + (S.mode === "out" && S.recip ? ` <b>${esc(toWho())}</b>` : "");
+  setHTML($("#sum"), !ls.length ? (S.mode === "out" && S.recip ? `請選要發放的物資（${esc(recipName())}）` : `尚未填寫數量`)
+    : `${label} <b>${ls.length}</b> 項` + (S.mode === "out" && S.recip ? ` <b>${esc(toWho())}</b>` : ""));
   $("#go").textContent = S.busy ? "登記中…" : ls.length && needWho ? "掃領取人號碼牌" : `確認${label}`;
   $("#go").disabled = !ls.length || S.busy;
 }
@@ -619,7 +623,7 @@ async function submit(ls) {
     toast("有品項超過庫存，請看紅字"); render(); return;
   }
   S.busy = true; renderBar();
-  const requestId = (crypto.randomUUID && crypto.randomUUID()) || String(Date.now()) + Math.random();
+  const requestId = (crypto.randomUUID && crypto.randomUUID()) || Array.from(crypto.getRandomValues(new Uint32Array(4)), n => n.toString(16)).join("-");
   try {
     const res = await api.submit(requestId, ls.map(l => ({ itemId: l.it.id, type: l.type, qty: l.qty, note: l.note })));
     if (res.duplicate) { toast("這筆已經登記過了"); return; }
@@ -671,7 +675,7 @@ function addItemSheet() {
 function sheet(html, onMount) {
   closeSheet();
   const bg = document.createElement("div"); bg.className = "sheet-bg"; bg.id = "sheet";
-  bg.innerHTML = `<div class="sheet">${html}</div>`;
+  setHTML(bg, `<div class="sheet">${html}</div>`);
   bg.addEventListener("click", e => { if (e.target === bg || e.target.closest("[data-close]")) closeSheet(); });
   document.body.append(bg); onMount && onMount(bg);
 }
@@ -691,20 +695,20 @@ function renderPub() {
   $("#bar").hidden = REAL; $("#bar .in").style.display = "none";   // 原型只留示範切換列
   document.title = PUB_TITLE[S.view];
   const P = S.pub, app = $("#app");
-  if (P.done) { app.innerHTML = P.done; return; }
+  if (P.done) { setHTML(app, P.done); return; }
   if (S.view === "sos") return renderSos();
   if (S.view === "info") {
-    if (!P.info) { app.innerHTML = pubHead("收容所資訊") + `<div class="blocked"><p>${esc(P.msg || "載入中…")}</p></div>`; return; }
+    if (!P.info) { setHTML(app, pubHead("收容所資訊") + `<div class="blocked"><p>${esc(P.msg || "載入中…")}</p></div>`); return; }
     const qa = P.info.qa.filter(q => q.kw !== "緊急聯絡");
     const order = q => q.type === "公告" ? 0 : 1;
-    app.innerHTML = pubHead("收容所資訊", "最新公告、用餐與物資、生活規定") +
+    setHTML(app, pubHead("收容所資訊", "最新公告、用餐與物資、生活規定") +
       qa.sort((a, b) => order(a) - order(b)).map(q => `<div class="card ${q.type === "公告" ? "notice" : ""}">
         ${q.type === "公告" ? "<small>公告</small>" : ""}<h3>${esc(q.title)}</h3><div class="body">${linkify(q.text)}</div></div>`).join("") +
       `<div class="sec">開設中的收容所 <small>${P.info.shelters.length} 所</small></div>
        <div class="shelters">${P.info.shelters.map(o => `<div>🏠 ${esc(o.name)}</div>`).join("") || "<div>目前沒有開設中的收容所</div>"}</div>
        <div class="card"><small>地址與交通請洽現場工作人員或縣府服務專線。</small></div>
        <div class="biglinks"><button class="biglink" data-go="?v=report"><span class="ic">🙋</span><span>我要反映<small>身體不適、缺物資、環境問題</small></span></button>
-         <button class="biglink" data-go="?v=sos"><span class="ic">📞</span><span>緊急聯絡</span></button></div>`;
+         <button class="biglink" data-go="?v=sos"><span class="ic">📞</span><span>緊急聯絡</span></button></div>`);
     return;
   }
   if (S.view === "report") return renderReport();
@@ -714,45 +718,45 @@ function renderPub() {
 function renderSos() {
   // 電話按鈕不等資料載入，打開就能撥
   const em = S.pub.info && S.pub.info.qa.find(q => q.kw === "緊急聯絡");
-  $("#app").innerHTML = pubHead("緊急聯絡", "有生命危險請直接撥打") + `<div class="biglinks">
+  setHTML($("#app"), pubHead("緊急聯絡", "有生命危險請直接撥打") + `<div class="biglinks">
       <a class="biglink red" href="tel:119"><span class="ic">🚑</span><span>撥打 119<small>緊急救護、火警</small></span></a>
       <a class="biglink blue" href="tel:110"><span class="ic">🚓</span><span>撥打 110<small>報案</small></span></a></div>
     ${em ? `<div class="card"><h3>${esc(em.title)}</h3><div class="body">${linkify(em.text)}</div></div>` : `<div class="card"><small>${esc(S.pub.msg || "載入其他聯絡方式…")}</small></div>`}
-    <div class="biglinks"><button class="biglink" data-go="?v=report"><span class="ic">🙋</span><span>不緊急，我要反映</span></button></div>`;
+    <div class="biglinks"><button class="biglink" data-go="?v=report"><span class="ic">🙋</span><span>不緊急，我要反映</span></button></div>`);
 }
 function renderReport() {
   const P = S.pub, f = P.form;
-  if (!P.info) { $("#app").innerHTML = pubHead("我要反映") + `<div class="blocked"><p>${esc(P.msg || "載入中…")}</p></div>`; return; }
+  if (!P.info) { setHTML($("#app"), pubHead("我要反映") + `<div class="blocked"><p>${esc(P.msg || "載入中…")}</p></div>`); return; }
   const places = [...P.info.shelters, { id: "", name: "不在收容所" }];
-  $("#app").innerHTML = pubHead("我要反映", "現場工作人員會盡快處理") + `<div class="form">
+  setHTML($("#app"), pubHead("我要反映", "現場工作人員會盡快處理") + `<div class="form">
       <label>要反映什麼？<b>*</b></label><div class="pick" id="cats">${REPORT_CATS.map(c => `<button data-cat="${c}" class="${f.cat === c ? "on" : ""}">${c}</button>`).join("")}</div>
       ${f.cat === "身體不適" ? `<p class="err">情況緊急請直接撥 119，或找現場工作人員。</p>` : ""}
       <label>您在哪裡？<b>*</b></label><div class="pick" id="places">${places.map(o => `<button data-o="${o.id}" data-where="${esc(o.name)}" class="${f.where === o.name ? "on" : ""}">${esc(o.name)}</button>`).join("")}</div>
       <label>說明（可不填）</label><textarea id="rtext" maxlength="500" placeholder="例：A 區 3 號床，頭很暈">${esc(f.text)}</textarea>
       ${P.msg ? `<p class="err">${esc(P.msg)}</p>` : ""}
     </div>
-    <div class="biglinks"><button class="biglink blue" id="sendReport" ${f.cat && f.where && !S.busy ? "" : "disabled style='opacity:.4'"}><span class="ic">📨</span><span>${S.busy ? "送出中…" : "送出反映"}</span></button></div>`;
+    <div class="biglinks"><button class="biglink blue" id="sendReport" ${f.cat && f.where && !S.busy ? "" : "disabled style='opacity:.4'"}><span class="ic">📨</span><span>${S.busy ? "送出中…" : "送出反映"}</span></button></div>`);
 }
 function renderStaff() {
   const me = S.pub.me, app = $("#app");
-  if (!me) { app.innerHTML = pubHead("工作人員專區") + `<div class="blocked"><p>${esc(S.pub.msg || "載入中…")}</p></div>`; return; }
+  if (!me) { setHTML(app, pubHead("工作人員專區") + `<div class="blocked"><p>${esc(S.pub.msg || "載入中…")}</p></div>`); return; }
   const hello = me.name ? `${me.name}（${me.role || me.kind}）您好` : "";
   const ap = S.pub.ap;
-  if (me.state === "none") app.innerHTML = pubHead("工作人員專區", "開通後才能使用工作人員功能") + `<div class="card"><div class="body">社會處派出的人員、支援社工和志工，請填寫以下資料申請開通，由社會處審核。</div></div>
+  if (me.state === "none") setHTML(app, pubHead("工作人員專區", "開通後才能使用工作人員功能") + `<div class="card"><div class="body">社會處派出的人員、支援社工和志工，請填寫以下資料申請開通，由社會處審核。</div></div>
       <div class="form"><label>姓名 <b>*</b><input id="ap-name" maxlength="40" value="${esc(ap.name)}" placeholder="請填真實姓名" autocomplete="name"></label>
         <label>單位 <b>*</b><input id="ap-unit" maxlength="40" value="${esc(ap.unit)}" placeholder="例：苗栗縣社會處、○○社福協會"></label>
         <label>聯絡電話 <b>*</b><input id="ap-phone" maxlength="20" inputmode="tel" value="${esc(ap.phone)}" placeholder="例：0912345678" autocomplete="tel"></label>
         <p class="err" id="ap-err">${esc(S.pub.msg || "")}</p></div>
-      <div class="biglinks"><button class="biglink blue" id="apply" ${S.busy ? "disabled" : ""}><span class="ic">📝</span><span>${S.busy ? "送出中…" : "送出申請"}<small>LINE 名稱「${esc(me.line || "")}」</small></span></button></div>`;
-  else if (me.state === "pending") app.innerHTML = pubHead("工作人員專區") + `<div class="done"><div class="big">⏳</div><h2>開通申請審核中</h2><p>社會處審核通過後，LINE 會通知您。到現場掃服務台的「工作人員簽到」QR 就能開始上班。</p></div>`;
-  else if (me.role === "社會處" && me.state === "off") app.innerHTML = pubHead("工作人員專區", hello) + hqLinks();
-  else if (me.state === "off") app.innerHTML = pubHead("工作人員專區", hello + "，目前未上班") + `<div class="card"><div class="body">到現場後，掃服務台張貼的「工作人員簽到」QR Code 簽到。</div></div>
-      <div class="biglinks"><button class="biglink blue" id="scanner"><span class="ic">📷</span><span>打開 QR 掃描器<small>掃簽到 QR</small></span></button></div>`;
-  else app.innerHTML = pubHead("工作人員專區", hello + "，上班中") + (me.role === "社會處" ? hqLinks() : "") + `<div class="biglinks">
+      <div class="biglinks"><button class="biglink blue" id="apply" ${S.busy ? "disabled" : ""}><span class="ic">📝</span><span>${S.busy ? "送出中…" : "送出申請"}<small>LINE 名稱「${esc(me.line || "")}」</small></span></button></div>`);
+  else if (me.state === "pending") setHTML(app, pubHead("工作人員專區") + `<div class="done"><div class="big">⏳</div><h2>開通申請審核中</h2><p>社會處審核通過後，LINE 會通知您。到現場掃服務台的「工作人員簽到」QR 就能開始上班。</p></div>`);
+  else if (me.role === "社會處" && me.state === "off") setHTML(app, pubHead("工作人員專區", hello) + hqLinks());
+  else if (me.state === "off") setHTML(app, pubHead("工作人員專區", hello + "，目前未上班") + `<div class="card"><div class="body">到現場後，掃服務台張貼的「工作人員簽到」QR Code 簽到。</div></div>
+      <div class="biglinks"><button class="biglink blue" id="scanner"><span class="ic">📷</span><span>打開 QR 掃描器<small>掃簽到 QR</small></span></button></div>`);
+  else setHTML(app, pubHead("工作人員專區", hello + "，上班中") + (me.role === "社會處" ? hqLinks() : "") + `<div class="biglinks">
       ${me.kind === "工作人員" ? `<button class="biglink" data-go="?v=ops"><span class="ic">📊</span><span>本所畫面<small>狀況、待處理事項、記錄事件</small></span></button>` : ""}
       <button class="biglink" id="scanner"><span class="ic">📷</span><span>掃描 QR<small>物資標籤、居民號碼牌</small></span></button>
       <button class="biglink" data-go="?"><span class="ic">📦</span><span>物資<small>入庫、發放、盤點</small></span></button>
-      <button class="biglink" data-go="?v=signout"><span class="ic">👋</span><span>簽退（下班）</span></button></div>`;
+      <button class="biglink" data-go="?v=signout"><span class="ic">👋</span><span>簽退（下班）</span></button></div>`);
 }
 // 社會處的入口（選單之外，也從工作人員專區進得去）
 function hqLinks() {
@@ -762,11 +766,11 @@ function hqLinks() {
 }
 function renderSignout() {
   const me = S.pub.me, app = $("#app");
-  if (!me) { app.innerHTML = pubHead("簽退") + `<div class="blocked"><p>${esc(S.pub.msg || "載入中…")}</p></div>`; return; }
-  app.innerHTML = pubHead("簽退", "確認後就會下班，選單恢復成一般版") + `<div class="rcard"><h2>${esc(me.name)}</h2><div class="meta">${esc(me.role || me.kind)}・上班中</div></div>
+  if (!me) { setHTML(app, pubHead("簽退") + `<div class="blocked"><p>${esc(S.pub.msg || "載入中…")}</p></div>`); return; }
+  setHTML(app, pubHead("簽退", "確認後就會下班，選單恢復成一般版") + `<div class="rcard"><h2>${esc(me.name)}</h2><div class="meta">${esc(me.role || me.kind)}・上班中</div></div>
     ${S.pub.msg ? `<p class="err" style="margin:10px 16px">${esc(S.pub.msg)}</p>` : ""}
     <div class="ract"><button class="main" id="doSignout" style="background:var(--red);border-color:var(--red)" ${S.busy ? "disabled" : ""}>${S.busy ? "簽退中…" : "確定簽退"}</button>
-      <button id="cancel" style="grid-column:1 / -1">取消，繼續上班</button></div>`;
+      <button id="cancel" style="grid-column:1 / -1">取消，繼續上班</button></div>`);
 }
 function pubDone(icon, title, text, again) {
   S.pub.done = `<div class="done"><div class="big">${icon}</div><h2>${esc(title)}</h2><p>${esc(text)}</p></div>
@@ -829,7 +833,7 @@ async function initLiff() {
 }
 function showFatal(msg) {
   $("#bar").hidden = true;
-  $("#app").innerHTML = `<div class="blocked"><h2>無法開啟</h2><p>${esc(msg)}</p></div>`;
+  setHTML($("#app"), `<div class="blocked"><h2>無法開啟</h2><p>${esc(msg)}</p></div>`);
 }
 function loadScript(src) {
   return new Promise((ok, fail) => { const s = document.createElement("script"); s.src = src; s.onload = ok; s.onerror = fail; document.body.append(s); });
@@ -856,8 +860,8 @@ function showAuthProblem(code) {
   const why = code === "no_token" ? "LINE 沒有提供身分憑證。請關閉頁面，從 LINE 重新開啟。"
                                   : "LINE 身分驗證沒有通過。";
   $("#bar").hidden = true;
-  $("#app").innerHTML = `<div class="blocked"><h2>無法確認您的身分</h2><p>${esc(why)}</p>
-    <p style="margin-top:12px;font-size:13px">請截圖給管理者，並告知時間。（${esc(code)}）</p></div>`;
+  setHTML($("#app"), `<div class="blocked"><h2>無法確認您的身分</h2><p>${esc(why)}</p>
+    <p style="margin-top:12px;font-size:13px">請截圖給管理者，並告知時間。（${esc(code)}）</p></div>`);
 }
 async function boot() {
   if (HQ_VIEWS.includes(S.view)) return loadHq();
@@ -866,7 +870,7 @@ async function boot() {
   if (S.view === "resident" && !S.items.length) return loadResident(S.rtag);
   let d;
   try { d = await api.load(); }
-  catch (e) { if (!handleApiError(e)) { S.me = null; $("#app").innerHTML = `<div class="blocked"><h2>暫時無法讀取庫存</h2><p>請稍後按重新整理。</p></div>`; } return; }
+  catch (e) { if (!handleApiError(e)) { S.me = null; setHTML($("#app"), `<div class="blocked"><h2>暫時無法讀取庫存</h2><p>請稍後按重新整理。</p></div>`); } return; }
   S.me = d.me; S.items = d.items; S.recent = d.recent;
   if (S.tag && !S.tagDone) {   // 只在第一次載入時帶入；之後按重新整理不會把發完的人又設回來
     S.tagDone = true;

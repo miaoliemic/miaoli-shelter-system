@@ -10,6 +10,8 @@
   const LOGO = "../assets/logo.png";     // 縣徽；檔案不存在時卡片不顯示
 
   const $ = id => document.getElementById(id);
+  // 寫入畫面一律經過 DOMPurify（資安掃描認得的 HTML 過濾）；資料本身另外用 esc() 跳脫
+  const setHTML = (el, html) => { el.innerHTML = DOMPurify.sanitize(html); };
   const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
   // ---------- 狀態 ----------
@@ -49,7 +51,7 @@
   const shelter = no => SHELTERS.find(s => s.no === no);
 
   // ---------- 1. 災害資訊 ----------
-  $("kind").innerHTML = KINDS.map(k => `<option>${k}</option>`).join("");
+  setHTML($("kind"), KINDS.map(k => `<option>${k}</option>`).join(""));
   $("ev").value = st.ev;
   $("kind").value = st.kind;
   $("time").value = st.time || nowLocal();
@@ -69,7 +71,7 @@
   function renderList() {
     const only = $("onlyFit").checked;
     const rows = SHELTERS.filter(s => !only || fits(s) || st.selected.includes(s.no));
-    $("list").innerHTML = rows.length ? rows.map(s => {
+    setHTML($("list"), rows.length ? rows.map(s => {
       const on = st.selected.includes(s.no);
       const tags = s.kinds.map(k => `<span class="tag${k === st.kind ? " hit" : ""}">${esc(k)}</span>`).join("") +
         (s.weak ? '<span class="tag weak">弱者安置</span>' : "");
@@ -77,7 +79,7 @@
         <input type="checkbox" data-no="${s.no}"${on ? " checked" : ""}>
         <span><span class="nm">${s.no}. ${esc(s.name)}</span><br>
         <span class="meta">${esc(s.addr)}・容納 ${s.cap} 人</span><br>${tags}</span></label>`;
-    }).join("") : `<p class="empty">沒有標示適用「${esc(st.kind)}」的收容所。取消上方勾選，可以看全部 21 所。</p>`;
+    }).join("") : `<p class="empty">沒有標示適用「${esc(st.kind)}」的收容所。取消上方勾選，可以看全部 21 所。</p>`);
     const sel = st.selected.map(shelter);
     const cap = sel.reduce((a, s) => a + s.cap, 0);
     $("sum").textContent = sel.length ? `已選 ${sel.length} 所，可容納 ${cap} 人` : "尚未選擇";
@@ -135,13 +137,13 @@
     const list = items();
     $("print").disabled = $("csv").disabled = !list.length;
     $("reset").disabled = !Object.keys(st.codes).length;
-    if (!list.length) { $("result").innerHTML = ""; $("sheet").innerHTML = ""; return; }
+    if (!list.length) { setHTML($("result"), ""); setHTML($("sheet"), ""); return; }
     const table = `<table class="out"><tr><th>收容所</th><th>簽到代碼（只給管理用，卡片上不印）</th><th>開設名稱（CSV）</th></tr>` +
       list.map(x => `<tr><td>${x.s.no}. ${esc(x.s.name)}</td><td><code>${x.code}</code></td><td>${esc(openName(x))}</td></tr>`).join("") +
       "</table>";
     const cards = list.map(cardHtml).join("");
-    $("result").innerHTML = table + `<div class="cards">${cards}</div>`;
-    $("sheet").innerHTML = cards;
+    setHTML($("result"), table + `<div class="cards">${cards}</div>`);
+    setHTML($("sheet"), cards);
   }
 
   const openName = x => `${st.ev}｜${x.s.name}`;

@@ -99,7 +99,7 @@ const canOpen = () => H.sel.length && !H.busy && (H.ev !== "new" || H.newEv.name
 
 function renderCmd() {
   const app = $("#app");
-  if (!H.init) { app.innerHTML = hqHead("社會處") + hqWait(); return; }
+  if (!H.init) { setHTML(app, hqHead("社會處") + hqWait()); return; }
   const { d, ev, kind, opened } = cmdState();
   const evs = d.events.filter(e => e.status !== "已結束");
   const fit = s => s.kinds.includes(kind);
@@ -138,7 +138,7 @@ function renderCmd() {
       <button class="hq-go" id="hq-print" style="margin:10px 0 0;width:100%;background:var(--green)">列印簽到 QR（${os.length} 張）</button></div>
       <div class="qrcards">${os.map(o => qrCard(o, ev.name)).join("")}</div>`;
   }
-  app.innerHTML = html;
+  setHTML(app, html);
 }
 
 function qrCard(o, evName) {
@@ -168,20 +168,20 @@ async function doOpen() {
 function doPrint() {
   const { ev, opened } = cmdState();
   if (REAL && liff.isInClient()) { toast("手機上無法列印：請用電腦打開這個畫面（LINE 登入）再列印"); return; }
-  $("#printArea").innerHTML = [...opened.values()].map(o => qrCard(o, ev.name)).join("");
+  setHTML($("#printArea"), [...opened.values()].map(o => qrCard(o, ev.name)).join(""));
   window.print();
 }
 
 // ---------- 待我處理：工作人員申請 ----------
 function renderInbox() {
   const app = $("#app");
-  if (!H.apps) { app.innerHTML = hqHead("社會處") + hqWait(); return; }
-  app.innerHTML = hqHead("有人申請時，LINE 會通知社會處") +
+  if (!H.apps) { setHTML(app, hqHead("社會處") + hqWait()); return; }
+  setHTML(app, hqHead("有人申請時，LINE 會通知社會處") +
     `<div class="sec">工作人員申請 <small>${H.apps.length} 件待核准</small></div>` +
     (H.apps.map(a => `<button class="app" data-app="${esc(a.id)}"><div class="t">${esc(a.name)}</div>
       <div class="meta">${esc(a.unit)}・${esc(a.phone)}</div><div class="meta">LINE：${esc(a.line)}・${esc(ago(a.at))}申請</div></button>`).join("")
       || `<div class="card"><small>目前沒有待核准的申請。</small></div>`) +
-    `<div class="sec">其他通知 <small>下一階段</small></div><div class="card"><small>整備完成、緊急事件會在下一階段加進這裡。</small></div>`;
+    `<div class="sec">其他通知 <small>下一階段</small></div><div class="card"><small>整備完成、緊急事件會在下一階段加進這裡。</small></div>`);
 }
 
 function appSheet(id) {
@@ -195,8 +195,8 @@ function appSheet(id) {
     <div class="err" id="ap-err"></div>
     <div class="acts"><button id="ap-no">不核准</button><button class="go" id="ap-ok" style="background:var(--green)">核准</button></div>`, root => {
     const draw = () => {
-      root.querySelector("#ap-kind").innerHTML = ["工作人員", "志工"].map(k => `<button data-k="${k}" class="${f.kind === k ? "on" : ""}">${k}</button>`).join("");
-      root.querySelector("#ap-role").innerHTML = HQ_ROLES.map(r => `<button data-r="${esc(r)}" class="${f.role === r ? "on" : ""}">${esc(r)}</button>`).join("");
+      setHTML(root.querySelector("#ap-kind"), ["工作人員", "志工"].map(k => `<button data-k="${k}" class="${f.kind === k ? "on" : ""}">${k}</button>`).join(""));
+      setHTML(root.querySelector("#ap-role"), HQ_ROLES.map(r => `<button data-r="${esc(r)}" class="${f.role === r ? "on" : ""}">${esc(r)}</button>`).join(""));
       root.querySelector("#ap-rolebox").style.display = f.kind === "志工" ? "none" : "";
     };
     draw();
@@ -224,15 +224,15 @@ function appSheet(id) {
 // ---------- 各所現況：開設中的收容所一覽，點進去看該所的本所畫面（只能看） ----------
 function renderSites() {
   const app = $("#app");
-  if (!H.sites) { app.innerHTML = hqHead("社會處") + hqWait(); return; }
+  if (!H.sites) { setHTML(app, hqHead("社會處") + hqWait()); return; }
   const groups = [...new Set(H.sites.map(s => s.event))];
   const n = (v, label, cls) => `<span class="${v ? cls : ""}">${label} <b>${v}</b></span>`;
-  app.innerHTML = hqHead("開設中的收容所，點進去看該所狀況") + (groups.map(g => `<div class="sec">${esc(g)} <small>${H.sites.filter(s => s.event === g).length} 所</small></div>` +
+  setHTML(app, hqHead("開設中的收容所，點進去看該所狀況") + (groups.map(g => `<div class="sec">${esc(g)} <small>${H.sites.filter(s => s.event === g).length} 所</small></div>` +
     H.sites.filter(s => s.event === g).map(s => `<button class="site" data-site="${esc(s.id)}">
       <div class="t">${esc(s.light || "")} ${esc(s.name)}<small>${s.inside}／${s.capacity} 人</small></div>
       <div class="nums">${n(s.out, "外出", "warn")}${n(s.late, "未返", "alert")}${n(s.care, "需關懷", "warn")}
         ${n(s.open, s.urgent ? `未結（緊急 ${s.urgent}）` : "未結事件", s.urgent ? "alert" : "warn")}${n(s.needStaff + s.needVol, "缺人", "warn")}${n(s.low, "低庫存", "warn")}</div></button>`).join("")).join("")
-    || `<div class="card"><small>目前沒有開設中的收容所。到「指揮台」開設。</small></div>`);
+    || `<div class="card"><small>目前沒有開設中的收容所。到「指揮台」開設。</small></div>`));
 }
 
 // ---------- 點擊與輸入 ----------

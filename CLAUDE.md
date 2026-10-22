@@ -36,6 +36,7 @@
 ## 檔案
 
 - `系統功能架構.excalidraw`：主畫布
+- **以下畫布與截圖工具只在本機，不在公開 repo**（2026-10-22 資安掃描後移出，列在 .gitignore）：`tools/canvas.mjs`、`tools/server.mjs`、`tools/editor.html`、`tools/manual_shots.mjs`、`tools/package*.json`、`開啟節點畫布.cmd`。
 - `tools/canvas.mjs`：讀圖、套用變更、自動排版（ELK）
 - `tools/server.mjs` + `tools/editor.html`：即時畫布，網址固定為 http://localhost:5178（`autoPort: false`）。
   - 使用者可能已經自己雙擊 `開啟節點畫布.cmd` 開好了。所以啟動前先用 `curl -s localhost:5178/scene` 確認；已經有回應就直接 navigate 過去，不要再啟動一份。

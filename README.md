@@ -23,12 +23,14 @@
 | `tools/config.example.json` | 設定範本：複製成 `config.local.json` 後填入自己的 Notion／Make.com ID |
 | `tools/make_richmenu.py` | 產生 LINE 加乘圖文選單圖片 |
 | `assets/` | 選單圖片 |
-| `系統功能架構.excalidraw` | 系統功能架構畫布；`tools/server.mjs` 是即時編輯器 |
+| `系統功能架構.excalidraw` | 系統功能架構畫布（Excalidraw 格式，可用 excalidraw.com 開啟；即時編輯工具留在開發者本機，不在版本庫） |
+| `qr-generator/` | QR Code 產生器（離線網頁，網路中斷時的備援） |
 
 ## 安全與個資
 
 - 版本庫裡**沒有任何金鑰，也沒有實際的 Notion／Make.com ID**。這些都填在本機的 `tools/config.local.json`，不進版本庫。
 - Make.com 只用連線編號呼叫 LINE 和 Notion，金鑰存在 Make.com 裡。
+- 網頁寫入畫面一律經過 DOMPurify 過濾（`liff/supplies/purify.min.js`、`qr-generator/vendor/purify.min.js`，Apache 2.0／MPL 2.0）；隨機代碼用 `crypto.getRandomValues()`。
 - 個資最小化：身分證只存後四碼；號碼牌只印隨機代號，不印姓名；照護需求只記類別。
 - 帳號登入資訊另外交接，不放在這裡。
 

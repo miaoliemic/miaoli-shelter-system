@@ -165,7 +165,7 @@ const mockApi = {
   },
   async addItem(f) {
     await wait(400);
-    const id = "i" + (mock.items.length + 1), code = "SUP-" + Math.random().toString(36).slice(2, 7).toUpperCase();
+    const id = "i" + (mock.items.length + 1), code = newCode();
     const it = { id, code, name: f.name, cat: f.cat, unit: f.unit, pack: f.pack, per: f.per || 1, stock: 0, safety: f.safety || 0 };
     mock.items.push(it); return it;
   },
@@ -183,5 +183,5 @@ function demoBar() {
     ["收容所資訊", "?v=info"], ["我要反映", "?v=report"], ["緊急聯絡", "?v=sos"], ["專區（上班中）", "?v=staff"], ["專區（志工）", "?v=staff&kind=志工"],
     ["專區（未上班）", "?v=staff&me=off"], ["專區（未申請）", "?v=staff&me=none"], ["簽退", "?v=signout"], ["簽退（不在班）", "?v=signout&me=off"],
     ["社會處：指揮台", "?v=hq"], ["社會處：待我處理", "?v=inbox"], ["社會處：各所現況", "?v=sites"], ["社會處看某一所", "?v=ops&o=o1"], ["專區（社會處）", "?v=staff&me=off&role=hq"], ["非社會處開指揮台", "?v=hq&role=staff"]];
-  $("#demo").innerHTML = `原型示範：` + links.map(([t, q]) => `<a href="${base}${q}">${t}</a>`).join("");
+  setHTML($("#demo"), `原型示範：` + links.map(([t, q]) => `<a href="${base}${q}">${t}</a>`).join(""));
 }

@@ -14,3 +14,12 @@ output/
 make/emic/
 make/shelter/
 make/gpurchase/
+
+# 本機開發工具（節點畫布、截圖），不放公開 repo（2026-10-22 資安掃描後移出）
+tools/canvas.mjs
+tools/server.mjs
+tools/editor.html
+tools/manual_shots.mjs
+tools/package.json
+tools/package-lock.json
+開啟節點畫布.cmd
