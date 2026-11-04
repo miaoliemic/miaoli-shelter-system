@@ -3,6 +3,12 @@
 const CONFIG = { liffId: "2012049994-PV1Y181j", apiUrl: "https://hook.us2.make.com/7t41m917ehb6cazsap56tygu0am7gi9x" };
 // 只有在正式網址（GitHub Pages）才啟動 LIFF；本機預覽時略過
 const IN_LIFF_HOST = location.hostname.endsWith("github.io");
+// 弱點掃描模式（?scan=1）：正式網址也不登入 LINE、不連後端，改用 mock.js 的模擬資料；
+// 同一個分頁之後切換畫面都維持掃描模式。掃描結束後移除這段
+const SCAN = (() => {
+  const on = new URLSearchParams(location.search).get("scan") === "1";
+  try { if (on) sessionStorage.setItem("scan", "1"); return sessionStorage.getItem("scan") === "1"; } catch (e) { return on; }
+})();
 
 const MODES = { in: "入庫", out: "發放", count: "盤點" };
 const ACCENT = { in: "var(--green)", out: "var(--blue)", count: "var(--amber)" };
@@ -884,7 +890,7 @@ async function boot() {
 }
 async function start() {
   render();   // 先顯示「載入中」
-  if (IN_LIFF_HOST) {
+  if (IN_LIFF_HOST && !SCAN) {
     if (!window.liff) return showFatal("LINE 元件載入失敗，請關閉頁面後從 LINE 重新開啟。");
     try { if (!(await initLiff())) return; }
     catch (e) { return showFatal("LINE 登入失敗，請關閉頁面後從 LINE 重新開啟。"); }

@@ -183,5 +183,5 @@ function demoBar() {
     ["收容所資訊", "?v=info"], ["我要反映", "?v=report"], ["緊急聯絡", "?v=sos"], ["專區（上班中）", "?v=staff"], ["專區（志工）", "?v=staff&kind=志工"],
     ["專區（未上班）", "?v=staff&me=off"], ["專區（未申請）", "?v=staff&me=none"], ["簽退", "?v=signout"], ["簽退（不在班）", "?v=signout&me=off"],
     ["社會處：指揮台", "?v=hq"], ["社會處：待我處理", "?v=inbox"], ["社會處：各所現況", "?v=sites"], ["社會處看某一所", "?v=ops&o=o1"], ["專區（社會處）", "?v=staff&me=off&role=hq"], ["非社會處開指揮台", "?v=hq&role=staff"]];
-  setHTML($("#demo"), `原型示範：` + links.map(([t, q]) => `<a href="${base}${q}">${t}</a>`).join(""));
+  setHTML($("#demo"), (SCAN ? `弱點掃描模式（模擬資料，不連後端）：` : `原型示範：`) + links.map(([t, q]) => `<a href="${base}${q}">${t}</a>`).join(""));
 }
