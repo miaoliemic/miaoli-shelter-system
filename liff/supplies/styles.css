@@ -251,3 +251,6 @@ body.pub{font-size:17px}
   #printArea .qrcard p{font-size:18pt}
   .qrcard .band{-webkit-print-color-adjust:exact;print-color-adjust:exact}
 }
+
+/* 被其他網站用框架嵌入時不顯示任何內容（framebust.js） */
+html.framed body { display: none !important; }
