@@ -133,7 +133,13 @@ const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;",
 // 寫入畫面一律經過 DOMPurify（業界標準的 HTML 過濾，資安掃描認得）：資料本身已用 esc() 跳脫，這裡再擋一層。
 // SANITIZE_DOM 關閉：本頁的 id（例如 close）會和 document 的屬性同名，開著會被拿掉、按鈕失效
 const PURIFY = { SANITIZE_DOM: false };
-function setHTML(el, html) { el.innerHTML = DOMPurify.sanitize(html, PURIFY); }
+// CSP 不允許 style 屬性（style-src 無 'unsafe-inline'）：解析前把 style 改名成 data-css，放進畫面後再用 CSSOM 套用；
+// 漏網的 style 屬性在消毒時直接移除
+DOMPurify.addHook("uponSanitizeAttribute", (node, data) => { if (data.attrName === "style") data.keepAttr = false; });
+function setHTML(el, html) {
+  el.innerHTML = DOMPurify.sanitize(String(html).replace(/(\s)style="/g, '$1data-css="'), PURIFY);
+  for (const n of el.querySelectorAll("[data-css]")) { n.style.cssText = n.dataset.css; n.removeAttribute("data-css"); }
+}
 function toast(msg) { const d = document.createElement("div"); d.className = "toast"; d.textContent = msg; document.body.append(d); setTimeout(() => d.remove(), 2600); }
 function stockText(it) {
   const extra = it.pack && it.per > 1 ? `（約 ${Math.floor(it.stock / it.per)} ${it.pack}）` : "";
