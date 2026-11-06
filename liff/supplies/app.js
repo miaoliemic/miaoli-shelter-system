@@ -239,7 +239,7 @@ function renderOps() {
   if (o.stage === "整備中" && !ro) body += prepView(d);
   if (o.stage === "待核准" && !ro) body += `<div class="rcard"><b>已送出整備完成</b><div class="meta">等社會處核准開放進駐。核准後這裡會改顯示開設中的狀況。</div></div>`;
   // 社會處檢視才能點「在所」看全部居民（工作人員的本所狀況只回外出、未返、需關懷的人，維持原樣）
-  body += `<div class="stats">${stat(ro ? "all" : "", `${o.inside}<small style="font-size:13px">／${o.capacity}</small>`, "在所／容量")}
+  body += `<div class="stats">${stat(ro ? "all" : "", `${o.inside}<small style="font-size:0.8125rem">／${o.capacity}</small>`, "在所／容量")}
     ${stat("out", o.out, "外出", o.out ? "warn" : "")}${stat("late", o.late, "未返", o.late ? "alert" : "")}
     ${stat("care", o.care, "需關懷", o.care ? "warn" : "")}${stat("", evs.length, urgent ? `未結・緊急 ${urgent}` : "未結事件", urgent ? "alert" : evs.length ? "warn" : "")}
     ${stat("", o.needStaff + o.needVol, `缺工 ${o.needStaff}・缺志 ${o.needVol}`, o.needStaff + o.needVol ? "warn" : "")}</div>`;
@@ -873,7 +873,7 @@ function showAuthProblem(code) {
                                   : "LINE 身分驗證沒有通過。";
   $("#bar").hidden = true;
   setHTML($("#app"), `<div class="blocked"><h2>無法確認您的身分</h2><p>${esc(why)}</p>
-    <p style="margin-top:12px;font-size:13px">請截圖給管理者，並告知時間。（${esc(code)}）</p></div>`);
+    <p style="margin-top:12px;font-size:0.8125rem">請截圖給管理者，並告知時間。（${esc(code)}）</p></div>`);
 }
 async function boot() {
   if (HQ_VIEWS.includes(S.view)) return loadHq();
