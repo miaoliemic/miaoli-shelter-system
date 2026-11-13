@@ -9,13 +9,16 @@
   --red:#F2867B;--red-bg:#3D1E1B;--chip:#2A3139;
 }}
 *{box-sizing:border-box;margin:0;padding:0}
-html{font-size:16px}
+html{font-size:16px;-webkit-text-size-adjust:100%;text-size-adjust:100%}
 html.big{font-size:20px}
 html,body{background:var(--bg);color:var(--text);font-family:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;line-height:1.5}
 body{font-size:1rem}
 button,input,select{font:inherit;color:inherit}
 button{cursor:pointer;border:none;background:none}
-.wrap{max-width:560px;margin:0 auto;padding-bottom:180px}
+.wrap{max-width:560px;margin:0 auto;padding-bottom:180px;overflow-x:clip;overflow-wrap:anywhere}
+/* 窄螢幕（約 360px）不要被長名稱、QR 撐出橫向捲動 */
+svg,img{max-width:100%}
+.opt>span,.title h1,.site .t,.prow .n{min-width:0}
 header{position:sticky;top:0;z-index:5;background:var(--bg);padding:14px 16px 10px;border-bottom:1px solid var(--line)}
 .title{display:flex;align-items:center;gap:8px}
 .title h1{font-size:1.1875rem;font-weight:700;flex:1}
@@ -247,6 +250,13 @@ body.pub{font-size:1.0625rem}
 .prow .meta.bad{color:var(--red);font-weight:700}
 .prow .meta.ok{color:var(--green)}
 .finacts{margin-top:18px}
+/* 指揮台：收容所清單收合後的一行摘要；展開時固定在畫面下方的「已選 N 所・選好了」列 */
+.picked{display:flex;align-items:center;gap:8px;margin-top:8px;padding:10px 12px;border-radius:12px;background:var(--blue-bg);color:var(--blue);font-weight:700}
+.picked span{flex:1;min-width:0}
+.picked button{flex:none;padding:6px 10px;border-radius:10px;border:1px solid var(--blue);background:var(--card);color:var(--blue);font-weight:700}
+.hq-sticky{position:sticky;bottom:calc(64px + env(safe-area-inset-bottom,0px));z-index:4;display:flex;align-items:center;gap:8px;margin-top:10px;padding:10px 12px;border-radius:12px;background:var(--blue);color:#fff;box-shadow:0 4px 14px rgba(0,0,0,.25)}
+.hq-sticky span{flex:1;min-width:0}
+.hq-sticky button{flex:none;padding:8px 14px;border-radius:10px;background:#fff;color:var(--blue);font-weight:700}
 .hqbanner{margin:0 16px;padding:8px 12px;border-radius:10px;background:#EFE7FB;color:#5B2A9E;font-size:0.875rem;font-weight:700}
 #printArea{display:none}
 @page{size:A4 portrait;margin:0}

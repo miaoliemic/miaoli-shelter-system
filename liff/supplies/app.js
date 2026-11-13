@@ -102,6 +102,8 @@ let REAL = false;
 // ===== 狀態 =====
 const params = new URLSearchParams(location.search);
 const PUB_VIEWS = ["info", "report", "sos", "staff", "signout"];
+// 手機存 PDF 用的列印頁（?v=printqr｜printrep#資料）：在手機瀏覽器開啟，不登入 LINE、不連後端
+const PRINT_VIEWS = ["printqr", "printrep"];
 const S = {
   me: null, items: [], recent: [],
   mode: "in", cat: "全部", q: "",
@@ -114,7 +116,7 @@ const S = {
   // 居民頁面：掃號碼牌 QR（?r=MLS-xxxxx）進來。view＝resident 顯示居民；supply 是物資
   // 一般畫面（?v=info｜report｜sos｜staff｜signout）：圖文選單直接打開，不需要在班
   // 結報（?v=report&o=…）：和民眾的「我要反映」（?v=report）同名，帶 o 的才是結報
-  view: params.get("r") ? "resident" : params.get("v") === "report" && params.get("o") ? "final" : PUB_VIEWS.includes(params.get("v")) || HQ_VIEWS.includes(params.get("v")) || params.get("v") === "ops" ? params.get("v") : "supply",
+  view: params.get("r") ? "resident" : params.get("v") === "report" && params.get("o") ? "final" : PRINT_VIEWS.includes(params.get("v")) ? params.get("v") : PUB_VIEWS.includes(params.get("v")) || HQ_VIEWS.includes(params.get("v")) || params.get("v") === "ops" ? params.get("v") : "supply",
   hqO: params.get("v") === "ops" ? params.get("o") : null,   // 社會處從「各所現況」點進來看某一所（只能看，撤收・結案除外）
   finO: params.get("v") === "report" ? params.get("o") : null,   // 結報畫面的開設 ID
   hqItems: null,
@@ -132,7 +134,10 @@ const $ = s => document.querySelector(s);
 const recipName = () => !S.recip ? "" : S.recip.kind === "public" ? "公共用途" : S.recip.name;
 // 「給 王小明」或「・公共用途」
 const toWho = () => !S.recip ? "" : S.recip.kind === "public" ? "・公共用途" : `給 ${S.recip.name}`;
-const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+// 沒有值（null、undefined，或後端轉出的字串 "null"）顯示「無」；數字 0 照常顯示
+const isNone = v => v == null || v === "" || v === "null" || v === "undefined";
+const nz = v => isNone(v) ? "無" : v;
+const esc = s => String(s == null || s === "null" || s === "undefined" ? "無" : s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 // 寫入畫面一律經過 DOMPurify（業界標準的 HTML 過濾，資安掃描認得）：資料本身已用 esc() 跳脫，這裡再擋一層。
 // SANITIZE_DOM 關閉：本頁的 id（例如 close）會和 document 的屬性同名，開著會被拿掉、按鈕失效
 const PURIFY = { SANITIZE_DOM: false };
@@ -159,6 +164,7 @@ function lines() {
 
 // ===== 畫面 =====
 function render() {
+  if (PRINT_VIEWS.includes(S.view)) return renderPrintView();
   document.body.classList.toggle("ops", S.view === "ops");
   document.body.classList.toggle("final", S.view === "final");
   if (S.view === "final") return renderFinal();
@@ -209,6 +215,7 @@ const CATS = ["緊急事件", "重大事件", "人員相關", "物資相關", "�
 const SEV_OF = { 緊急事件: "緊急", 重大事件: "高", 交班紀錄: "低" };
 const SEVS = ["緊急", "高", "中", "低"];
 const PREP = ["場地清潔", "水電設備", "安全檢查", "寢具", "醫療物資"];
+const sevRank = e => { const i = SEVS.indexOf(e.sev); return i < 0 ? SEVS.length : i; };   // 沒填嚴重程度的排最後
 const isOpen = e => !/已解決|已結案/.test(e.status);
 function staffName(id) { const d = S.ops && S.ops.duty.find(x => x.id === id); return d ? d.name : ""; }
 // 負責人：在班的從名單找；已簽退的從處理紀錄裡最後一筆「MM/DD HH:mm 姓名 認領處理」取姓名
@@ -222,8 +229,8 @@ function ago(iso) {
   return isNaN(m) ? "" : m < 1 ? "剛剛" : m < 60 ? `${m} 分鐘前` : m < 1440 ? `${Math.floor(m / 60)} 小時前` : fmtTime(iso);
 }
 function openEvents() {
-  return (S.ops ? S.ops.events : []).filter(e => isOpen(e) && !(e.cat === "整備回報" && !e.item && e.title.startsWith("整備完成")))
-    .sort((a, b) => SEVS.indexOf(a.sev) - SEVS.indexOf(b.sev) || new Date(b.at) - new Date(a.at));
+  return (S.ops ? S.ops.events : []).filter(e => isOpen(e) && !(e.cat === "整備回報" && !e.item && String(e.title || "").startsWith("整備完成")))
+    .sort((a, b) => sevRank(a) - sevRank(b) || new Date(b.at) - new Date(a.at));
 }
 function renderOps() {
   const app = $("#app"), d = S.ops;
@@ -243,7 +250,7 @@ function renderOps() {
   let body = "";
   if (o.stage === "整備中" && !ro) body += prepView(d);
   if (o.stage === "待核准" && !ro) body += `<div class="rcard"><b>已送出整備完成</b><div class="meta">等社會處核准開放進駐。核准後這裡會改顯示開設中的狀況。</div></div>`;
-  if (o.stage === "撤收中") body += `<div class="rcard"><b>撤收中</b><div class="meta">不再接受新的報到；外出、返回、離所、物資、事件、簽退照常。${ro ? "居民都離所後，按最下方「結案並產生結報」。" : "等社會處結案。"}</div></div>`;
+  if (o.stage === "撤收中") body += `<div class="rcard"><b>撤收中</b><div class="meta">不再接受新的報到；外出、返回、離所、物資、事件、簽退照常。${ro ? "居民都離所後，按最下方「完成撤收（結案並產生結報）」。" : "等社會處結案。"}</div></div>`;
   // 社會處檢視才能點「在所」看全部居民（工作人員的本所狀況只回外出、未返、需關懷的人，維持原樣）
   body += `<div class="stats">${stat(ro ? "all" : "", `${o.inside}<small style="font-size:0.8125rem">／${o.capacity}</small>`, "在所／容量")}
     ${stat("out", o.out, "外出", o.out ? "warn" : "")}${stat("late", o.late, "未返", o.late ? "alert" : "")}
@@ -259,7 +266,7 @@ function renderOps() {
   body += `<div class="sec">待處理事項 <small>${evs.length} 件，緊急的排最上面</small></div>`
     + (evs.map(e => {
       const own = !e.owner ? `<span class="own free">待認領</span>` : e.owner === d.me.id ? `<span class="own mine">我負責</span>` : `<span class="own">${esc(ownerName(e) || "其他人")}處理中</span>`;
-      return `<button class="evt ${esc(e.sev)}" data-evt="${esc(e.id)}"><div class="t">${esc(e.title)}</div>
+      return `<button class="evt ${esc(e.sev)}" data-evt="${esc(e.id)}"><div class="t">${esc(nz(e.title))}</div>
         <div class="m"><span class="sev ${esc(e.sev)}">${esc(e.sev)}</span>${own}<span>${esc(ago(e.at))}</span></div></button>`;
     }).join("") || `<div class="hint" style="margin:0 16px">目前沒有待處理的事項。</div>`);
   if (ro && S.hqItems) {
@@ -291,7 +298,7 @@ function closeActs(d, ro) {
   const st = d.opening.stage, full = ' style="grid-column:1 / -1"';
   if (ro) return `<div class="sec">撤收與結案</div><div class="ract">
     ${st === "開設中" ? `<button class="warn" id="opsClose"${full}>撤收這一所</button>` : ""}
-    ${st === "撤收中" ? `<button class="main" id="opsFinish">結案並產生結報</button>` : ""}
+    ${st === "撤收中" ? `<button class="main" id="opsFinish">完成撤收（結案並產生結報）</button>` : ""}
     <button id="opsReport"${full}>查看結報</button></div>`;
   if (st === "開設中" && /管理者/.test(d.me.role || "")) return `<div class="sec">撤收</div><div class="ract"><button class="warn" id="opsClose"${full}>撤收本所</button></div>
     <div class="hint" style="margin:6px 16px 0">災情解除、要關閉收容所時才按。撤收後不再接受新的報到。</div>`;
@@ -350,14 +357,14 @@ async function opsAct(a, f, okMsg) {
 }
 function eventSheet(id) {
   const e = S.ops.events.find(x => x.id === id); if (!e) return;
-  if (S.hqO) return sheet(`<h2>${esc(e.title)}</h2>
-    <div class="meta"><span class="sev ${esc(e.sev)}">${esc(e.sev)}</span>　${esc(e.cat)}・${esc(e.status)}・${esc(fmtTime(e.at))}${ownerName(e) ? `・${esc(ownerName(e))} 負責` : ""}</div>
+  if (S.hqO) return sheet(`<h2>${esc(nz(e.title))}</h2>
+    <div class="meta"><span class="sev ${esc(e.sev)}">${esc(e.sev)}</span>　${esc(nz(e.cat))}・${esc(nz(e.status))}・${esc(fmtTime(e.at))}${ownerName(e) ? `・${esc(ownerName(e))} 負責` : ""}</div>
     ${e.text ? `<div class="pre">${esc(e.text)}</div>` : ""}
     <label>處理紀錄</label><div class="pre">${esc((e.log || "").trim() || "（還沒有）")}</div>
     <div class="acts" style="grid-template-columns:1fr"><button data-close>關閉</button></div>`);
   const mine = e.owner === S.ops.me.id;
-  sheet(`<h2>${esc(e.title)}</h2>
-    <div class="meta"><span class="sev ${esc(e.sev)}">${esc(e.sev)}</span>　${esc(e.cat)}・${esc(e.status)}・${esc(fmtTime(e.at))}${staffName(e.by) ? `・${esc(staffName(e.by))} 記錄` : ""}</div>
+  sheet(`<h2>${esc(nz(e.title))}</h2>
+    <div class="meta"><span class="sev ${esc(e.sev)}">${esc(e.sev)}</span>　${esc(nz(e.cat))}・${esc(nz(e.status))}・${esc(fmtTime(e.at))}${staffName(e.by) ? `・${esc(staffName(e.by))} 記錄` : ""}</div>
     ${e.text ? `<div class="pre">${esc(e.text)}</div>` : ""}
     <label>處理紀錄</label><div class="pre">${esc((e.log || "").trim() || "（還沒有）")}</div>
     <label>寫一句處理情形（追加紀錄時必填，認領和解決可留空）<textarea id="ev-text" maxlength="500" placeholder="例：已請水電師傅明早來修，先放警示牌"></textarea></label>
@@ -580,7 +587,8 @@ document.addEventListener("click", async e => {
   else if (b.id === "opsFinish" || b.id === "opsReport") go(`?v=report&o=${encodeURIComponent(S.hqO)}`);
   else if (b.id === "finBack") history.length > 1 ? history.back() : go("?v=sites");
   else if (b.id === "finReload") loadFinal();
-  else if (b.id === "finPrint") { if (REAL && liff.isInClient()) toast("手機上無法列印：請用電腦打開這個畫面（LINE 登入）再列印"); else window.print(); }
+  else if (b.id === "finPrint") { if (inLine()) openPrintView("printrep", slimReport(computeReport(F.d))); else window.print(); }
+  else if (b.id === "doPrintNow") window.print();
   else if (b.id === "finDo") doFinish();
   else if (b.dataset.show !== undefined && b.dataset.show !== "") { S.opsShow = S.opsShow === b.dataset.show ? "" : b.dataset.show; render(); }
   else if (b.dataset.evt) eventSheet(b.dataset.evt);
@@ -992,7 +1000,8 @@ function renderFinal() {
     : st === "已撤收" ? "" : `這一所目前「${st}」，數字是到現在為止的統計。`;
   setHTML($("#app"), head + (note ? `<div class="hqbanner" style="margin-top:10px">${esc(note)}</div>` : "") + rep
     + `<div class="ract finacts">${st === "撤收中" ? `<button class="main" id="finDo" ${F.busy ? "disabled" : ""}>${F.busy ? "結案中…" : "確認結案"}</button>` : ""}
-      <button id="finPrint" style="grid-column:1 / -1">列印結報</button></div>`);
+      <button id="finPrint" style="grid-column:1 / -1">${inLine() ? "存成 PDF（用瀏覽器開啟）" : "列印結報"}</button></div>
+    <p class="hint" style="margin:6px 16px 0">${esc(inLine() ? PDF_HINT : "列印視窗的「目的地」選「另存為 PDF」就能存成 PDF。")}</p>`);
   setHTML($("#printArea"), `<div class="rep-print">${rep}</div>`);   // 列印時只印結報本身（按鈕、字級按鈕不印）
 }
 async function loadFinal() {
@@ -1020,6 +1029,56 @@ async function doFinish() {
     else if (!handleApiError(e)) toast("網路不穩，沒有送出，請再按一次");
     render();
   }
+}
+
+// ===== 手機存成 PDF：LINE 內建瀏覽器不能列印，改用手機的瀏覽器開啟列印頁 =====
+// 資料放在網址 # 後面（瀏覽器不會送到伺服器），內容只有名稱、簽到代碼或結報統計數字，沒有個資
+const PDF_HINT = "會用手機瀏覽器開啟，按「列印／存成 PDF」。iPhone：在列印畫面點上方的分享圖示 →「儲存到檔案」；Android：印表機選「另存為 PDF」→ 下載。";
+function inLine() {
+  try { if (REAL) return liff.isInClient(); } catch (e) {}
+  return !REAL && params.get("phone") === "1";   // 原型：?phone=1 模擬在 LINE 裡打開
+}
+const b64e = obj => { const u = new TextEncoder().encode(JSON.stringify(obj)); let b = ""; for (const x of u) b += String.fromCharCode(x); return btoa(b).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""); };
+const b64d = str => JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(str.replace(/-/g, "+").replace(/_/g, "/")), c => c.charCodeAt(0))));
+function openPrintView(v, data) {
+  const url = `${location.origin}${location.pathname}?v=${v}#${b64e(data)}`;
+  if (REAL) { try { return liff.openWindow({ url, external: true }); } catch (e) {} }
+  location.href = url;   // 原型（或開不了外部瀏覽器時）：在同一個分頁開啟
+}
+// 結報只帶統計結果（不帶開設 ID）
+function slimReport(R) { const { id, ...o } = R.o; return { ...R, o }; }
+// 網址來的資料一律重新整理型別：數字轉數字、文字轉文字（畫面仍會經過 esc 和 DOMPurify）
+function normReport(d) {
+  const N = v => Number.isFinite(+v) ? +v : 0, T = v => typeof v === "string" ? v : "";
+  const pairs = a => Array.isArray(a) ? a.map(x => [T(x && x[0]), N(x && x[1])]) : [];
+  const R = { o: { name: T(d.o && d.o.name), status: T(d.o && d.o.status), openAt: T(d.o && d.o.openAt), closeAt: T(d.o && d.o.closeAt) } };
+  for (const k of ["start", "end", "total", "peak", "inside", "careN", "ev", "done", "open", "shifts", "people", "hours", "noOut"]) R[k] = N(d[k]);
+  R.ongoing = !!d.ongoing;
+  for (const k of ["ages", "cares", "cats", "sevs"]) R[k] = pairs(d[k]);
+  R.items = Array.isArray(d.items) ? d.items.map(([k, t]) => [T(k), Object.fromEntries(Object.entries(t || {}).map(([a, b]) => [T(a), N(b)]))]) : [];
+  R.capped = Array.isArray(d.capped) ? d.capped.map(T) : [];
+  return R;
+}
+function renderPrintView() {
+  $("#bar").hidden = true;
+  let d = null; try { d = b64d(location.hash.slice(1)); } catch (e) {}
+  let body = "", title = "", ok = false;
+  if (S.view === "printqr") {
+    title = "簽到 QR";
+    ok = !!d && typeof d.e === "string" && Array.isArray(d.c) && d.c.length > 0
+      && d.c.every(x => Array.isArray(x) && typeof x[0] === "string" && /^SIGN-[0-9A-Z]{5}$/.test(x[1]));
+    if (ok) body = d.c.map(([n, c]) => qrCardRaw(d.e, n, c)).join("");
+  } else {
+    title = "結報";
+    try { if (d && d.o) { body = `<div class="rep-print">${reportHtml(normReport(d))}</div>`; ok = true; } } catch (e) {}
+  }
+  document.title = title;
+  if (!ok) { setHTML($("#app"), pubHead(title) + `<div class="blocked"><p>列印資料不完整。請回到 LINE，再按一次「存成 PDF」。</p></div>`); return; }
+  setHTML($("#app"), pubHead(title, "按下面的按鈕，選「列印」或「另存為 PDF」")
+    + `<div class="biglinks"><button class="biglink blue" id="doPrintNow"><span class="ic">🖨</span><span>列印／存成 PDF</span></button></div>
+    <p class="hint" style="margin:8px 16px 0">iPhone：列印畫面點上方的分享圖示 →「儲存到檔案」。Android：印表機選「另存為 PDF」→ 下載。</p>`
+    + (S.view === "printqr" ? `<div class="qrcards">${body}</div>` : body));
+  setHTML($("#printArea"), body);
 }
 
 // 回傳 true＝已登入可以開始；false＝正在導向 LINE 登入頁
@@ -1081,6 +1140,7 @@ async function boot() {
   render();
 }
 async function start() {
+  if (PRINT_VIEWS.includes(S.view)) return render();   // 列印頁：資料在網址裡，不登入、不連後端
   render();   // 先顯示「載入中」
   if (IN_LIFF_HOST && !SCAN) {
     if (!window.liff) return showFatal("LINE 元件載入失敗，請關閉頁面後從 LINE 重新開啟。");

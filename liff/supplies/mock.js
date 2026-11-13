@@ -55,7 +55,8 @@ function mockStatus() {
     duty: [{ id: "s1", name: mock.me.name, role: mock.me.role, kind: "工作人員" }, { id: "s2", name: "測試阿明", role: "門禁組", kind: "工作人員" }, { id: "s3", name: "測試小美", role: "志工", kind: "志工" }],
     residents: [{ id: "r1", name: "測試王小明", status: "在所", back: "", care: "高齡者" }, { id: "r2", name: "測試林阿姨", status: "外出", back: new Date(Date.now() + 2 * 3600e3).toISOString(), care: "" },
                 { id: "r4", name: "測試陳伯伯", status: "未返", back: new Date(Date.now() - 3600e3).toISOString(), care: "身心障礙" }],
-    events: mockOps.events.map(e => ({ ...e })) };
+    // o2：後端欄位沒填時會轉出 null，畫面要顯示「無」
+    events: mockOps.events.map(e => ({ ...e })).concat(S.hqO === "o2" ? [{ id: "e9", title: null, cat: null, sev: null, status: "待處理", text: "", log: "", owner: "", by: "", item: "", at: new Date().toISOString() }] : []) };
 }
 mockOps.call = async (a, f) => {
   await wait(400);
@@ -223,6 +224,7 @@ function demoBar() {
     ["收容所資訊", "?v=info"], ["我要反映", "?v=report"], ["緊急聯絡", "?v=sos"], ["專區（上班中）", "?v=staff"], ["專區（志工）", "?v=staff&kind=志工"],
     ["專區（未上班）", "?v=staff&me=off"], ["專區（未申請）", "?v=staff&me=none"], ["簽退", "?v=signout"], ["簽退（不在班）", "?v=signout&me=off"],
     ["社會處：指揮台", "?v=hq"], ["社會處：待我處理", "?v=inbox"], ["社會處：各所現況", "?v=sites"], ["社會處看某一所", "?v=ops&o=o1"], ["社會處看某一所（撤收中）", "?v=ops&o=o1&stage=撤收中"],
-    ["結報（撤收中，可結案）", "?v=report&o=o2&stage=撤收中"], ["結報（已結案）", "?v=report&o=o9"], ["專區（社會處）", "?v=staff&me=off&role=hq"], ["非社會處開指揮台", "?v=hq&role=staff"]];
+    ["結報（撤收中，可結案）", "?v=report&o=o2&stage=撤收中"], ["結報（已結案）", "?v=report&o=o9"],
+    ["指揮台（手機 LINE：存成 PDF）", "?v=hq&phone=1"], ["結報（手機 LINE：存成 PDF）", "?v=report&o=o9&phone=1"], ["空值顯示「無」", "?v=ops&o=o2"], ["專區（社會處）", "?v=staff&me=off&role=hq"], ["非社會處開指揮台", "?v=hq&role=staff"]];
   setHTML($("#demo"), (SCAN ? `弱點掃描模式（模擬資料，不連後端）：` : `原型示範：`) + links.map(([t, q]) => `<a href="${base}${q}">${t}</a>`).join(""));
 }
