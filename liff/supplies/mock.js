@@ -29,8 +29,14 @@ const mock = {
   seen: new Set(),
 };
 
+// 開設狀態（撤收・結案）記在這個分頁的 sessionStorage，換畫面後還在；?stage= 可以直接指定
+function mockStage(o, set) {
+  const k = "mockStage:" + o;
+  try { if (set) sessionStorage.setItem(k, set); const v = sessionStorage.getItem(k); if (v) return v; } catch (e) { if (set) return set; }
+  return params0().get("stage") || (o === "o9" ? "已撤收" : "開設中");
+}
 const mockOps = {
-  stage: params0().get("stage") || "開設中", n: 3,
+  stage: mockStage("o1"), n: 3,
   events: [
     { id: "e1", title: "設施環境：2 樓男廁漏水", cat: "設施環境", sev: "高", status: "待處理", text: "2 樓男廁洗手台下方漏水，地板濕滑", log: "", owner: "", by: "s2", item: "", at: new Date(Date.now() - 50 * 60e3).toISOString() },
     { id: "e2", title: "人員相關：夜班志工不足", cat: "人員相關", sev: "中", status: "處理中", text: "今晚 22:00 後只有 1 位志工", log: "\n10/19 14:20 測試小芳 認領處理：已聯絡社會處調派", owner: "s1", by: "s1", item: "", at: new Date(Date.now() - 3 * 3600e3).toISOString() },
@@ -43,7 +49,8 @@ const mockPub = { state: params0().get("me") || "on" };   // 原型：?me=none�
 function mockStatus() {
   const open = mockOps.events.filter(e => !/已解決|已結案/.test(e.status));
   return { ok: true, me: { id: "s1", name: mock.me.name, role: mock.me.role },
-    opening: { name: mock.me.opening, stage: mockOps.stage, light: open.some(e => e.sev === "緊急") ? "🔴" : "🟡", inside: 37, capacity: 120, out: 2, late: 1, care: 4,
+    opening: { id: S.hqO || "o1", name: S.hqO ? (mockHq.openings.find(o => o.id === S.hqO) || {}).name || mock.me.opening : mock.me.opening,
+               stage: S.hqO ? mockStage(S.hqO) : mockOps.stage, light: open.some(e => e.sev === "緊急") ? "🔴" : "🟡", inside: 37, capacity: 120, out: 2, late: 1, care: 4,
                open: open.length, urgent: open.filter(e => e.sev === "緊急").length, needStaff: 1, needVol: 2 },
     duty: [{ id: "s1", name: mock.me.name, role: mock.me.role, kind: "工作人員" }, { id: "s2", name: "測試阿明", role: "門禁組", kind: "工作人員" }, { id: "s3", name: "測試小美", role: "志工", kind: "志工" }],
     residents: [{ id: "r1", name: "測試王小明", status: "在所", back: "", care: "高齡者" }, { id: "r2", name: "測試林阿姨", status: "外出", back: new Date(Date.now() + 2 * 3600e3).toISOString(), care: "" },
@@ -70,6 +77,7 @@ const mockHq = {
   events: [{ id: "ev1", name: "【模擬】2026-10 風災", kind: "風災", status: "應變中" }],
   openings: [{ id: "o1", eventId: "ev1", shelterId: "sh21", name: "【模擬】清華里活動中心", code: "SIGN-ZQ78G", status: "開設中" },
              { id: "o2", eventId: "ev1", shelterId: "sh15", name: "【模擬】大同國小活動中心", code: "SIGN-7K3Q9", status: "開設中" }],
+  closed: { id: "o9", eventId: "ev0", name: "【模擬】2026-09 豪雨｜文山國小", openAt: new Date(Date.now() - 10 * 864e5).toISOString(), closeAt: new Date(Date.now() - 6 * 864e5).toISOString(), n: 18, m: 15 },
   apps: [{ id: "a1", name: "測試陳志明", unit: "苗栗縣社會處", phone: "0912000111", line: "志明", at: new Date(Date.now() - 12 * 60e3).toISOString() },
          { id: "a2", name: "測試李小華", unit: "○○社福協會", phone: "0933000222", line: "Hua", at: new Date(Date.now() - 2 * 3600e3).toISOString() }],
   n: 2,
@@ -99,11 +107,43 @@ async function mockHqCall(a, f) {
   }
   if (a === "hqApps") return { ok: true, apps: mockHq.apps };
   if (a === "hqApprove" || a === "hqReject") { mockHq.apps = mockHq.apps.filter(x => x.id !== f.id); return { ok: true }; }
-  if (a === "hqSites") return { ok: true, sites: mockHq.openings.filter(o => o.status === "開設中").map((o, i) => {
-    const ev = mockHq.events.find(e => e.id === o.eventId), sh = shelters.find(x => x.id === o.shelterId);
-    return i === 0 ? { id: o.id, eventId: ev.id, name: o.name, light: "🔴", inside: 37, capacity: 120, out: 2, late: 1, care: 4, open: 2, urgent: 1, needStaff: 1, needVol: 2, low: 1 }
-                   : { id: o.id, eventId: ev.id, name: o.name, light: "🟢", inside: 12 * i, capacity: sh.cap, out: 0, late: 0, care: 1, open: 0, urgent: 0, needStaff: 0, needVol: 0, low: 0 };
-  }), events: mockHq.events.map(e => ({ id: e.id, name: e.name })) };
+  if (a === "hqSites") return { ok: true, sites: mockHq.openings.filter(o => /開設中|撤收中/.test(mockStage(o.id))).map((o, i) => {
+    const ev = mockHq.events.find(e => e.id === o.eventId), sh = shelters.find(x => x.id === o.shelterId), stage = mockStage(o.id);
+    return i === 0 ? { id: o.id, eventId: ev.id, name: o.name, stage, light: "🔴", inside: 37, capacity: 120, out: 2, late: 1, care: 4, open: 2, urgent: 1, needStaff: 1, needVol: 2, low: 1 }
+                   : { id: o.id, eventId: ev.id, name: o.name, stage, light: "🟢", inside: 12 * i, capacity: sh.cap, out: 0, late: 0, care: 1, open: 0, urgent: 0, needStaff: 0, needVol: 0, low: 0 };
+  }), events: mockHq.events.map(e => ({ id: e.id, name: e.name })),
+    closed: [mockHq.closed, ...mockHq.openings.filter(o => mockStage(o.id) === "已撤收").map(o => ({ id: o.id, eventId: o.eventId, name: o.name, closeAt: new Date().toISOString(), n: 40, m: 33 }))] };
+  // 撤收（開設中 → 撤收中）、結案（撤收中 → 已撤收）、結報原始資料
+  if (a === "hqClose" || a === "hqFinish") {
+    const from = a === "hqClose" ? "開設中" : "撤收中", to = a === "hqClose" ? "撤收中" : "已撤收";
+    if (mockStage(f.o) !== from) throw new ApiError("bad_state");
+    mockStage(f.o, to); if (f.o === "o1") mockOps.stage = to;
+    if (a === "hqFinish") console.log("[模擬] hqFinish 寫入 Notion：", { n: f.n, m: f.m, s: f.s });
+    return { ok: true };
+  }
+  if (a === "hqReport") return mockReport(f.o);
+}
+
+// 結報原始資料（不含姓名等個資，和正式後端相同格式）：依開設編號產生固定的模擬數字
+function mockReport(o) {
+  const closed = o === "o9", stage = mockStage(o), H = 3600e3, now = Date.now();
+  const openAt = closed ? now - 10 * 864e5 : now - 3 * 864e5, closeAt = closed ? now - 6 * 864e5 : 0, end = closeAt || now;
+  const iso = t => new Date(t).toISOString(), nRes = closed ? 18 : 40;
+  const ages = ["成人", "成人", "長者", "兒童", "成人", "嬰幼兒", "長者"], cares = ["", "高齡者", "", "身心障礙", "", "幼童,其他", "", "孕婦", "特殊醫療需求", ""];
+  const residents = Array.from({ length: nRes }, (_, i) => {
+    const t = openAt + (i * 1.3 + 1) * H, left = closed || i % 3 === 0;
+    return { age: ages[i % ages.length], care: cares[i % cares.length], status: left ? "已離所" : ["在所", "在所", "外出", "未返"][i % 4],
+             in: iso(t), out: left ? iso(Math.min(end - H, t + (20 + i) * H)) : "" };
+  });
+  const L = (cat, sev, prog) => ({ cat, sev, prog });
+  const logs = [L("整備回報", "低", "已解決"), L("設施環境", "高", "已解決"), L("人員相關", "中", "處理中"), L("緊急事件", "緊急", "已結案"),
+    L("物資相關", "中", "已解決"), L("居民反映", "中", "待處理"), L("交班紀錄", "低", "已解決"), L("重大事件", "高", closed ? "已結案" : "待處理")];
+  const M = (name, type, qty) => ({ sum: `${name} ${type} ${qty}`, type, qty });   // 正式後端的 sum 是 URL 編碼，post() 解碼後同這個格式
+  const moves = [M("飲用水", "入庫", 240), M("飲用水", "發放", 180), M("泡麵", "入庫", 120), M("泡麵", "發放", 96), M("毛毯", "入庫", 40),
+    M("毛毯", "發放", 38), M("暖暖包", "報廢", 5), M("衛生紙", "盤點調整", -2), M("口罩", "調撥", 50)];
+  const att = Array.from({ length: closed ? 8 : 14 }, (_, i) => ({ person: "s" + (i % 6), in: iso(openAt + i * 5 * H), out: i % 5 === 4 && !closed ? "" : iso(openAt + (i * 5 + 8) * H) }));
+  return { ok: true, opening: { id: o, name: closed ? mockHq.closed.name : (mockHq.openings.find(x => x.id === o) || { name: mock.me.opening }).name,
+    status: stage, openAt: iso(openAt), closeAt: stage === "已撤收" ? iso(closed ? closeAt : now) : "" }, residents, logs, moves, att };
 }
 
 const mockApi = {
@@ -182,6 +222,7 @@ function demoBar() {
   const base = location.pathname, links = [["一般進入", ""], ["掃物資標籤", "?item=SUP-7K2QX"], ["掃號碼牌（在所）", "?r=MLS-W8AGZ"], ["掃號碼牌（外出）", "?r=MLS-K7PQ2"], ["空白牌報到", "?r=MLS-NEW01"], ["失效牌", "?r=MLS-RXKK3"], ["本所", "?v=ops"], ["本所（整備中）", "?v=ops&stage=整備中"], ["非工作人員", "?as=guest"],
     ["收容所資訊", "?v=info"], ["我要反映", "?v=report"], ["緊急聯絡", "?v=sos"], ["專區（上班中）", "?v=staff"], ["專區（志工）", "?v=staff&kind=志工"],
     ["專區（未上班）", "?v=staff&me=off"], ["專區（未申請）", "?v=staff&me=none"], ["簽退", "?v=signout"], ["簽退（不在班）", "?v=signout&me=off"],
-    ["社會處：指揮台", "?v=hq"], ["社會處：待我處理", "?v=inbox"], ["社會處：各所現況", "?v=sites"], ["社會處看某一所", "?v=ops&o=o1"], ["專區（社會處）", "?v=staff&me=off&role=hq"], ["非社會處開指揮台", "?v=hq&role=staff"]];
+    ["社會處：指揮台", "?v=hq"], ["社會處：待我處理", "?v=inbox"], ["社會處：各所現況", "?v=sites"], ["社會處看某一所", "?v=ops&o=o1"], ["社會處看某一所（撤收中）", "?v=ops&o=o1&stage=撤收中"],
+    ["結報（撤收中，可結案）", "?v=report&o=o2&stage=撤收中"], ["結報（已結案）", "?v=report&o=o9"], ["專區（社會處）", "?v=staff&me=off&role=hq"], ["非社會處開指揮台", "?v=hq&role=staff"]];
   setHTML($("#demo"), (SCAN ? `弱點掃描模式（模擬資料，不連後端）：` : `原型示範：`) + links.map(([t, q]) => `<a href="${base}${q}">${t}</a>`).join(""));
 }

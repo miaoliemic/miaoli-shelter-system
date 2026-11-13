@@ -1,6 +1,6 @@
 // ===== 社會處畫面：指揮台（?v=hq）｜待我處理（?v=inbox）｜各所現況（?v=sites） =====
 // 社會處的權限跟著身分走、不需要簽到；後端（Make 情境 13）每次都檢查角色＝社會處、啟用中。
-// 依賴 app.js 的全域（執行時才用到）：S、api、REAL、esc、$、toast、sheet、go、ago、handleApiError、pubHead、render
+// 依賴 app.js 的全域（執行時才用到）：S、api、REAL、esc、$、toast、sheet、go、ago、fmtTime、handleApiError、pubHead、render
 const HQ_VIEWS = ["hq", "sites", "inbox"];   // 順序同社會處選單：指揮台｜各所現況｜待我處理
 const HQ_TITLE = { hq: "指揮台", inbox: "待我處理", sites: "各所現況" };
 const HQ_KINDS = ["風災", "水災", "震災", "土石流", "海嘯", "其他"];
@@ -9,7 +9,7 @@ const OA_ID = "@796juukk";   // 官方帳號 Basic ID；換帳號時要改這裡
 const signUrl = code => `https://line.me/R/oaMessage/${OA_ID}/?` + encodeURIComponent("簽到 " + code);
 
 const H = {
-  init: null, apps: null, sites: null, msg: "", busy: false,
+  init: null, apps: null, sites: null, closed: null, msg: "", busy: false,
   ev: "",                              // 選到的災害事件 id；"new" 表示要建立新的
   newEv: { name: "", kind: "風災" },
   sel: [],                             // 勾選要開設的收容所 id
@@ -67,6 +67,8 @@ async function loadHq() {
     if (d) {
       const evName = id => ((d.events || []).find(e => e.id === id) || {}).name || "其他";
       H.sites = (d.sites || []).map(s => ({ ...s, event: s.event || evName(first(s.eventId)) }));
+      // 最近結案（已撤收）：依撤收時間新到舊
+      H.closed = (d.closed || []).sort((a, b) => (Date.parse(b.closeAt) || 0) - (Date.parse(a.closeAt) || 0));
     }
   }
   render();
@@ -221,18 +223,22 @@ function appSheet(id) {
   });
 }
 
-// ---------- 各所現況：開設中的收容所一覽，點進去看該所的本所畫面（只能看） ----------
+// ---------- 各所現況：開設中、撤收中的收容所一覽，點進去看該所的本所畫面（只能看，撤收・結案除外）；下方列出最近結案 ----------
 function renderSites() {
   const app = $("#app");
   if (!H.sites) { setHTML(app, hqHead("社會處") + hqWait()); return; }
   const groups = [...new Set(H.sites.map(s => s.event))];
   const n = (v, label, cls) => `<span class="${v ? cls : ""}">${label} <b>${v}</b></span>`;
-  setHTML(app, hqHead("開設中的收容所，點進去看該所狀況") + (groups.map(g => `<div class="sec">${esc(g)} <small>${H.sites.filter(s => s.event === g).length} 所</small></div>` +
+  const closed = H.closed || [];
+  setHTML(app, hqHead("開設中、撤收中的收容所，點進去看該所狀況") + (groups.map(g => `<div class="sec">${esc(g)} <small>${H.sites.filter(s => s.event === g).length} 所</small></div>` +
     H.sites.filter(s => s.event === g).map(s => `<button class="site" data-site="${esc(s.id)}">
-      <div class="t">${esc(s.light || "")} ${esc(s.name)}<small>${s.inside}／${s.capacity} 人</small></div>
+      <div class="t">${esc(s.light || "")} ${esc(s.name)}${s.stage === "撤收中" ? `<span class="stagetag">撤收中</span>` : ""}<small>${s.inside}／${s.capacity} 人</small></div>
       <div class="nums">${n(s.out, "外出", "warn")}${n(s.late, "未返", "alert")}${n(s.care, "需關懷", "warn")}
         ${n(s.open, s.urgent ? `未結（緊急 ${s.urgent}）` : "未結事件", s.urgent ? "alert" : "warn")}${n(s.needStaff + s.needVol, "缺人", "warn")}${n(s.low, "低庫存", "warn")}</div></button>`).join("")).join("")
-    || `<div class="card"><small>目前沒有開設中的收容所。到「指揮台」開設。</small></div>`));
+    || `<div class="card"><small>目前沒有開設中的收容所。到「指揮台」開設。</small></div>`)
+    + (closed.length ? `<div class="sec">最近結案 <small>點進去看結報</small></div>` + closed.map(c => `<button class="site" data-final="${esc(c.id)}">
+      <div class="t">${esc(c.name)}<small>${esc(fmtTime(c.closeAt))} 結案</small></div>
+      <div class="nums"><span>累計收容 <b>${toNum(c.n)}</b></span><span>最高在所 <b>${toNum(c.m)}</b></span></div></button>`).join("") : ""));
 }
 
 // ---------- 點擊與輸入 ----------
@@ -248,6 +254,7 @@ document.addEventListener("click", e => {
   if (t.id === "hq-print") return doPrint();
   if (t.dataset.app) return appSheet(t.dataset.app);
   if (t.dataset.site) return go(`?v=ops&o=${encodeURIComponent(t.dataset.site)}`);
+  if (t.dataset.final) return go(`?v=report&o=${encodeURIComponent(t.dataset.final)}`);
 });
 document.addEventListener("input", e => {
   if (S.view !== "hq") return;

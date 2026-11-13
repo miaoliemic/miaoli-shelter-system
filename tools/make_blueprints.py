@@ -4,9 +4,15 @@
   python tools/make_blueprints.py            讀 tools/config.local.json，輸出到 make/（不進版本庫）
   python tools/make_blueprints.py --example  讀 tools/config.example.json，輸出範例到 make/example/
   python tools/make_blueprints.py --account emic  改用 config 裡 make_accounts.emic 的連線編號，輸出到 make/emic/
+                                                  （帳號設了 notion 時，改用 notion_workspaces 裡該工作區的資料表）
 
 第一次使用：複製 tools/config.example.json 成 tools/config.local.json，填入自己的
 Notion data source ID、Make.com 連線編號和 webhook 編號（說明見 docs/部署說明.md）。
+
+情境 13 的社會處動作（hq_routes）另有撤收、結案、結報（2026-11-13）：
+  hqClose 撤收（開設中 → 撤收中；社會處，或在班、派駐這一所的管理者）｜
+  hqFinish 結案（撤收中 → 已撤收，寫入撤收時間、結案數字、結報摘要，並把結報附加到開設頁面內文；限社會處）｜
+  hqReport 結報原始資料（收容登記、現場日誌、物資異動、出勤各最多 100 筆，由頁面自己統計；限社會處）
 
 規格見 docs/第一版LINE流程.md。藍圖裡不含任何金鑰：
 Make.com 只用連線編號呼叫 LINE 和 Notion，金鑰存在 Make.com 裡。
@@ -26,6 +32,9 @@ CFG = json.loads(_cfg_path.read_text(encoding="utf-8"))
 ACCOUNT = sys.argv[sys.argv.index("--account") + 1] if "--account" in sys.argv else ""
 if ACCOUNT:
     CFG["make"] = CFG["make_accounts"][ACCOUNT]
+    # make_accounts.<名稱>.notion：改接 notion_workspaces.<工作區> 的資料表（例：G_purchase 的 Make 接苗栗的 Notion）
+    if CFG["make"].get("notion"):
+        CFG["notion"] = CFG["notion_workspaces"][CFG["make"]["notion"]]
 
 # ---- 環境設定（來自 config） ----
 HOOK = CFG["make"]["line_webhook_id"]
@@ -229,7 +238,7 @@ AGES = ["成人", "長者", "兒童", "嬰幼兒"]
 KINDS = ["風災", "水災", "震災", "土石流", "海嘯", "其他"]
 HQ = "社會處"
 HQ_GRANT_ROLES = [MGR, "門禁組", "物資組", "醫療組", "志工"]   # 社會處核准時能給的角色（不含社會處本身）
-HQ_ACTS = ["hqInit", "hqOpen", "hqApps", "hqApprove", "hqReject", "hqSites"]
+HQ_ACTS = ["hqInit", "hqOpen", "hqApps", "hqApprove", "hqReject", "hqSites", "hqClose", "hqFinish", "hqReport"]
 
 
 def build_main():
@@ -754,7 +763,8 @@ def status_flow_for(b, respond, W, open_expr, all_res=False, sfx=""):
         "at": f"{{{{{L}.created_time}}}}"})
     num = lambda p: "{{ifempty(" + sp(O, p, ".number")[2:-2] + "; 0)}}"
     status_body = ('{"ok":true,"me":{"id":"' + f"{{{{{W}.id}}}}" + '","name":"' + enc(w_name) + '","role":"' + w_role + '"},'
-                   '"opening":{"name":"' + enc(sp(O, "開設名稱", "[].plain_text")) + '","stage":"' + sp(O, "開設狀態", ".name")
+                   # id：管理者按「撤收本所」時送回來（hqClose 的 o）
+                   '"opening":{"id":"' + f"{{{{{O}.id}}}}" + '","name":"' + enc(sp(O, "開設名稱", "[].plain_text")) + '","stage":"' + sp(O, "開設狀態", ".name")
                    + '","light":"' + sp(O, "狀況燈號", ".string") + '","inside":' + num("在所人數") + ',"capacity":' + num("容納人數")
                    + ',"out":' + num("外出人數") + ',"late":' + num("未返人數") + ',"care":' + num("需關懷人數")
                    + ',"open":' + num("未結日誌數") + ',"urgent":' + num("緊急未結數")
@@ -984,7 +994,12 @@ def hq_routes(b, respond, W, auth_ok, on, act, load_flow_for):
     """社會處（liff/supplies/?v=hq｜inbox｜sites）的動作，掛在情境 13 的「依身分與動作分流」底下。
     權限跟著身分走：角色＝社會處、啟用中，不需要在班。社會處由系統管理者在 Notion 名冊指定，不能自己申請。
       a＝hqInit 指揮台資料｜hqOpen 開設（ev 災害 ID 或空白＋evName/evKind 建新災害、sh＝收容所ID:簽到代碼,…）｜
-         hqApps 待核准的申請｜hqApprove 核准（id、kind、role）｜hqReject 不核准（id）｜hqSites 開設中各所的數字
+         hqApps 待核准的申請｜hqApprove 核准（id、kind、role）｜hqReject 不核准（id）｜
+         hqSites 開設中、撤收中各所的數字＋最近結案的 10 所｜
+         hqClose 撤收（o；開設中 → 撤收中）｜hqFinish 結案（o、n 累計收容人數、m 最高在所人數、s 結報摘要；撤收中 → 已撤收）｜
+         hqReport 結報原始資料（o；任何狀態都能讀，數字由頁面統計，不在 Make 裡算以省點數）
+      hqClose 例外：在班、派駐開設＝o 的管理者也能撤收自己這一所（管理者不在班回 not_on_duty、別所回 not_ours）。
+      撤收中仍可外出、返回、離所、物資、事件、簽退；報到只接受開設中（register 已擋）。
       另外 status、load 帶 o（開設 ID）時，是社會處看某一所（只能看，寫入的動作都不接受 o）。"""
     w_name = sp(W, "姓名", "[].plain_text")
     w_role = sp(W, "角色", ".name")
@@ -1103,25 +1118,126 @@ def hq_routes(b, respond, W, auth_ok, on, act, load_flow_for):
             respond("回傳不能不核准", '{"ok":false,"error":"bad_target"}', "409")]),
     ])]
 
-    # ---- hqSites：開設中的各所數字＋進行中的災害名稱（頁面依災害分組） ----
-    st = search_all("找開設中的收容所（社會處）", DS_OPEN, [c("開設狀態 |&*^%$#@| select", "select:equals", "開設中")], 50)
+    # ---- hqSites：開設中、撤收中的各所數字＋進行中的災害名稱（頁面依災害分組）＋最近結案 ----
+    st = search_all("找開設中與撤收中的收容所（社會處）", DS_OPEN, [], 50)
+    st["mapper"]["filter"] = [[c("開設狀態 |&*^%$#@| select", "select:equals", "開設中")],
+                              [c("開設狀態 |&*^%$#@| select", "select:equals", "撤收中")]]
     ST = st["id"]
     st_mods, STJ = agg_json("各所現況", ST, {
         "id": f"{{{{{ST}.id}}}}", "eventId": "{{first(map(" + f"{ST}.properties_value.`災害事件`" + '; "id"))}}',
-        "name": sp(ST, "開設名稱", "[].plain_text"), "light": sp(ST, "狀況燈號", ".string"),
+        "name": sp(ST, "開設名稱", "[].plain_text"), "stage": sp(ST, "開設狀態", ".name"), "light": sp(ST, "狀況燈號", ".string"),
         "inside": num(ST, "在所人數"), "capacity": num(ST, "容納人數"), "out": num(ST, "外出人數"), "late": num(ST, "未返人數"),
         "care": num(ST, "需關懷人數"), "open": num(ST, "未結日誌數"), "urgent": num(ST, "緊急未結數"),
         "needStaff": num(ST, "缺工作人員"), "needVol": num(ST, "缺志工"), "low": num(ST, "低庫存品項數")})
     ev2 = search_all("找進行中的災害（各所現況）", DS_EVENT, [c("狀態 |&*^%$#@| select", "select:does_not_equal", "已結束")], 20)
     EV2 = ev2["id"]
     ev2_mods, EJ2 = agg_json("災害（各所現況）", EV2, {"id": f"{{{{{EV2}.id}}}}", "name": sp(EV2, "災害名稱", "[].plain_text")})
-    sites_flow = [st, *st_mods, ev2, *ev2_mods,
-                  respond("回傳各所現況", '{"ok":true,"sites":' + f"{{{{{STJ}.json}}}}" + ',"events":' + f"{{{{{EJ2}.json}}}}" + "}")]
+    # 最近結案：已撤收的 10 筆（依建立時間新到舊；頁面再依撤收時間排序）。用文字彙整直接組 JSON，比陣列彙整＋轉 JSON 少一個模組
+    cl = search_all("找最近結案的開設（各所現況）", DS_OPEN, [c("開設狀態 |&*^%$#@| select", "select:equals", "已撤收")], 10, True)
+    CL = cl["id"]
+    cl_rows = b.aggregate("彙整最近結案", CL, (
+        '{"id":"' + f"{{{{{CL}.id}}}}" + '","eventId":"{{first(map(' + f"{CL}.properties_value.`災害事件`" + '; "id"))}}'
+        + '","name":"' + enc(sp(CL, "開設名稱", "[].plain_text")) + '","openAt":"' + sp(CL, "開設時間", ".start")
+        + '","closeAt":"' + sp(CL, "撤收時間", ".start") + '","n":' + num(CL, "結案累計收容人數")
+        + ',"m":' + num(CL, "結案最高在所人數") + "}"), sep=",")
+    sites_flow = [st, *st_mods, ev2, *ev2_mods, cl, cl_rows,
+                  respond("回傳各所現況", '{"ok":true,"sites":' + f"{{{{{STJ}.json}}}}" + ',"events":' + f"{{{{{EJ2}.json}}}}"
+                          + ',"closed":[' + f"{{{{{cl_rows['id']}.text}}}}" + "]}")]
+
+    # ---- hqClose：撤收（開設中 → 撤收中）。備註不覆蓋；撤收時間等結案時才寫 ----
+    oc = b.get("讀開設（撤收）", "{{1.o}}")
+    OC = oc["id"]
+    oc_stage = sp(OC, "開設狀態", ".name")
+    close_flow = [oc, b.router("可否撤收", [
+        (flt("開設中（撤收）", [[c(f"{{{{{OC}.id}}}}", "exist"), c(oc_stage, "text:equal", "開設中")]]), [
+            b.update("開設改撤收中", DS_OPEN, f"{{{{{OC}.id}}}}", [f_sel("開設狀態", "撤收中")]),
+            respond("回傳已撤收中", ok_body)]),
+        (flt("不是開設中（撤收）", [[c(f"{{{{{OC}.id}}}}", "notexist")], [c(oc_stage, "text:notequal", "開設中")]]), [
+            respond("回傳不是開設中", '{"ok":false,"error":"bad_state","stage":"' + oc_stage + '"}', "409")]),
+    ])]
+
+    # ---- hqFinish：結案（撤收中 → 已撤收）。數字和摘要由頁面依 hqReport 算好送來 ----
+    of = b.get("讀開設（結案）", "{{1.o}}")
+    OF = of["id"]
+    of_stage = sp(OF, "開設狀態", ".name")
+    summary = cut("1.s", 1900)
+    # 摘要放進 Notion API 的 JSON 前要跳脫（引號、換行）：「轉成 JSON」模組把文字轉成含引號的 JSON 字串
+    s_json = {"id": b.nid(), "module": "json:TransformToJSON", "version": 1, "parameters": {"space": ""},
+              "mapper": {"object": summary}, "metadata": b.meta("結報摘要轉成 JSON 字串")}
+    rt = lambda t: '{"rich_text":[{"type":"text","text":{"content":' + t + ' }}]}'
+    append = {"id": b.nid(), "module": "notion:makeApiCall", "version": 1, "parameters": {"__IMTCONN__": CONN_NOTION},
+              "mapper": {"url": f"/v1/blocks/{{{{{OF}.id}}}}/children", "method": "PATCH", "version": "2022-06-28",
+                         "headers": [{"key": "Content-Type", "value": "application/json"}],
+                         "body": ('{"children":[{"object":"block","type":"heading_2","heading_2":'
+                                  + rt('"結報（{{formatDate(now; "YYYY/MM/DD HH:mm")}} 結案）"')
+                                  + '},{"object":"block","type":"paragraph","paragraph":' + rt(f"{{{{{s_json['id']}.json}}}}") + "}]}")},
+              "metadata": b.meta("結報附加到開設頁面內文", "account:notion2,notion3"),
+              # 內文附加失敗不影響結案（欄位已寫入），略過，避免情境連續出錯被停用
+              "onerror": [{"id": b.nid(), "module": "builtin:Ignore", "version": 1, "mapper": None, "metadata": b.meta("略過（結報內文）")}]}
+    finish_flow = [of, b.router("可否結案", [
+        (flt("撤收中（結案）", [[c(f"{{{{{OF}.id}}}}", "exist"), c(of_stage, "text:equal", "撤收中")]]), [
+            b.update("開設改已撤收（結案）", DS_OPEN, f"{{{{{OF}.id}}}}", [
+                f_sel("開設狀態", "已撤收"), f_now("撤收時間"),
+                {"key": "結案累計收容人數", "type": "number", "value": "{{ifempty(1.n; 0)}}"},
+                {"key": "結案最高在所人數", "type": "number", "value": "{{ifempty(1.m; 0)}}"},
+                f_text("結報摘要", summary)]),
+            respond("回傳已結案", ok_body), s_json, append]),
+        (flt("不是撤收中（結案）", [[c(f"{{{{{OF}.id}}}}", "notexist")], [c(of_stage, "text:notequal", "撤收中")]]), [
+            respond("回傳不是撤收中", '{"ok":false,"error":"bad_state","stage":"' + of_stage + '"}', "409")]),
+    ])]
+
+    # ---- hqReport：結報原始資料（各最多 100 筆）。不回傳姓名、電話、證號、照護說明；統計由頁面做 ----
+    # 每張表一個搜尋＋一個文字彙整（直接組 JSON 物件，用逗號串起來），共 4×2＋讀開設＋回應 ＝ 10 個模組
+    orp = b.get("讀開設（結報）", "{{1.o}}")
+    ORP = orp["id"]
+    in_open = c("收容所開設 |&*^%$#@| relation", "relation:contains", "{{1.o}}")
+
+    def rep_rows(name, ds, fields):
+        s = search_all(f"找{name}（結報）", ds, [in_open], 100)
+        X = s["id"]
+        body = "{" + ",".join(f'"{k}":' + (v(X) if callable(v) else '"' + sp(X, *v) + '"') for k, v in fields) + "}"
+        return [s, b.aggregate(f"彙整{name}（結報）", X, body, sep=",")]
+    r_mods = rep_rows("收容登記", DS_RES, [
+        ("age", ("年齡層", ".name")), ("care", lambda X: '"{{join(map(' + f"{X}.properties_value.`特殊關懷`" + '; "name"); ",")}}"'),
+        ("status", ("在所狀態", ".name")), ("in", ("報到時間", ".start")), ("out", ("離所時間", ".start"))])
+    l_mods = rep_rows("現場日誌", DS_LOG, [("cat", ("日誌類別", ".name")), ("sev", ("嚴重程度", ".name")), ("prog", ("處理進度", ".name"))])
+    m_mods = rep_rows("物資異動", DS_MOVE, [
+        ("sum", lambda X: '"' + enc(sp(X, "摘要", "[].plain_text")) + '"'), ("type", ("異動類型", ".name")),
+        ("qty", lambda X: "{{ifempty(" + sp(X, "數量", ".number")[2:-2] + "; 0)}}")])
+    a_mods = rep_rows("出勤紀錄", DS_ATT, [
+        ("in", ("簽到時間", ".start")), ("out", ("簽退時間", ".start")),
+        ("person", lambda X: '"{{first(map(' + f"{X}.properties_value.`人員`" + '; "id"))}}"')])
+    arr = lambda mods: "[" + f"{{{{{mods[1]['id']}.text}}}}" + "]"
+    report_body = ('{"ok":true,"opening":{"id":"' + f"{{{{{ORP}.id}}}}" + '","name":"' + enc(sp(ORP, "開設名稱", "[].plain_text"))
+                   + '","status":"' + sp(ORP, "開設狀態", ".name") + '","openAt":"' + sp(ORP, "開設時間", ".start")
+                   + '","closeAt":"' + sp(ORP, "撤收時間", ".start") + '"},"residents":' + arr(r_mods) + ',"logs":' + arr(l_mods)
+                   + ',"moves":' + arr(m_mods) + ',"att":' + arr(a_mods) + "}")
+    report_flow = [orp, *r_mods, *l_mods, *m_mods, *a_mods, respond("回傳結報資料", report_body)]
 
     hq = lambda a: [is_hq + [act(a)]]
+    # 撤收的管理者路線：在班（on）、不是社會處、角色是管理者、派駐開設＝頁面送來的 o
+    w_open = sp(W, "派駐開設", "[].id")
+    w_duty_no = c(sp(W, "簽到狀態", ".name"), "text:notequal", "上班中")
+    mgr_close = on + [act("hqClose"), c(w_role, "text:notequal", HQ), c(w_role, "text:contain", "管理者")]
+    # 「不是社會處」：撤收另外算，在班的管理者走管理者路線、不在班的管理者回 not_on_duty
+    not_hq_close = [[auth_ok, c(f"{{{{{W}.id}}}}", "notexist")], [auth_ok, c(sp(W, "啟用中"), "boolean:notequal", "true")],
+                    [auth_ok, c(w_role, "text:notequal", HQ), c(w_role, "text:notcontain", "管理者")]]
+    no_o = c("{{1.o}}", "notexist")
     return [
-        (flt("不是社會處", [g + [act(a)] for g in not_hq_groups for a in HQ_ACTS]), [
+        (flt("不是社會處", [g + [act(a)] for g in not_hq_groups for a in HQ_ACTS if a != "hqClose"]
+                         + [g + [act("hqClose")] for g in not_hq_close]), [
             respond("回傳不是社會處", '{"ok":false,"error":"not_hq"}', "403")]),
+        (flt("缺開設 ID（撤收・結案・結報）", [is_hq + [act(a), no_o] for a in ("hqClose", "hqFinish", "hqReport")]), [
+            respond("回傳缺開設 ID", '{"ok":false,"error":"bad_request"}', "400")]),
+        (flt("撤收（社會處或本所管理者）", [is_hq + [act("hqClose"), has_o],
+                                         mgr_close + [has_o, c(w_open, "text:contain", "{{1.o}}")]]), close_flow),
+        (flt("管理者不在班（撤收）", [[auth_ok, c(f"{{{{{W}.id}}}}", "exist"), c(sp(W, "啟用中"), "boolean:equal", "true"),
+                                      c(w_role, "text:notequal", HQ), c(w_role, "text:contain", "管理者"), w_duty_no, act("hqClose")]]), [
+            respond("回傳不在班（撤收）", '{"ok":false,"error":"not_on_duty"}', "403")]),
+        (flt("不是本所（撤收）", [mgr_close + [no_o], mgr_close + [has_o, c(w_open, "text:notcontain", "{{1.o}}")]]), [
+            respond("回傳不是本所（撤收）", '{"ok":false,"error":"not_ours"}', "403")]),
+        (flt("結案", [is_hq + [act("hqFinish"), has_o]]), finish_flow),
+        (flt("結報資料", [is_hq + [act("hqReport"), has_o]]), report_flow),
         (flt("指揮台資料", hq("hqInit")), init_flow),
         (flt("開設收容所", hq("hqOpen")), open_flow),
         (flt("待核准的申請", hq("hqApps")), apps_flow),

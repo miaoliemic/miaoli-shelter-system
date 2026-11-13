@@ -239,6 +239,14 @@ body.pub{font-size:1.0625rem}
 .app{display:block;width:calc(100% - 32px);margin:8px 16px 0;padding:12px 14px;border-radius:14px;background:var(--card);border:1px solid var(--line);text-align:left}
 .app .t{font-weight:700;font-size:1.0625rem}
 .app .meta{font-size:0.875rem;color:var(--soft)}
+/* 撤收中標籤（各所現況）、結報畫面（?v=report&o=…） */
+.stagetag{flex:none;font-size:0.75rem;font-weight:700;color:var(--amber);background:var(--amber-bg);padding:1px 8px;border-radius:999px}
+.rep-h{margin:12px 16px 0}
+.rep-h h2{font-size:1.25rem;line-height:1.35}
+.rep-h .meta{font-size:0.875rem;color:var(--soft);margin-top:2px}
+.prow .meta.bad{color:var(--red);font-weight:700}
+.prow .meta.ok{color:var(--green)}
+.finacts{margin-top:18px}
 .hqbanner{margin:0 16px;padding:8px 12px;border-radius:10px;background:#EFE7FB;color:#5B2A9E;font-size:0.875rem;font-weight:700}
 #printArea{display:none}
 @page{size:A4 portrait;margin:0}
@@ -253,6 +261,9 @@ body.pub{font-size:1.0625rem}
   #printArea .qrcard .qr{width:125mm;margin:16mm 0 8mm}
   #printArea .qrcard p{font-size:18pt}
   .qrcard .band{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  /* 結報：只印 #printArea 裡的結報本身（按鈕列、字級按鈕都不印），白底黑字 */
+  #printArea .rep-print{--bg:#fff;--card:#fff;--text:#000;--soft:#333;--line:#bbb;--chip:#eee;background:#fff;color:#000;padding:12mm 14mm}
+  #printArea .rep-print .plist,#printArea .rep-print .stats{break-inside:avoid}
 }
 
 /* 文字放大按鈕（fontsize.js）：固定在左下角，底部有操作列時往上移 */

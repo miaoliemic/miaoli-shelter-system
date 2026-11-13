@@ -18,7 +18,7 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
 // ===== 正式後端：Make 情境 13（物資 API）。用表單格式送出，瀏覽器不會先送 CORS 預檢 =====
 class ApiError extends Error { constructor(code) { super(code); this.code = code; } }
 // 後端把姓名、收容所名稱等自由文字 URL 編碼後才放進 JSON（Make 沒有 JSON 跳脫函式），這些欄位在這裡解碼
-const ENC_KEYS = new Set(["name", "opening", "staff", "area", "line", "tag", "unit", "phone", "event", "addr"]);
+const ENC_KEYS = new Set(["name", "opening", "staff", "area", "line", "tag", "unit", "phone", "event", "addr", "sum"]);
 const safeDecode = s => { try { return decodeURIComponent(s); } catch (e) { return s; } };
 function decodeFields(o) {
   if (Array.isArray(o)) return o.map(decodeFields);
@@ -92,7 +92,8 @@ const real = {
   async ops(a, f) { return await post({ a, ...(f || {}) }); },
   // 一般畫面：info 收容所資訊｜me 我的狀態｜apply 申請開通｜feedback 我要反映｜signout 簽退
   async pub(a, f) { return await post({ a, ...(f || {}) }); },
-  // 社會處（hq.js）：hqInit 指揮台資料｜hqOpen 開設｜hqApps 申請清單｜hqApprove 核准｜hqReject 不核准｜hqSites 各所現況
+  // 社會處（hq.js）：hqInit 指揮台資料｜hqOpen 開設｜hqApps 申請清單｜hqApprove 核准｜hqReject 不核准｜hqSites 各所現況｜
+  // hqClose 撤收（社會處，或本所在班的管理者）｜hqFinish 結案｜hqReport 結報原始資料
   async hq(a, f) { return await post({ a, ...(f || {}) }); },
 };
 let api = null;               // 正式網址用 real；本機預覽載入 mock.js 後改用模擬資料
@@ -112,8 +113,10 @@ const S = {
   recip: null,
   // 居民頁面：掃號碼牌 QR（?r=MLS-xxxxx）進來。view＝resident 顯示居民；supply 是物資
   // 一般畫面（?v=info｜report｜sos｜staff｜signout）：圖文選單直接打開，不需要在班
-  view: params.get("r") ? "resident" : PUB_VIEWS.includes(params.get("v")) || HQ_VIEWS.includes(params.get("v")) || params.get("v") === "ops" ? params.get("v") : "supply",
-  hqO: params.get("v") === "ops" ? params.get("o") : null,   // 社會處從「各所現況」點進來看某一所（只能看）
+  // 結報（?v=report&o=…）：和民眾的「我要反映」（?v=report）同名，帶 o 的才是結報
+  view: params.get("r") ? "resident" : params.get("v") === "report" && params.get("o") ? "final" : PUB_VIEWS.includes(params.get("v")) || HQ_VIEWS.includes(params.get("v")) || params.get("v") === "ops" ? params.get("v") : "supply",
+  hqO: params.get("v") === "ops" ? params.get("o") : null,   // 社會處從「各所現況」點進來看某一所（只能看，撤收・結案除外）
+  finO: params.get("v") === "report" ? params.get("o") : null,   // 結報畫面的開設 ID
   hqItems: null,
   pub: { info: null, me: null, msg: "", done: "", form: { cat: "", o: "", where: "", text: "" }, ap: { name: "", unit: "", phone: "" } },
   ops: null, opsShow: "", reportRes: null,   // 本所畫面的資料、展開的名單、記錄事件時帶入的居民
@@ -157,6 +160,8 @@ function lines() {
 // ===== 畫面 =====
 function render() {
   document.body.classList.toggle("ops", S.view === "ops");
+  document.body.classList.toggle("final", S.view === "final");
+  if (S.view === "final") return renderFinal();
   document.body.classList.toggle("pub", PUB_VIEWS.includes(S.view) || HQ_VIEWS.includes(S.view));
   if (HQ_VIEWS.includes(S.view)) return renderHq();
   if (PUB_VIEWS.includes(S.view)) return renderPub();
@@ -228,7 +233,7 @@ function renderOps() {
   if (ro) { $("#bar").hidden = REAL; $("#bar .in").style.display = "none"; document.title = (o && o.name) || "各所現況"; }
   const head = ro ? `<header><div class="title"><button class="iconbtn" id="hqBack" aria-label="回各所現況">‹</button><h1>${esc((o && o.name) || "收容所")}</h1>
       <button class="iconbtn" id="opsReload" aria-label="重新整理">↻</button></div>
-    <div class="sub">${o ? `${esc(o.stage)}　${esc(o.light || "")}` : ""}</div></header><div class="hqbanner" style="margin-top:10px">社會處檢視中（只能看，現場操作由該所工作人員處理）</div>`
+    <div class="sub">${o ? `${esc(o.stage)}　${esc(o.light || "")}` : ""}</div></header><div class="hqbanner" style="margin-top:10px">社會處檢視中（現場操作由該所工作人員處理；撤收、結案在最下方）</div>`
     : `<header>${tabs()}<div class="title"><h1>${esc((o && o.name) || (S.me && S.me.opening) || "本所")}・本所</h1>
       <button class="iconbtn" id="opsReload" aria-label="重新整理">↻</button></div>
     <div class="sub">${o ? `${esc(o.stage)}　${esc(o.light || "")}　` : ""}經手人：${esc((d && d.me.name) || "")}</div></header>`;
@@ -238,6 +243,7 @@ function renderOps() {
   let body = "";
   if (o.stage === "整備中" && !ro) body += prepView(d);
   if (o.stage === "待核准" && !ro) body += `<div class="rcard"><b>已送出整備完成</b><div class="meta">等社會處核准開放進駐。核准後這裡會改顯示開設中的狀況。</div></div>`;
+  if (o.stage === "撤收中") body += `<div class="rcard"><b>撤收中</b><div class="meta">不再接受新的報到；外出、返回、離所、物資、事件、簽退照常。${ro ? "居民都離所後，按最下方「結案並產生結報」。" : "等社會處結案。"}</div></div>`;
   // 社會處檢視才能點「在所」看全部居民（工作人員的本所狀況只回外出、未返、需關懷的人，維持原樣）
   body += `<div class="stats">${stat(ro ? "all" : "", `${o.inside}<small style="font-size:0.8125rem">／${o.capacity}</small>`, "在所／容量")}
     ${stat("out", o.out, "外出", o.out ? "warn" : "")}${stat("late", o.late, "未返", o.late ? "alert" : "")}
@@ -261,6 +267,7 @@ function renderOps() {
     body += `<div class="sec">物資庫存 <small>${low.length ? `${low.length} 項低於安全庫存` : "都在安全庫存以上"}</small></div>
       <div class="plist">${[...low, ...S.hqItems.filter(it => !low.includes(it))].map(it => `<div class="prow"><span class="n">${esc(it.name)}${it.stock < it.safety ? " ⚠" : ""}</span><span class="meta">${esc(stockText(it))}</span></div>`).join("") || `<div class="prow">沒有品項</div>`}</div>`;
   }
+  body += closeActs(d, ro);
   setHTML(app, head + body);
   if (ro) return;
   setHTML($("#sum"), evs.length ? `未結 <b>${evs.length}</b>${urgent ? `・緊急 <b>${urgent}</b>` : ""}` : "沒有未結事項");
@@ -278,6 +285,43 @@ function prepView(d) {
   return `<div class="sec">整備清單 <small>每項回報完成或有問題</small></div><div class="plist">${rows}</div>
     ${mgr ? `<div class="ract"><button class="main" id="prepDone" ${allDone ? "" : "disabled style=\"opacity:.4\""}>送出整備完成（申請開放進駐）</button></div>
     ${allDone ? "" : `<div class="hint" style="margin:6px 16px 0">五項都完成後才能送出。</div>`}` : ""}`;
+}
+// 撤收・結案按鈕列：社會處檢視（開設中→撤收、撤收中→結案、隨時看結報）；管理者在本所開設中時可以撤收本所
+function closeActs(d, ro) {
+  const st = d.opening.stage, full = ' style="grid-column:1 / -1"';
+  if (ro) return `<div class="sec">撤收與結案</div><div class="ract">
+    ${st === "開設中" ? `<button class="warn" id="opsClose"${full}>撤收這一所</button>` : ""}
+    ${st === "撤收中" ? `<button class="main" id="opsFinish">結案並產生結報</button>` : ""}
+    <button id="opsReport"${full}>查看結報</button></div>`;
+  if (st === "開設中" && /管理者/.test(d.me.role || "")) return `<div class="sec">撤收</div><div class="ract"><button class="warn" id="opsClose"${full}>撤收本所</button></div>
+    <div class="hint" style="margin:6px 16px 0">災情解除、要關閉收容所時才按。撤收後不再接受新的報到。</div>`;
+  return "";
+}
+// 撤收前的檢查清單（用本所狀況已有的數字）：還有沒處理完的，按下去會再問一次
+function closeCheckSheet() {
+  const d = S.ops, o = d.opening, evs = openEvents(), id = S.hqO || o.id;
+  const rows = [["居民在所", o.inside, "人"], ["居民外出", o.out, "人"], ["居民未返", o.late, "人"], ["未結事件", evs.length, "件"], ["在班工作人員", d.duty.length, "人"]];
+  const left = rows.filter(r => r[1] > 0);
+  sheet(`<h2>撤收「${esc(o.name)}」</h2>
+    <div class="meta">撤收後不再接受新的報到；外出、返回、離所、物資、事件、簽退照常可用。之後由社會處結案。</div>
+    <label>撤收前檢查</label><div class="plist">${rows.map(([k, n, u]) => `<div class="prow"><span class="n">${k}</span><span class="meta ${n ? "bad" : "ok"}">${n ? `${n} ${u}` : "✓ 0"}</span></div>`).join("")}</div>
+    <div class="err" id="cl-err"></div>
+    <div class="acts"><button data-close>取消</button><button class="go" id="cl-ok" style="background:var(--red)">確定撤收</button></div>`, root => {
+    root.querySelector("#cl-ok").onclick = async () => {
+      if (left.length && !confirm(`還有：\n${left.map(([k, n, u]) => `${k} ${n} ${u}`).join("\n")}\n\n仍要撤收嗎？`)) return;
+      if (S.busy) return;
+      if (!id) { root.querySelector("#cl-err").textContent = "讀不到開設編號，請關閉後重新整理"; return; }
+      const b = root.querySelector("#cl-ok"); b.disabled = true; b.textContent = "撤收中…"; S.busy = true;
+      try { await api.hq("hqClose", { o: id }); S.busy = false; closeSheet(); toast("已改為撤收中"); loadOps(); }
+      catch (e) {
+        S.busy = false; b.disabled = false; b.textContent = "確定撤收";
+        if (e.code === "bad_state") { closeSheet(); toast("這一所已不是開設中，已重新讀取"); loadOps(); }
+        else if (e.code === "not_ours") root.querySelector("#cl-err").textContent = "只能撤收自己派駐的這一所";
+        else if (e.code === "not_hq") root.querySelector("#cl-err").textContent = "只有社會處或本所的管理者可以撤收";
+        else if (!handleApiError(e)) root.querySelector("#cl-err").textContent = "網路不穩，沒有送出，請再按一次";
+      }
+    };
+  });
 }
 async function loadOps() {
   S.view = "ops"; S.ops = null; S.rmsg = ""; render();
@@ -383,6 +427,7 @@ function renderResident() {
   $("#sum").textContent = d.state === "blank" && S.rform ? "填完按上方「完成報到」" : "下一位：掃號碼牌或物資標籤";
 }
 function blankView(d) {
+  if (d.openStatus === "撤收中" || d.openStatus === "已撤收") return `<div class="rcard"><h2>空白號碼牌</h2><div class="meta">本所${esc(d.openStatus)}，不再接受新的報到。</div></div>`;
   if (d.openStatus !== "開設中") return `<div class="rcard"><h2>空白號碼牌</h2><div class="meta">本所目前「${esc(d.openStatus)}」，社會處核准開放後才能報到。</div></div>`;
   if (!CAN_CHECKIN(d.role)) return `<div class="rcard"><h2>空白號碼牌</h2><div class="meta">報到限管理者或門禁組，請洽現場負責人。</div></div>`;
   const f = S.rform || (S.rform = { name: "", age: "", care: [], phone: "", contact: "", id4: "", noId: false, note: "", area: "" });
@@ -531,6 +576,12 @@ document.addEventListener("click", async e => {
   }
   else if (b.id === "opsReload") loadOps();
   else if (b.id === "hqBack") go("?v=sites");
+  else if (b.id === "opsClose") closeCheckSheet();
+  else if (b.id === "opsFinish" || b.id === "opsReport") go(`?v=report&o=${encodeURIComponent(S.hqO)}`);
+  else if (b.id === "finBack") history.length > 1 ? history.back() : go("?v=sites");
+  else if (b.id === "finReload") loadFinal();
+  else if (b.id === "finPrint") { if (REAL && liff.isInClient()) toast("手機上無法列印：請用電腦打開這個畫面（LINE 登入）再列印"); else window.print(); }
+  else if (b.id === "finDo") doFinish();
   else if (b.dataset.show !== undefined && b.dataset.show !== "") { S.opsShow = S.opsShow === b.dataset.show ? "" : b.dataset.show; render(); }
   else if (b.dataset.evt) eventSheet(b.dataset.evt);
   else if (b.dataset.prep) {
@@ -747,7 +798,7 @@ function renderReport() {
       <label>說明（可不填）</label><textarea id="rtext" maxlength="500" placeholder="例：A 區 3 號床，頭很暈">${esc(f.text)}</textarea>
       ${P.msg ? `<p class="err">${esc(P.msg)}</p>` : ""}
     </div>
-    <div class="biglinks"><button class="biglink blue" id="sendReport" ${f.cat && f.where && !S.busy ? "" : "disabled style='opacity:.4'"}><span class="ic">📨</span><span>${S.busy ? "送出中…" : "送出反映"}</span></button></div>`);
+    <div class="biglinks"><button class="biglink blue" id="sendReport" ${f.cat && f.where && !S.busy ? "" : 'disabled style="opacity:.4"'}><span class="ic">📨</span><span>${S.busy ? "送出中…" : "送出反映"}</span></button></div>`);
 }
 function renderStaff() {
   const me = S.pub.me, app = $("#app");
@@ -837,6 +888,140 @@ document.addEventListener("click", async e => {
   }
 });
 
+// ===== 結報（?v=report&o=…，限社會處）：hqReport 回原始資料，這裡統計；撤收中可以確認結案（hqFinish） =====
+// 後端不回傳姓名、電話、證號、照護說明；每張表最多 100 筆，到上限時畫面會註明
+const F = { d: null, msg: "", busy: false };
+const MOVE_TYPES = ["入庫", "發放", "調撥", "報廢", "盤點調整"];
+const LIMIT = 100;
+function fmtFull(iso) {
+  const d = new Date(iso); if (!iso || isNaN(d)) return "";
+  return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+function fmtDur(ms) {
+  if (!(ms > 0)) return "0 小時";
+  const h = Math.round(ms / 3600e3), d = Math.floor(h / 24);
+  return d ? `${d} 天 ${h % 24} 小時` : `${h} 小時`;
+}
+const countBy = (list, key) => list.reduce((m, x) => { const k = key(x) || "未填"; m[k] = (m[k] || 0) + 1; return m; }, {});
+const ordered = (m, order) => Object.entries(m).sort((a, b) => ((order.indexOf(a[0]) + 1) || 99) - ((order.indexOf(b[0]) + 1) || 99) || b[1] - a[1]);
+const joinCounts = (pairs, unit) => pairs.map(([k, n]) => `${k} ${n}${unit || ""}`).join("、") || "無";
+// 最高同時在所：報到 +1、離所 −1，依時間掃一遍取最大值（沒有離所時間的算到現在；同一時間先算離所）
+function peakInside(rs) {
+  const now = Date.now(), ev = [];
+  for (const r of rs) {
+    const a = Date.parse(r.in); if (isNaN(a)) continue;
+    const b = Date.parse(r.out); ev.push([a, 1], [isNaN(b) ? now : Math.max(a, b), -1]);
+  }
+  ev.sort((x, y) => x[0] - y[0] || x[1] - y[1]);
+  let cur = 0, max = 0;
+  for (const [, d] of ev) { cur += d; if (cur > max) max = cur; }
+  return max;
+}
+function computeReport(d) {
+  const o = d.opening, rs = d.residents || [], logs = (d.logs || []).filter(l => l.cat !== "整備回報"), mv = d.moves || [], att = d.att || [];
+  const start = Date.parse(o.openAt), end = Date.parse(o.closeAt) || Date.now();
+  const cares = rs.map(r => String(r.care || "").split(/[,、]/).map(x => x.trim()).filter(Boolean));
+  const careCount = {}; for (const c of cares) for (const k of c) careCount[k] = (careCount[k] || 0) + 1;
+  const done = logs.filter(l => /已解決|已結案/.test(l.prog)).length;
+  const items = {};
+  for (const m of mv) {
+    const name = String(m.sum || "").trim().split(/\s+/)[0] || "（未命名）", type = m.type || "其他";
+    const t = items[name] || (items[name] = {}); t[type] = (t[type] || 0) + (+m.qty || 0);
+  }
+  let hours = 0, noOut = 0;
+  for (const a of att) { const i = Date.parse(a.in), x = Date.parse(a.out); if (isNaN(i) || isNaN(x)) { noOut++; continue; } hours += Math.max(0, x - i) / 3600e3; }
+  return {
+    o, start, end, ongoing: !o.closeAt,
+    total: rs.length, peak: peakInside(rs), inside: rs.filter(r => r.status && r.status !== "已離所").length,
+    ages: ordered(countBy(rs, r => r.age), AGES), careN: cares.filter(c => c.length).length, cares: ordered(careCount, CARES),
+    ev: logs.length, cats: ordered(countBy(logs, l => l.cat), CATS), sevs: ordered(countBy(logs, l => l.sev), SEVS), done, open: logs.length - done,
+    items: Object.entries(items).sort((a, b) => a[0].localeCompare(b[0])),
+    shifts: att.length, people: new Set(att.map(a => a.person).filter(Boolean)).size, hours: Math.round(hours * 10) / 10, noOut,
+    capped: ["residents", "logs", "moves", "att"].filter(k => (d[k] || []).length >= LIMIT),
+  };
+}
+const pct = (a, b) => b ? `${Math.round(a / b * 100)}%` : "—";
+const itemText = t => MOVE_TYPES.filter(k => t[k]).concat(Object.keys(t).filter(k => !MOVE_TYPES.includes(k) && t[k])).map(k => `${k} ${t[k]}`).join("、") || "無異動";
+// 純文字摘要（每段一行）：hqFinish 寫進 Notion 的「結報摘要」和開設頁面內文
+function reportText(R) {
+  const L = [
+    `開設：${R.o.name}`,
+    `期間：${fmtFull(R.o.openAt) || "未記錄"} ～ ${R.ongoing ? `${fmtFull(new Date().toISOString())}（結案時）` : fmtFull(R.o.closeAt)}，共 ${fmtDur(R.end - R.start)}`,
+    `人：累計收容 ${R.total} 人，最高同時在所 ${R.peak} 人，目前仍在所 ${R.inside} 人`,
+    `年齡層：${joinCounts(R.ages, " 人")}`,
+    `需關懷：${R.careN} 人（${joinCounts(R.cares)}）`,
+    `事：事件 ${R.ev} 件，已解決或結案 ${R.done} 件（${pct(R.done, R.ev)}），未結 ${R.open} 件`,
+    `事件類別：${joinCounts(R.cats, " 件")}`,
+    `嚴重程度：${joinCounts(R.sevs, " 件")}`,
+    `物：${R.items.map(([k, t]) => `${k}（${itemText(t)}）`).join("；") || "沒有物資異動"}`,
+    `人力：出勤 ${R.shifts} 人次、${R.people} 人，總時數 ${R.hours} 小時${R.noOut ? `（未簽退 ${R.noOut} 筆不計）` : ""}`,
+  ];
+  if (R.capped.length) L.push(`註：部分資料超過 ${LIMIT} 筆，只統計前 ${LIMIT} 筆`);
+  return L.join("\n").slice(0, 1900);
+}
+function reportHtml(R) {
+  const kv = (k, v) => `<div class="prow"><span class="n">${esc(k)}</span><span class="meta">${esc(v)}</span></div>`;
+  const list = (pairs, unit) => pairs.map(([k, n]) => kv(k, `${n} ${unit}`)).join("") || kv("無", "");
+  const big = (n, label) => `<div class="stat"><b>${esc(n)}</b><span>${esc(label)}</span></div>`;
+  const stLabel = R.o.status === "已撤收" ? "已結案" : R.o.status;
+  return `<div class="rep-h"><h2>${esc(R.o.name || "收容所")}</h2>
+      <div class="meta">${esc(fmtFull(R.o.openAt) || "未記錄")} ～ ${R.ongoing ? "進行中" : esc(fmtFull(R.o.closeAt))}・共 ${esc(fmtDur(R.end - R.start))}・<b>${esc(stLabel)}</b></div></div>
+    <div class="sec">人</div>
+    <div class="stats">${big(R.total, "累計收容")}${big(R.peak, "最高同時在所")}${big(R.inside, "目前仍在所")}</div>
+    <div class="sec">年齡層 <small>需關懷 ${R.careN} 人</small></div><div class="plist">${list(R.ages, "人")}</div>
+    ${R.cares.length ? `<div class="sec">關懷類別</div><div class="plist">${list(R.cares, "人")}</div>` : ""}
+    <div class="sec">事 <small>不含整備回報</small></div>
+    <div class="stats">${big(R.ev, "事件總數")}${big(pct(R.done, R.ev), "已解決＋已結案")}${big(R.open, "未結")}</div>
+    <div class="sec">依類別</div><div class="plist">${list(R.cats, "件")}</div>
+    <div class="sec">依嚴重程度</div><div class="plist">${list(R.sevs, "件")}</div>
+    <div class="sec">物 <small>依品項彙整異動數量</small></div>
+    <div class="plist">${R.items.map(([k, t]) => kv(k, itemText(t))).join("") || kv("沒有物資異動", "")}</div>
+    <div class="sec">人力</div>
+    <div class="stats">${big(R.shifts, "出勤人次")}${big(R.people, "不重複人數")}${big(R.hours, "總時數")}</div>
+    ${R.noOut ? `<div class="hint" style="margin:6px 16px 0">未簽退 ${R.noOut} 筆，不計入總時數。</div>` : ""}
+    ${R.capped.length ? `<div class="hint" style="margin:10px 16px 0">⚠ 部分資料超過 ${LIMIT} 筆，只統計前 ${LIMIT} 筆。</div>` : ""}`;
+}
+function renderFinal() {
+  $("#bar").hidden = REAL; $("#bar .in").style.display = "none";   // 原型只留示範切換列
+  document.title = "結報";
+  const head = `<header><div class="title"><button class="iconbtn" id="finBack" aria-label="回上一頁">‹</button><h1>結報</h1>
+    <button class="iconbtn" id="finReload" aria-label="重新整理">↻</button></div></header>`;
+  if (!F.d) { setHTML($("#app"), head + `<div class="blocked"><p>${esc(F.msg || "讀取結報資料中…")}</p></div>`); return; }
+  const R = computeReport(F.d), st = F.d.opening.status, rep = reportHtml(R);
+  const note = st === "撤收中" ? "結報預覽：確認數字無誤後按「確認結案」，狀態改為已撤收，結報寫進 Notion。"
+    : st === "已撤收" ? "" : `這一所目前「${st}」，數字是到現在為止的統計。`;
+  setHTML($("#app"), head + (note ? `<div class="hqbanner" style="margin-top:10px">${esc(note)}</div>` : "") + rep
+    + `<div class="ract finacts">${st === "撤收中" ? `<button class="main" id="finDo" ${F.busy ? "disabled" : ""}>${F.busy ? "結案中…" : "確認結案"}</button>` : ""}
+      <button id="finPrint" style="grid-column:1 / -1">列印結報</button></div>`);
+  setHTML($("#printArea"), `<div class="rep-print">${rep}</div>`);   // 列印時只印結報本身（按鈕、字級按鈕不印）
+}
+async function loadFinal() {
+  S.view = "final"; F.d = null; F.msg = ""; render();
+  try { F.d = await api.hq("hqReport", { o: S.finO }); }
+  catch (e) {
+    if (e.code === "not_hq") F.msg = "結報限社會處查看。";
+    else if (!handleApiError(e)) F.msg = "網路不穩，沒讀到結報資料。請按右上角重新整理。";
+  }
+  render();
+}
+async function doFinish() {
+  if (F.busy || !F.d) return;
+  const R = computeReport(F.d), s = reportText(R);
+  if (!confirm(`確定結案「${R.o.name}」？\n累計收容 ${R.total} 人、最高同時在所 ${R.peak} 人。\n結案後狀態改為「已撤收」，結報會寫進 Notion。`)) return;
+  F.busy = true; render();
+  try {
+    await api.hq("hqFinish", { o: S.finO, n: String(R.total), m: String(R.peak), s });
+    F.busy = false; F.d.opening.status = "已撤收"; F.d.opening.closeAt = new Date().toISOString();
+    toast("已結案，結報已寫進 Notion"); render();
+  } catch (e) {
+    F.busy = false;
+    if (e.code === "bad_state") { toast("這一所已不是撤收中，已重新讀取"); return loadFinal(); }
+    if (e.code === "not_hq") toast("結案限社會處");
+    else if (!handleApiError(e)) toast("網路不穩，沒有送出，請再按一次");
+    render();
+  }
+}
+
 // 回傳 true＝已登入可以開始；false＝正在導向 LINE 登入頁
 async function initLiff() {
   await liff.init({ liffId: CONFIG.liffId });
@@ -877,6 +1062,7 @@ function showAuthProblem(code) {
 }
 async function boot() {
   if (HQ_VIEWS.includes(S.view)) return loadHq();
+  if (S.view === "final") return loadFinal();
   if (PUB_VIEWS.includes(S.view)) return loadPub();
   if (S.view === "ops" && !S.items.length) return loadOps();
   if (S.view === "resident" && !S.items.length) return loadResident(S.rtag);
