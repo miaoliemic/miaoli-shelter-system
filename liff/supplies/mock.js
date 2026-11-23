@@ -107,6 +107,7 @@ async function mockHqCall(a, f) {
     return { ok: true, eventId: ev.id, created };
   }
   if (a === "hqApps") return { ok: true, apps: mockHq.apps };
+  if (a === "hqTags") { if (!f.s || !f.tg) throw new ApiError("bad_request"); return { ok: true, tags: f.tg }; }
   if (a === "hqApprove" || a === "hqReject") { mockHq.apps = mockHq.apps.filter(x => x.id !== f.id); return { ok: true }; }
   if (a === "hqSites") return { ok: true, sites: mockHq.openings.filter(o => /開設中|撤收中/.test(mockStage(o.id))).map((o, i) => {
     const ev = mockHq.events.find(e => e.id === o.eventId), sh = shelters.find(x => x.id === o.shelterId), stage = mockStage(o.id);
@@ -203,6 +204,12 @@ const mockApi = {
     else if (kind === "外出") { r.status = "外出"; r.back = new Date(Date.now() + hours * 3600e3).toISOString(); }
     else r.status = "在所";
     return { ok: true, status: r.status };
+  },
+  async addTags(codes) {
+    await wait(600);
+    if (!(mock.me.role || "").includes("管理者")) throw new ApiError("not_manager");
+    for (const c of codes) mock.tags[c] = "blank";
+    return codes;
   },
   async addItem(f) {
     await wait(400);

@@ -238,7 +238,7 @@ AGES = ["成人", "長者", "兒童", "嬰幼兒"]
 KINDS = ["風災", "水災", "震災", "土石流", "海嘯", "其他"]
 HQ = "社會處"
 HQ_GRANT_ROLES = [MGR, "門禁組", "物資組", "醫療組", "志工"]   # 社會處核准時能給的角色（不含社會處本身）
-HQ_ACTS = ["hqInit", "hqOpen", "hqApps", "hqApprove", "hqReject", "hqSites", "hqClose", "hqFinish", "hqReport"]
+HQ_ACTS = ["hqInit", "hqOpen", "hqApps", "hqApprove", "hqReject", "hqSites", "hqClose", "hqFinish", "hqReport", "hqTags"]
 
 
 def build_main():
@@ -416,10 +416,27 @@ def alias_router(base, menu_id_expr, alias, y):
                                       f"新建別名 {alias}", y + 150)]}]}
 
 
+TAGS_MAX = 30   # 一次最多產生幾張空白號碼牌（每張約 1 點；免費方案點數有限）
+
+
+def tags_flow(b, respond, shelter_expr, sfx):
+    """產生空白號碼牌：tg＝頁面產生的編號（MLS-xxxxx，逗號分隔），每張新增一筆號碼牌（可用、存放收容所）。
+    編號由頁面用亂數產生（和簽到代碼、物資代碼相同做法），回傳實際建立的編號。"""
+    feed = {"id": b.nid(), "module": "builtin:BasicFeeder", "version": 1,
+            "mapper": {"array": '{{slice(split(1.tg; ","); 0; ' + str(TAGS_MAX) + ')}}'},
+            "metadata": b.meta("逐張建立號碼牌" + sfx)}
+    F = feed["id"]
+    new = b.create("新增空白號碼牌" + sfx, DS_TAG, [
+        f_title("編號", f"{{{{substring({F}.value; 0; 9)}}}}"), f_sel("狀態", "可用"), f_rel("存放收容所", shelter_expr)],
+        f=flt("編號格式正確" + sfx, [[c(f"{{{{{F}.value}}}}", "text:startwith", "MLS-")]]))
+    done = b.aggregate("彙整號碼牌" + sfx, F, f"{{{{substring({F}.value; 0; 9)}}}}", sep=",")
+    return [feed, new, done, respond("回傳號碼牌" + sfx, '{"ok":true,"tags":"' + f"{{{{{done['id']}.text}}}}" + '"}')]
+
+
 def build_supply_api():
     """13 現場頁面 API（物資・居民・本所）：給 LIFF 現場頁面（liff/supplies/）呼叫的 webhook。
     頁面用 application/x-www-form-urlencoded 送出（瀏覽器不會先送 CORS 預檢），欄位：
-      a＝動作（load 讀庫存｜submit 送出登記｜resident 查號碼牌｜addItem 新增品項｜
+      a＝動作（load 讀庫存｜submit 送出登記｜resident 查號碼牌｜addItem 新增品項｜addTags 產生空白號碼牌（管理者，tg）｜
               tagInfo 號碼牌與居民｜register 報到｜move 外出・返回・離所）、t＝LINE Access Token、
       r＝請求編號（submit）、l＝{"lines":[{itemId,name,type,qty,note}]}（submit）、g＝領取人收容登記 ID（submit，可空白）、tag＝號碼牌（resident）
     每次都先向 LINE 驗證 ID Token，再查名冊：啟用中、在班；資料一律以名冊的派駐開設為準。
@@ -550,6 +567,10 @@ def build_supply_api():
     add_flow = [g_open3, new_item, respond("回傳新品項", '{"ok":true,"itemId":"' + f"{{{{{new_item['id']}.id}}}}" + '"}')]
     is_mgr = c(w_role, "text:contain", "管理者")
 
+    # ---- addTags：管理者產生本所的空白號碼牌（存放收容所＝派駐開設的收容所） ----
+    g_open4 = b.get("讀派駐開設（號碼牌）", w_open)
+    addtags_flow = [g_open4, *tags_flow(b, respond, sp(g_open4["id"], "收容所", "[].id"), "（管理者）")]
+
     # ==== 居民：掃號碼牌（liff/supplies/?r=MLS-xxxxx）後的查詢、報到、進出 ====
     # 權限和聊天室一樣：報到限管理者、門禁組；進出（外出・返回・離所）再加志工。號碼牌必須是本所的（存放收容所）
     role_ok = lambda roles: [c(w_role, "exist"), c(roles, "text:contain", w_role)]
@@ -663,7 +684,7 @@ def build_supply_api():
             ])]),
     ])]
 
-    all_acts = ["load", "submit", "resident", "addItem", "tagInfo", "register", "move",
+    all_acts = ["load", "submit", "resident", "addItem", "addTags", "tagInfo", "register", "move",
                 "status", "report", "update", "prep", "prepDone"] + PUBLIC_ACTS + HQ_ACTS
     # 社會處的動作與「看某一所」：不需要在班，從「不是在班工作人員」排除
     not_hq = [c("{{1.a}}", "text:notequal", a) for a in HQ_ACTS]
@@ -695,6 +716,9 @@ def build_supply_api():
             (flt("新增品項", [on + [act("addItem"), is_mgr]]), add_flow),
             (flt("不是管理者（新增品項）", [on + [act("addItem"), c(w_role, "text:notcontain", "管理者")]]), [
                 respond("回傳不是管理者", '{"ok":false,"error":"not_manager"}', "403")]),
+            (flt("產生空白號碼牌", [on + [act("addTags"), is_mgr, c("{{1.tg}}", "exist")]]), addtags_flow),
+            (flt("不是管理者（號碼牌）", [on + [act("addTags"), c(w_role, "text:notcontain", "管理者")]]), [
+                respond("回傳不是管理者（號碼牌）", '{"ok":false,"error":"not_manager"}', "403")]),
             (flt("查號碼牌與居民", [on + [act("tagInfo")]]), taginfo_flow),
             (flt("報到", [on + [act("register")] + role_ok(ROLES_CHECKIN)]), register_flow),
             (flt("進出", [on + [act("move")] + role_ok(ROLES_GATE)]), move_flow),
@@ -997,7 +1021,8 @@ def hq_routes(b, respond, W, auth_ok, on, act, load_flow_for):
          hqApps 待核准的申請｜hqApprove 核准（id、kind、role）｜hqReject 不核准（id）｜
          hqSites 開設中、撤收中各所的數字＋最近結案的 10 所｜
          hqClose 撤收（o；開設中 → 撤收中）｜hqFinish 結案（o、n 累計收容人數、m 最高在所人數、s 結報摘要；撤收中 → 已撤收）｜
-         hqReport 結報原始資料（o；任何狀態都能讀，數字由頁面統計，不在 Make 裡算以省點數）
+         hqReport 結報原始資料（o；任何狀態都能讀，數字由頁面統計，不在 Make 裡算以省點數）｜
+         hqTags 產生空白號碼牌（s 收容所主檔 ID、tg 編號逗號分隔，一次最多 TAGS_MAX 張）
       hqClose 例外：在班、派駐開設＝o 的管理者也能撤收自己這一所（管理者不在班回 not_on_duty、別所回 not_ours）。
       撤收中仍可外出、返回、離所、物資、事件、簽退；報到只接受開設中（register 已擋）。
       另外 status、load 帶 o（開設 ID）時，是社會處看某一所（只能看，寫入的動作都不接受 o）。"""
@@ -1178,8 +1203,8 @@ def hq_routes(b, respond, W, auth_ok, on, act, load_flow_for):
         (flt("撤收中（結案）", [[c(f"{{{{{OF}.id}}}}", "exist"), c(of_stage, "text:equal", "撤收中")]]), [
             b.update("開設改已撤收（結案）", DS_OPEN, f"{{{{{OF}.id}}}}", [
                 f_sel("開設狀態", "已撤收"), f_now("撤收時間"),
-                {"key": "結案累計收容人數", "type": "number", "value": "{{ifempty(1.n; 0)}}"},
-                {"key": "結案最高在所人數", "type": "number", "value": "{{ifempty(1.m; 0)}}"},
+                {"key": "結案累計收容人數", "type": "number", "value": "{{parseNumber(ifempty(1.n; \"0\"))}}"},
+                {"key": "結案最高在所人數", "type": "number", "value": "{{parseNumber(ifempty(1.m; \"0\"))}}"},
                 f_text("結報摘要", summary)]),
             respond("回傳已結案", ok_body), s_json, append]),
         (flt("不是撤收中（結案）", [[c(f"{{{{{OF}.id}}}}", "notexist")], [c(of_stage, "text:notequal", "撤收中")]]), [
@@ -1214,6 +1239,10 @@ def hq_routes(b, respond, W, auth_ok, on, act, load_flow_for):
                    + ',"moves":' + arr(m_mods) + ',"att":' + arr(a_mods) + "}")
     report_flow = [orp, *r_mods, *l_mods, *m_mods, *a_mods, respond("回傳結報資料", report_body)]
 
+    # ---- hqTags：社會處替任一收容所產生空白號碼牌（s＝收容所主檔 ID；不用先開設，可平時先印好放在收容所） ----
+    g_sh = b.get("讀收容所（號碼牌）", "{{1.s}}")
+    hqtags_flow = [g_sh, *tags_flow(b, respond, f"{{{{{g_sh['id']}.id}}}}", "（社會處）")]
+
     hq = lambda a: [is_hq + [act(a)]]
     # 撤收的管理者路線：在班（on）、不是社會處、角色是管理者、派駐開設＝頁面送來的 o
     w_open = sp(W, "派駐開設", "[].id")
@@ -1237,6 +1266,9 @@ def hq_routes(b, respond, W, auth_ok, on, act, load_flow_for):
         (flt("不是本所（撤收）", [mgr_close + [no_o], mgr_close + [has_o, c(w_open, "text:notcontain", "{{1.o}}")]]), [
             respond("回傳不是本所（撤收）", '{"ok":false,"error":"not_ours"}', "403")]),
         (flt("結案", [is_hq + [act("hqFinish"), has_o]]), finish_flow),
+        (flt("產生空白號碼牌（社會處）", [is_hq + [act("hqTags"), c("{{1.s}}", "exist"), c("{{1.tg}}", "exist")]]), hqtags_flow),
+        (flt("缺收容所（號碼牌）", [is_hq + [act("hqTags"), c("{{1.s}}", "notexist")], is_hq + [act("hqTags"), c("{{1.tg}}", "notexist")]]), [
+            respond("回傳缺收容所（號碼牌）", '{"ok":false,"error":"bad_request"}', "400")]),
         (flt("結報資料", [is_hq + [act("hqReport"), has_o]]), report_flow),
         (flt("指揮台資料", hq("hqInit")), init_flow),
         (flt("開設收容所", hq("hqOpen")), open_flow),

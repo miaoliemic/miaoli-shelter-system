@@ -244,6 +244,19 @@ body.pub{font-size:1.0625rem}
 .lblacts button,.lblacts a{display:block;text-align:center;padding:13px 0;border-radius:12px;font-weight:700;border:1px solid var(--line);text-decoration:none;color:inherit}
 .lblacts .go{border:none;color:#fff;background:var(--blue)}
 .lblacts .lblmail{color:#1F5FA8;background:#F3F7FC}
+/* 居民號碼牌：橘色色帶，編號放大（QR 壞掉時可以手動輸入） */
+.tagcard{background:#fff;color:#1E2A36;border:1px dashed #9AA5B1;border-radius:10px;overflow:hidden;text-align:center;display:flex;flex-direction:column;align-items:center}
+.tagcard .band{width:100%;background:#E8590C;color:#fff;padding:6px 6px 5px}
+.tagcard .band b{display:block;font-size:0.8125rem;letter-spacing:1px}
+.tagcard .band strong{display:block;font-size:0.875rem;margin-top:1px}
+.tagcard .qr{width:70%;margin:6px 0 2px}
+.tagcard .qr svg{width:100%;height:auto;display:block}
+.tagcard .code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:1.0625rem;font-weight:800;letter-spacing:1px}
+.tagcard p{font-size:0.6875rem;padding:2px 6px 8px}
+.tagprev{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+.tagprev.wide{grid-template-columns:repeat(auto-fill,minmax(150px,1fr));margin:10px 16px 0}
+#hq-tags,#hq-lasttags{margin:10px 0 0;width:100%}
+.hq-go.ghost{background:var(--card);color:var(--blue);border:1px solid var(--line)}
 .site{display:block;width:calc(100% - 32px);margin:8px 16px 0;padding:12px 14px;border-radius:14px;background:var(--card);border:1px solid var(--line);text-align:left}
 .site .t{font-weight:700;font-size:1.0625rem;display:flex;gap:6px;align-items:center}
 .site .t small{margin-left:auto;font-weight:400;color:var(--soft);font-size:0.8125rem}
@@ -283,6 +296,15 @@ body.pub{font-size:1.0625rem}
   #printArea .qrcard .qr{width:125mm;margin:16mm 0 8mm}
   #printArea .qrcard p{font-size:18pt}
   #printArea .qrcard.item .band{padding:14mm 14mm 10mm}
+  #printArea .tagpage{width:186mm;height:268mm;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:repeat(3,1fr);page-break-after:always;break-after:page}
+  #printArea .tagcard{border-radius:0;border:1px dashed #888;justify-content:center}
+  #printArea .tagcard .band{padding:3mm 3mm 2mm}
+  #printArea .tagcard .band b{font-size:13pt}
+  #printArea .tagcard .band strong{font-size:14pt}
+  #printArea .tagcard .qr{width:48mm;margin:3mm 0 1mm}
+  #printArea .tagcard .code{font-size:18pt}
+  #printArea .tagcard p{font-size:9pt}
+  .tagcard .band{-webkit-print-color-adjust:exact;print-color-adjust:exact}
   #printArea .qrcard .iname{font-size:48pt;margin-top:12mm}
   #printArea .qrcard.item .qr{width:115mm;margin:8mm 0 6mm}
   .qrcard .band{-webkit-print-color-adjust:exact;print-color-adjust:exact}

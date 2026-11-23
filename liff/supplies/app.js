@@ -48,6 +48,11 @@ function newCode() {
   crypto.getRandomValues(r);
   return "SUP-" + Array.from(r, x => A[x % A.length]).join("");
 }
+// 號碼牌編號：MLS- 加 5 碼（同簽到代碼的字元，去掉 0 O 1 I L），由頁面產生、後端寫入
+function newTagCode(used) {
+  const A = "23456789ABCDEFGHJKMNPQRSTUVWXYZ", r = new Uint32Array(5);
+  for (;;) { crypto.getRandomValues(r); const c = "MLS-" + Array.from(r, x => A[x % A.length]).join(""); if (!used.has(c)) return c; }
+}
 const real = {
   // o：社會處檢視某一所時指定開設（後端只對社會處接受這個參數）
   async load(o) {
@@ -86,6 +91,8 @@ const real = {
   },
   // 居民：號碼牌狀態（none 不是本所｜blank 空白牌｜used 使用中＋居民｜void 失效）
   async tagInfo(tag) { return await post({ a: "tagInfo", tag }); },
+  // 產生空白號碼牌（管理者，本所）。社會處走 hq("hqTags", { s 收容所主檔 ID, tg })。回傳實際建立的編號
+  async addTags(codes) { const d = await post({ a: "addTags", tg: codes.join(",") }); return String(d.tags || "").split(",").filter(Boolean); },
   async register(f) { return await post({ a: "register", ...f }); },
   async move(tag, kind, hours) { return await post({ a: "move", tag, kind, hours: String(hours || "") }); },
   // 本所：status 狀況｜report 記錄事件｜update 認領・追加紀錄・解決｜prep 整備回報｜prepDone 送出整備完成
@@ -103,7 +110,7 @@ let REAL = false;
 const params = new URLSearchParams(location.search);
 const PUB_VIEWS = ["info", "report", "sos", "staff", "signout"];
 // 手機存 PDF 用的列印頁（?v=printqr｜printrep#資料）：在手機瀏覽器開啟，不登入 LINE、不連後端
-const PRINT_VIEWS = ["printqr", "printrep", "printitem"];
+const PRINT_VIEWS = ["printqr", "printrep", "printitem", "printtag"];
 const S = {
   me: null, items: [], recent: [],
   mode: "in", cat: "全部", q: "",
@@ -425,7 +432,13 @@ function renderResident() {
   document.documentElement.style.setProperty("--accent", "var(--blue)");
   const head = `<header>${tabs()}<div class="title"><h1>${esc((d && d.opening) || (S.me && S.me.opening) || "收容所")}・居民</h1></div>
     <div class="sub">經手人：${esc((d && d.staff) || (S.me && S.me.name) || "")}${S.rtag ? `　號碼牌 ${esc(S.rtag)}` : ""}</div></header>`;
-  if (!d) { setHTML(app, head + `<div class="blocked"><p>${esc(S.rmsg || (S.rtag ? "讀取號碼牌中…" : "請按下方「掃描」，掃居民號碼牌。"))}</p></div>`); return; }
+  if (!d) {
+    const mgr = !S.rtag && S.me && (S.me.role || "").includes("管理者"), last = lastTags();
+    setHTML(app, head + `<div class="blocked"><p>${esc(S.rmsg || (S.rtag ? "讀取號碼牌中…" : "請按下方「掃描」，掃居民號碼牌。"))}</p></div>`
+      + (mgr ? `<div class="biglinks"><button class="biglink" id="mkTags"><span class="ic">🏷</span><span>產生空白號碼牌<small>空白牌不夠時，產生新的號碼牌並列印</small></span></button>
+        ${last ? `<button class="biglink" id="lastTags"><span class="ic">🖨</span><span>重印上次產生的號碼牌<small>${esc(last.p)}・${last.c.length} 張</small></span></button>` : ""}</div>` : ""));
+    return;
+  }
   let body = "";
   if (d.state === "none") body = `<div class="rcard void"><h2>不是本所的號碼牌</h2><div class="meta">${esc(S.rtag)}　請確認後再掃一次</div></div>`;
   else if (d.state === "void") body = `<div class="rcard void"><h2>⚠ 此號碼牌已失效</h2><div class="meta">${esc(S.rtag)}　請勿放行，並通知現場負責人</div></div>`;
@@ -625,6 +638,8 @@ document.addEventListener("click", async e => {
   else if (b.dataset.label) { const it = S.items.find(x => x.id === b.dataset.label); if (it) labelSheet([it]); }
   else if (b.id === "allLabels") labelSheet(S.items.filter(x => x.code));
   else if (b.id === "lblPrint") printLabels(S.lbl);
+  else if (b.id === "mkTags") tagGenSheet(S.me.opening || "本所", codes => api.addTags(codes));
+  else if (b.id === "lastTags") { const d = lastTags(); if (d) tagResultSheet(d); }
 });
 document.addEventListener("input", e => {
   if (S.rform && e.target.id && e.target.id.startsWith("f-") && e.target.id !== "f-noid" && document.querySelector(".form h2")) {
@@ -785,6 +800,71 @@ function labelSheet(list, fresh) {
     <div class="lblacts"><button class="go" id="lblPrint">🖨 列印／存成 PDF</button>
       <a class="lblmail" href="${esc(labelMailHref(d))}">✉ 用 Email 寄給同仁</a>
       <button data-close>${fresh ? "關閉，開始入庫" : "關閉"}</button></div>`);
+}
+
+// ===== 居民號碼牌：QR 內容是現場頁面網址加號碼牌編號（?r=MLS-xxxxx），空白牌掃了出現報到表單 =====
+// 號碼牌綁收容所、不綁災害（平時就能先印好放在收容所），所以牌上只印收容所名稱
+const tagUrl = code => `https://liff.line.me/${CONFIG.liffId}?r=${code}`;
+const TAG_RE = /^MLS-[0-9A-Z]{5}$/;
+function tagCard(p, code) {
+  return `<div class="tagcard"><div class="band"><b>居民號碼牌</b><strong>${esc(p)}</strong></div>
+    <div class="qr">${qrSvg(tagUrl(code))}</div><div class="code">${esc(code)}</div><p>請隨身攜帶・外出、返回、領物資時出示</p></div>`;
+}
+// 列印：一張 A4 排 6 張（2 × 3），沿虛線剪開
+const tagPages = d => Array.from({ length: Math.ceil(d.c.length / 6) }, (_, i) =>
+  `<div class="tagpage">${d.c.slice(i * 6, i * 6 + 6).map(c => tagCard(d.p, c)).join("")}</div>`).join("");
+const tagTitle = d => `${d.p}的居民號碼牌（${d.c.length} 張）`;
+const tagPrintUrl = d => `${location.origin}${location.pathname}?v=printtag#${b64e(d)}`;
+function tagMailHref(d) {
+  const subject = `【居民號碼牌】${d.p}（${d.c.length} 張）`;
+  const body = `${d.p} 的空白居民號碼牌，共 ${d.c.length} 張\n\n用手機或電腦打開下面的連結就看得到，可以列印或存成 PDF（一張 A4 排 6 張，沿虛線剪開）：\n${tagPrintUrl(d)}\n\n居民報到時，門禁組或管理者用 LINE 掃描空白牌就會出現報到表單。\n請只轉給本所工作人員。`;
+  return `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+}
+function printTags(d) {
+  if (inLine()) return openPrintView("printtag", d);   // LINE 裡不能列印：用手機瀏覽器開列印頁
+  setHTML($("#printArea"), tagPages(d));
+  const t = document.title; document.title = fileTitle(tagTitle(d)); window.print(); document.title = t;
+}
+// 上次產生的號碼牌記在這支手機（關掉畫面前忘了列印還能重印；Notion「號碼牌」表也查得到）
+const TAG_KEY = "lastTags";
+function lastTags() { try { const d = JSON.parse(localStorage.getItem(TAG_KEY) || "null"); return d && typeof d.p === "string" && Array.isArray(d.c) && d.c.length ? d : null; } catch (e) { return null; } }
+function saveLastTags(d) { try { localStorage.setItem(TAG_KEY, JSON.stringify(d)); } catch (e) {} }
+const TAG_COUNTS = [6, 12, 18, 24, 30];
+// run(codes) → 實際建立的編號陣列；失敗時丟出錯誤（社會處的 hqCall 失敗回 null，訊息由 hqCall 處理）
+function tagGenSheet(place, run) {
+  let n = 6;
+  sheet(`<h2>產生空白號碼牌</h2><div class="meta">${esc(place)}</div>
+    <label>要幾張？（一張 A4 排 6 張）</label><div class="pick" id="tg-n"></div>
+    <p class="hint">會建立在 Notion「號碼牌」表（狀態：可用、存放收容所：${esc(place)}），列印剪開就能用。一次最多 30 張。</p>
+    <div class="err" id="tg-err"></div>
+    <div class="acts"><button data-close>取消</button><button class="go" id="tg-ok">產生</button></div>`, root => {
+    const draw = () => setHTML(root.querySelector("#tg-n"), TAG_COUNTS.map(k => `<button data-k="${k}" class="${k === n ? "on" : ""}">${k} 張</button>`).join(""));
+    draw();
+    root.querySelector("#tg-n").onclick = e => { const b = e.target.closest("button"); if (b) { n = +b.dataset.k; draw(); } };
+    root.querySelector("#tg-ok").onclick = async () => {
+      const ok = root.querySelector("#tg-ok"), err = root.querySelector("#tg-err");
+      ok.disabled = true; ok.textContent = "產生中…"; err.textContent = "";
+      const used = new Set(), codes = Array.from({ length: n }, () => { const c = newTagCode(used); used.add(c); return c; });
+      let got = null;
+      try { got = await run(codes); } catch (e) {
+        if (!handleApiError(e)) err.textContent = e.code === "not_manager" ? "只有收容所管理者可以產生號碼牌" : "沒有產生成功，請再試一次";
+      }
+      const c = (got || []).filter(x => TAG_RE.test(x));
+      if (!c.length) { ok.disabled = false; ok.textContent = "產生"; if (got && !err.textContent) err.textContent = "沒有產生成功，請再試一次"; return; }
+      const d = { p: place, c }; saveLastTags(d); tagResultSheet(d, true);
+    };
+  });
+}
+function tagResultSheet(d, fresh) {
+  sheet(`<h2>${fresh ? `已產生 ${d.c.length} 張空白號碼牌` : esc(tagTitle(d))}</h2>
+    <p class="hint">${fresh ? "請現在列印或寄出（這支手機會記住，之後也能重印）。" : ""}一張 A4 排 6 張，沿虛線剪開，放在服務台備用。</p>
+    <div class="tagprev">${d.c.slice(0, 2).map(c => tagCard(d.p, c)).join("")}</div>
+    <p class="hint">編號：${esc(d.c.join("、"))}</p>
+    <div class="lblacts"><button class="go" id="tgPrint">🖨 列印／存成 PDF</button>
+      <a class="lblmail" href="${esc(tagMailHref(d))}">✉ 用 Email 寄給同仁</a>
+      <button data-close>關閉</button></div>`, root => {
+    root.querySelector("#tgPrint").onclick = () => printTags(d);
+  });
 }
 
 function sheet(html, onMount) {
@@ -1116,6 +1196,15 @@ function renderPrintView() {
       screen = `<div class="qrcards">${d.c.map(([n, c]) => qrCardRaw(d.e, n, c, false, true)).join("")}</div>`;
       // 存 PDF 的檔名跟著收容所名稱，例：清華里活動中心的簽到 QR Code
       title = d.c.length === 1 ? `${d.c[0][0]}的簽到 QR Code` : `${d.e} 簽到 QR Code（${d.c.length} 所）`;
+    }
+  } else if (S.view === "printtag") {
+    head = "居民號碼牌";
+    ok = !!d && typeof d.p === "string" && Array.isArray(d.c) && d.c.length > 0 && d.c.length <= 60 && d.c.every(x => TAG_RE.test(x));
+    if (ok) {
+      body = tagPages(d);
+      screen = `<div class="biglinks"><a class="biglink" href="${esc(tagMailHref(d))}"><span class="ic">✉</span><span>用 Email 寄給同仁</span></a></div>
+        <p class="hint" style="margin:8px 16px 0">一張 A4 排 6 張，沿虛線剪開。</p><div class="tagprev wide">${d.c.map(c => tagCard(d.p, c)).join("")}</div>`;
+      title = tagTitle(d);
     }
   } else if (S.view === "printitem") {
     head = "物資標籤";

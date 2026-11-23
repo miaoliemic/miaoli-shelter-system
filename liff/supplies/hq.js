@@ -140,6 +140,14 @@ function renderCmd() {
     <button class="hq-go" id="hq-open" ${canOpen() ? "" : "disabled"}>${H.busy ? "開設中…" : `開設 ${sel.length || ""} 所`}</button>
     ${H.msg ? `<p class="err" style="margin:8px 16px">${esc(H.msg)}</p>` : ""}`;
 
+  const last = lastTags();
+  html += `<div class="hq-step"><h2><span class="n">🏷</span>居民號碼牌</h2>
+    <p class="hint">替收容所產生空白號碼牌。不用先開設，平時就能先印好放在收容所；收容所管理者在班時也能自己產生。</p>
+    <label>收容所<select id="hq-tagsh">${[...d.shelters].sort((a, b) => (opened.has(b.id) ? 1 : 0) - (opened.has(a.id) ? 1 : 0) || a.no - b.no)
+      .map(s => `<option value="${esc(s.id)}" ${s.id === H.tagSh ? "selected" : ""}>${opened.has(s.id) ? "【開設中】" : ""}${s.no}. ${esc(s.name)}</option>`).join("")}</select></label>
+    <button class="hq-go" id="hq-tags">產生空白號碼牌</button>
+    ${last ? `<button class="hq-go ghost" id="hq-lasttags">重印上次產生的（${esc(last.p)}・${last.c.length} 張）</button>` : ""}</div>`;
+
   if (ev && opened.size) {
     const os = [...opened.values()];
     html += `<div class="hq-step"><h2><span class="n">3</span>簽到 QR <small style="font-weight:400;color:var(--soft)">${os.length} 所</small></h2>
@@ -284,6 +292,12 @@ document.addEventListener("click", e => {
   if (t.id === "hq-fit") { H.onlyFit = !H.onlyFit; return render(); }
   if (t.id === "hq-open" && canOpen()) return doOpen();
   if (t.id === "hq-print") return doPrint();
+  if (t.id === "hq-tags") {
+    const sel = $("#hq-tagsh"), s = H.init.shelters.find(x => x.id === (sel && sel.value)); if (!s) return;
+    H.tagSh = s.id;
+    return tagGenSheet(s.name, async codes => { const r = await hqCall("hqTags", { s: s.id, tg: codes.join(",") }); return r ? String(r.tags || "").split(",").filter(Boolean) : null; });
+  }
+  if (t.id === "hq-lasttags") { const d = lastTags(); if (d) tagResultSheet(d); return; }
   if (t.dataset.app) return appSheet(t.dataset.app);
   if (t.dataset.site) return go(`?v=ops&o=${encodeURIComponent(t.dataset.site)}`);
   if (t.dataset.final) return go(`?v=report&o=${encodeURIComponent(t.dataset.final)}`);
