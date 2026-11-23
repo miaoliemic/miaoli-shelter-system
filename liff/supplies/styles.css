@@ -234,6 +234,16 @@ body.pub{font-size:1.0625rem}
 .qrcard.new{outline:3px solid var(--blue);outline-offset:-3px}
 .qrcard .qrmail{display:block;width:100%;border-top:1px solid var(--line);padding:10px 6px;font-size:0.8125rem;font-weight:700;color:#1F5FA8;text-decoration:none;background:#F3F7FC}
 @media print{.qrcard .qrmail{display:none}}
+/* 物資標籤：藍色色帶，品名放最大（貼在棧板上遠遠看得到） */
+.qrcard.item .band{background:#1C7ED6}
+.qrcard .iname{font-size:1.25rem;font-weight:800;margin-top:6px;padding:0 6px;word-break:break-all}
+.row .lbl{font-size:0.8125rem;color:var(--blue);border:1px solid var(--line);border-radius:999px;padding:4px 10px;background:var(--bg)}
+.lblcards{margin:10px 0 0}
+.lblcards .qrcard:only-child{grid-column:1/-1;justify-self:center;width:100%;max-width:240px}
+.lblacts{display:grid;gap:8px;margin-top:14px}
+.lblacts button,.lblacts a{display:block;text-align:center;padding:13px 0;border-radius:12px;font-weight:700;border:1px solid var(--line);text-decoration:none;color:inherit}
+.lblacts .go{border:none;color:#fff;background:var(--blue)}
+.lblacts .lblmail{color:#1F5FA8;background:#F3F7FC}
 .site{display:block;width:calc(100% - 32px);margin:8px 16px 0;padding:12px 14px;border-radius:14px;background:var(--card);border:1px solid var(--line);text-align:left}
 .site .t{font-weight:700;font-size:1.0625rem;display:flex;gap:6px;align-items:center}
 .site .t small{margin-left:auto;font-weight:400;color:var(--soft);font-size:0.8125rem}
@@ -272,6 +282,9 @@ body.pub{font-size:1.0625rem}
   #printArea .qrcard .band strong{font-size:30pt;margin-top:3mm}
   #printArea .qrcard .qr{width:125mm;margin:16mm 0 8mm}
   #printArea .qrcard p{font-size:18pt}
+  #printArea .qrcard.item .band{padding:14mm 14mm 10mm}
+  #printArea .qrcard .iname{font-size:48pt;margin-top:12mm}
+  #printArea .qrcard.item .qr{width:115mm;margin:8mm 0 6mm}
   .qrcard .band{-webkit-print-color-adjust:exact;print-color-adjust:exact}
   /* 結報：只印 #printArea 裡的結報本身（按鈕列、字級按鈕都不印），白底黑字 */
   #printArea .rep-print{--bg:#fff;--card:#fff;--text:#000;--soft:#333;--line:#bbb;--chip:#eee;background:#fff;color:#000;padding:12mm 14mm}

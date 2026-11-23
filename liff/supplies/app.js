@@ -103,7 +103,7 @@ let REAL = false;
 const params = new URLSearchParams(location.search);
 const PUB_VIEWS = ["info", "report", "sos", "staff", "signout"];
 // 手機存 PDF 用的列印頁（?v=printqr｜printrep#資料）：在手機瀏覽器開啟，不登入 LINE、不連後端
-const PRINT_VIEWS = ["printqr", "printrep"];
+const PRINT_VIEWS = ["printqr", "printrep", "printitem"];
 const S = {
   me: null, items: [], recent: [],
   mode: "in", cat: "全部", q: "",
@@ -199,9 +199,10 @@ function render() {
      ${rowCtrl(focus)}</div>
      ${S.showAll ? "" : `<button class="showall" id="showall">顯示全部品項</button>`}` : ""}
   ${S.showAll ? `<div class="list">${shown.map(it => `<div class="row ${it.stock < it.safety ? "low" : ""} ${S.pick[it.id] && S.pick[it.id].qty !== "" ? "picked" : ""}" data-id="${it.id}">
-      <div class="top"><div class="name">${esc(it.name)}${it.stock < it.safety ? " ⚠" : ""}</div></div>
+      <div class="top"><div class="name">${esc(it.name)}${it.stock < it.safety ? " ⚠" : ""}</div>${it.code ? `<button class="lbl" data-label="${it.id}" aria-label="${esc(it.name)}的物資標籤">標籤</button>` : ""}</div>
       <div class="stock">${stockText(it)}${it.stock < it.safety ? `，低於安全庫存 ${it.safety}` : ""}</div>${rowCtrl(it)}</div>`).join("") || `<div class="row">找不到符合的品項</div>`}
-    ${(S.me.role || "").includes("管理者") && !lockOut ? `<button class="addnew" id="addnew">＋ 新增品項</button>` : ""}</div>` : ""}
+    ${(S.me.role || "").includes("管理者") && !lockOut ? `<button class="addnew" id="addnew">＋ 新增品項</button>` : ""}
+    ${S.items.some(x => x.code) ? `<button class="addnew" id="allLabels">🏷 列印全部物資標籤</button>` : ""}</div>` : ""}
   ${S.recent.length ? `<div class="recent"><h3>${REAL ? "這次登記" : "本所最近登記"}</h3>${S.recent.slice(0, 5).map(r => `<div>${esc(r.t)}　${esc(r.text)}</div>`).join("")}</div>` : ""}`);
   renderBar();
 }
@@ -621,6 +622,9 @@ document.addEventListener("click", async e => {
   }
   else if (b.id === "pub") { S.recip = { kind: "public" }; render(); toast("領取對象：公共用途"); }
   else if (b.id === "addnew") addItemSheet();
+  else if (b.dataset.label) { const it = S.items.find(x => x.id === b.dataset.label); if (it) labelSheet([it]); }
+  else if (b.id === "allLabels") labelSheet(S.items.filter(x => x.code));
+  else if (b.id === "lblPrint") printLabels(S.lbl);
 });
 document.addEventListener("input", e => {
   if (S.rform && e.target.id && e.target.id.startsWith("f-") && e.target.id !== "f-noid" && document.querySelector(".form h2")) {
@@ -738,9 +742,49 @@ function addItemSheet() {
       if (!S.items.some(x => x.id === it.id)) S.items.push(it);   // Notion 搜尋偶爾慢一步，先放進清單
       closeSheet();
       S.mode = "in"; S.pick = { [it.id]: { qty: "", unit: it.unit } }; S.cat = "全部"; render();
-      toast(`已新增「${it.name}」，現在可以入庫`);
+      labelSheet([it], true);   // 新品項：馬上給物資標籤，列印或寄給同仁，貼在棧板上
     };
   });
+}
+
+// ===== 物資標籤：QR 內容是物資頁面網址加物資代碼（規則見 docs/QR編碼規則.md），掃了直接打開該品項 =====
+// 標籤不含個資，也不能用來簽到；掃了之後仍要在班的工作人員才能入庫、發放
+const itemUrl = code => `https://liff.line.me/${CONFIG.liffId}?item=${code}`;
+function itemLabel(e, p, name, code) {
+  return `<div class="qrcard item">
+    <div class="band"><b>物資標籤</b><span>${esc(e)}</span><strong>${esc(p)}</strong></div>
+    <div class="iname">${esc(name)}</div>
+    <div class="qr">${qrSvg(itemUrl(code))}</div><p>${esc(code)}・工作人員用 LINE 掃描：入庫、發放</p></div>`;
+}
+const labelData = list => ({ e: S.me.event || "", p: S.me.opening || "", c: list.map(it => [it.name, it.code]) });
+// 存 PDF 的檔名：一項「牙刷的物資標籤」；多項「清華里活動中心的物資標籤（9 項）」
+const labelTitle = d => d.c.length === 1 ? `${d.c[0][0]}的物資標籤` : `${d.p}的物資標籤（${d.c.length} 項）`;
+const labelPrintUrl = d => `${location.origin}${location.pathname}?v=printitem#${b64e(d)}`;
+function labelMailHref(d) {
+  const subject = `【物資標籤】${d.c.length === 1 ? d.c[0][0] : `${d.c.length} 項`}（${d.p}）`;
+  const body = `${d.p} ${d.c.length === 1 ? `「${d.c[0][0]}」的物資標籤` : `物資標籤 ${d.c.length} 項：${d.c.map(x => x[0]).join("、")}`}
+災害：${d.e}
+
+用手機或電腦打開下面的連結就看得到 QR Code，可以列印或存成 PDF：
+${labelPrintUrl(d)}
+
+請貼在物資棧板或存放處，工作人員用 LINE 掃描就能入庫、發放。`;
+  return `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+}
+function printLabels(d) {
+  if (inLine()) return openPrintView("printitem", d);   // LINE 裡不能列印：用手機瀏覽器開列印頁
+  setHTML($("#printArea"), d.c.map(([n, c]) => itemLabel(d.e, d.p, n, c)).join(""));
+  const t = document.title; document.title = fileTitle(labelTitle(d)); window.print(); document.title = t;
+}
+function labelSheet(list, fresh) {
+  const d = S.lbl = labelData(list);
+  sheet(`<h2>${fresh ? `已新增「${esc(list[0].name)}」` : esc(labelTitle(d))}</h2>
+    ${fresh ? `<p class="hint">這是它的物資標籤，印出來貼在棧板上；之後掃標籤就能直接入庫、發放。關掉這個畫面就可以入庫。</p>` : ""}
+    <div class="qrcards lblcards">${d.c.slice(0, 4).map(([n, c]) => itemLabel(d.e, d.p, n, c)).join("")}</div>
+    ${d.c.length > 4 ? `<p class="hint">另外還有 ${d.c.length - 4} 項，列印時會一起印出（一項一頁）。</p>` : ""}
+    <div class="lblacts"><button class="go" id="lblPrint">🖨 列印／存成 PDF</button>
+      <a class="lblmail" href="${esc(labelMailHref(d))}">✉ 用 Email 寄給同仁</a>
+      <button data-close>${fresh ? "關閉，開始入庫" : "關閉"}</button></div>`);
 }
 
 function sheet(html, onMount) {
@@ -1072,6 +1116,15 @@ function renderPrintView() {
       screen = `<div class="qrcards">${d.c.map(([n, c]) => qrCardRaw(d.e, n, c, false, true)).join("")}</div>`;
       // 存 PDF 的檔名跟著收容所名稱，例：清華里活動中心的簽到 QR Code
       title = d.c.length === 1 ? `${d.c[0][0]}的簽到 QR Code` : `${d.e} 簽到 QR Code（${d.c.length} 所）`;
+    }
+  } else if (S.view === "printitem") {
+    head = "物資標籤";
+    ok = !!d && typeof d.e === "string" && typeof d.p === "string" && Array.isArray(d.c) && d.c.length > 0
+      && d.c.every(x => Array.isArray(x) && typeof x[0] === "string" && /^SUP-[0-9A-Z]{5}$/.test(x[1]));
+    if (ok) {
+      body = d.c.map(([n, c]) => itemLabel(d.e, d.p, n, c)).join("");
+      screen = `<div class="biglinks"><a class="biglink" href="${esc(labelMailHref(d))}"><span class="ic">✉</span><span>用 Email 寄給同仁</span></a></div><div class="qrcards">${body}</div>`;
+      title = labelTitle(d);
     }
   } else {
     head = "結報";
