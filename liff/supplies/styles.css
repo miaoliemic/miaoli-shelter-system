@@ -232,6 +232,8 @@ body.pub{font-size:1.0625rem}
 .qrcard .qr svg{width:100%;height:auto;display:block}
 .qrcard p{font-size:0.6875rem;padding-bottom:8px}
 .qrcard.new{outline:3px solid var(--blue);outline-offset:-3px}
+.qrcard .qrmail{display:block;width:100%;border-top:1px solid var(--line);padding:10px 6px;font-size:0.8125rem;font-weight:700;color:#1F5FA8;text-decoration:none;background:#F3F7FC}
+@media print{.qrcard .qrmail{display:none}}
 .site{display:block;width:calc(100% - 32px);margin:8px 16px 0;padding:12px 14px;border-radius:14px;background:var(--card);border:1px solid var(--line);text-align:left}
 .site .t{font-weight:700;font-size:1.0625rem;display:flex;gap:6px;align-items:center}
 .site .t small{margin-left:auto;font-weight:400;color:var(--soft);font-size:0.8125rem}

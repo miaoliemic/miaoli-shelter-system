@@ -1062,22 +1062,27 @@ function normReport(d) {
 function renderPrintView() {
   $("#bar").hidden = true;
   let d = null; try { d = b64d(location.hash.slice(1)); } catch (e) {}
-  let body = "", title = "", ok = false;
+  let body = "", screen = "", title = "", head = "", ok = false;
   if (S.view === "printqr") {
-    title = "簽到 QR";
+    head = "簽到 QR";
     ok = !!d && typeof d.e === "string" && Array.isArray(d.c) && d.c.length > 0
       && d.c.every(x => Array.isArray(x) && typeof x[0] === "string" && /^SIGN-[0-9A-Z]{5}$/.test(x[1]));
-    if (ok) body = d.c.map(([n, c]) => qrCardRaw(d.e, n, c)).join("");
+    if (ok) {
+      body = d.c.map(([n, c]) => qrCardRaw(d.e, n, c)).join("");
+      screen = `<div class="qrcards">${d.c.map(([n, c]) => qrCardRaw(d.e, n, c, false, true)).join("")}</div>`;
+      // 存 PDF 的檔名跟著收容所名稱，例：清華里活動中心的簽到 QR Code
+      title = d.c.length === 1 ? `${d.c[0][0]}的簽到 QR Code` : `${d.e} 簽到 QR Code（${d.c.length} 所）`;
+    }
   } else {
-    title = "結報";
-    try { if (d && d.o) { body = `<div class="rep-print">${reportHtml(normReport(d))}</div>`; ok = true; } } catch (e) {}
+    head = "結報";
+    try { if (d && d.o) { const R = normReport(d); body = `<div class="rep-print">${reportHtml(R)}</div>`; screen = body; title = `${R.o.name || ""}結報`; ok = true; } } catch (e) {}
   }
-  document.title = title;
-  if (!ok) { setHTML($("#app"), pubHead(title) + `<div class="blocked"><p>列印資料不完整。請回到 LINE，再按一次「存成 PDF」。</p></div>`); return; }
-  setHTML($("#app"), pubHead(title, "按下面的按鈕，選「列印」或「另存為 PDF」")
+  document.title = fileTitle(title || head);
+  if (!ok) { setHTML($("#app"), pubHead(head) + `<div class="blocked"><p>列印資料不完整。請回到 LINE，再按一次「存成 PDF」。</p></div>`); return; }
+  setHTML($("#app"), pubHead(head, "按下面的按鈕，選「列印」或「另存為 PDF」")
     + `<div class="biglinks"><button class="biglink blue" id="doPrintNow"><span class="ic">🖨</span><span>列印／存成 PDF</span></button></div>
-    <p class="hint" style="margin:8px 16px 0">iPhone：列印畫面點上方的分享圖示 →「儲存到檔案」。Android：印表機選「另存為 PDF」→ 下載。</p>`
-    + (S.view === "printqr" ? `<div class="qrcards">${body}</div>` : body));
+    <p class="hint" style="margin:8px 16px 0">iPhone：列印畫面點上方的分享圖示 →「儲存到檔案」。Android：印表機選「另存為 PDF」→ 下載。${S.view === "printqr" ? "要直接傳給同仁：按卡片下方「用 Email 寄給同仁」。" : ""}</p>`
+    + screen);
   setHTML($("#printArea"), body);
 }
 

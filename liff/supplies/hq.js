@@ -146,20 +146,34 @@ function renderCmd() {
       <p class="hint">每所一張，貼在服務台給工作人員掃描簽到，一所一張 A4。</p>
       <button class="hq-go" id="hq-print" style="margin:10px 0 0;width:100%;background:var(--green)">${inLine() ? "存成 PDF（用瀏覽器開啟）" : `列印簽到 QR（${os.length} 張）`}</button>
       <p class="hint">${esc(inLine() ? PDF_HINT : "列印視窗的「目的地」選「另存為 PDF」就能存成 PDF。")}</p></div>
-      <div class="qrcards">${os.map(o => qrCard(o, ev.name)).join("")}</div>`;
+      <p class="hint" style="margin:6px 16px 0">要直接傳給同仁：按每張卡下方「用 Email 寄給同仁」，會打開手機的郵件 App，內文附 QR 連結。</p>
+      <div class="qrcards">${os.map(o => qrCard(o, ev.name, true)).join("")}</div>`;
   }
   setHTML(app, html);
 }
 
-function qrCard(o, evName) {
+function qrCard(o, evName, withMail) {
   const s = H.init.shelters.find(x => x.id === o.shelterId) || { name: o.name };
-  return qrCardRaw(evName, s.name, o.code, H.lastNew.includes(o.shelterId));
+  return qrCardRaw(evName, s.name, o.code, H.lastNew.includes(o.shelterId), withMail);
 }
-function qrCardRaw(evName, name, code, isNew) {
+function qrCardRaw(evName, name, code, isNew, withMail) {
   return `<div class="qrcard ${isNew ? "new" : ""}">
     <div class="band"><b>工作人員簽到</b><span>${esc(evName)}</span><strong>${esc(name)}</strong></div>
-    <div class="qr">${qrSvg(signUrl(code))}</div><p>本所工作人員共用・用 LINE 掃描 → 按「傳送」</p></div>`;
+    <div class="qr">${qrSvg(signUrl(code))}</div><p>本所工作人員共用・用 LINE 掃描 → 按「傳送」</p>
+    ${withMail ? `<a class="qrmail" href="${esc(qrMailHref(evName, name, code))}">✉ 用 Email 寄給同仁</a>` : ""}</div>`;
 }
+// 手機上直接寄出簽到 QR：打開郵件 App，內文附「QR 列印頁」連結（收件人點開就看得到 QR，可列印或存 PDF，不需登入）
+// 不直接附簽到連結：避免收件人不在現場就點連結簽到
+function qrPrintUrl(evName, name, code) {
+  return `${location.origin}${location.pathname}?v=printqr#${b64e({ e: evName, c: [[name, code]] })}`;
+}
+function qrMailHref(evName, name, code) {
+  const subject = `【簽到 QR Code】${name}（${evName}）`;
+  const body = `${name} 的工作人員簽到 QR Code\n災害：${evName}\n\n用手機或電腦打開下面的連結就看得到 QR Code，可以列印或存成 PDF：\n${qrPrintUrl(evName, name, code)}\n\n請貼在服務台，給本所工作人員用 LINE 掃描簽到。\n這個連結含有簽到碼，請只轉給本所工作人員。`;
+  return `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+}
+// 存成 PDF 時的檔名（手機瀏覽器用網頁標題當檔名）：去掉檔名不能用的字元
+const fileTitle = s => String(s).replace(/[\\/:*?"<>|]/g, "_").trim();
 
 async function doOpen() {
   const { d, ev } = cmdState();
