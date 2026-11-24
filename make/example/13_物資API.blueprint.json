@@ -5125,6 +5125,7 @@
                 "by": "{{178.properties_value.`回報人`[].id}}",
                 "item": "{{178.properties_value.`整備項目`.name}}",
                 "src": "{{178.properties_value.`來源`.name}}",
+                "who": "{{178.properties_value.`反映者`[].plain_text}}",
                 "at": "{{178.created_time}}"
                },
                "metadata": {
@@ -5241,6 +5242,11 @@
                   "key": "來源",
                   "type": "select",
                   "value": "LINE 回報"
+                 },
+                 {
+                  "key": "反映者",
+                  "type": "rich_text",
+                  "value": "工作人員・{{replace(3.properties_value.`角色`.name; \"（收容所負責人）\"; \"\")}}｜{{3.properties_value.`姓名`[].plain_text}}"
                  },
                  {
                   "key": "需回報社會處",
@@ -6915,6 +6921,11 @@
                   "key": "來源",
                   "type": "select",
                   "value": "{{if(3.id; if(3.properties_value.`啟用中`; \"工作人員反映\"; \"民眾反映\"); \"民眾反映\")}}"
+                 },
+                 {
+                  "key": "反映者",
+                  "type": "rich_text",
+                  "value": "{{if(3.id; if(3.properties_value.`啟用中`; ifempty(3.properties_value.`身分類別`.name; \"工作人員\"); \"一般民眾\"); \"一般民眾\")}}｜{{if(3.id; if(3.properties_value.`啟用中`; 3.properties_value.`姓名`[].plain_text; 4.data.displayName); 4.data.displayName)}}"
                  },
                  {
                   "key": "內容說明",
@@ -9709,6 +9720,11 @@
                   "key": "來源",
                   "type": "select",
                   "value": "社會處"
+                 },
+                 {
+                  "key": "反映者",
+                  "type": "rich_text",
+                  "value": "社會處｜{{3.properties_value.`姓名`[].plain_text}}"
                  }
                 ],
                 "select": "map",
@@ -12029,6 +12045,7 @@
                 "by": "{{328.properties_value.`回報人`[].id}}",
                 "item": "{{328.properties_value.`整備項目`.name}}",
                 "src": "{{328.properties_value.`來源`.name}}",
+                "who": "{{328.properties_value.`反映者`[].plain_text}}",
                 "at": "{{328.created_time}}"
                },
                "metadata": {

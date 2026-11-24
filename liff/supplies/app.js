@@ -295,7 +295,7 @@ function renderOps() {
   // 待處理事件分兩組：工作人員回報的優先看，居民反映（跟個人有關）放後面；各組裡緊急的排最上面
   const evtBtn = e => {
     const own = !e.owner ? `<span class="own free">待認領</span>` : e.owner === d.me.id ? `<span class="own mine">我負責</span>` : `<span class="own">${esc(ownerName(e) || "其他人")}處理中</span>`;
-    return `<button class="evt ${esc(e.sev)}" data-evt="${esc(e.id)}"><div class="t">${esc(nz(e.title))}</div>
+    return `<button class="evt ${esc(e.sev)}" data-evt="${esc(e.id)}"><div class="t">${esc(nz(e.title))}</div>${whoLine(e)}
         <div class="m"><span class="sev ${esc(e.sev)}">${esc(e.sev)}</span>${own}<span>${esc(ago(e.at))}</span></div></button>`;
   };
   const staffEvs = evs.filter(e => !fromResident(e)), resEvs = evs.filter(fromResident);
@@ -391,16 +391,23 @@ async function opsAct(a, f, okMsg) {
     return false;
   }
 }
+// 反映者：後端「反映者」欄位（身分｜姓名）；舊資料沒有時，用在班名單找回報人姓名
+function whoText(e) {
+  if (e.who) return e.who;
+  const n = staffName(e.by);
+  return n ? `工作人員｜${n}` : "";
+}
+const whoLine = e => whoText(e) ? `<div class="whoby">👤 ${esc(whoText(e))}</div>` : "";
 function eventSheet(id) {
   const e = S.ops.events.find(x => x.id === id); if (!e) return;
   if (S.hqO) return sheet(`<h2>${esc(nz(e.title))}</h2>
-    <div class="meta"><span class="sev ${esc(e.sev)}">${esc(e.sev)}</span>　${esc(nz(e.cat))}・${esc(nz(e.status))}・${esc(fmtTime(e.at))}${ownerName(e) ? `・${esc(ownerName(e))} 負責` : ""}</div>
+    <div class="meta"><span class="sev ${esc(e.sev)}">${esc(e.sev)}</span>　${esc(nz(e.cat))}・${esc(nz(e.status))}・${esc(fmtTime(e.at))}${ownerName(e) ? `・${esc(ownerName(e))} 負責` : ""}</div>${whoLine(e)}
     ${e.text ? `<div class="pre">${esc(e.text)}</div>` : ""}
     <label>處理紀錄</label><div class="pre">${esc((e.log || "").trim() || "（還沒有）")}</div>
     <div class="acts" style="grid-template-columns:1fr"><button data-close>關閉</button></div>`);
   const mine = e.owner === S.ops.me.id;
   sheet(`<h2>${esc(nz(e.title))}</h2>
-    <div class="meta"><span class="sev ${esc(e.sev)}">${esc(e.sev)}</span>　${esc(nz(e.cat))}・${esc(nz(e.status))}・${esc(fmtTime(e.at))}${staffName(e.by) ? `・${esc(staffName(e.by))} 記錄` : ""}</div>
+    <div class="meta"><span class="sev ${esc(e.sev)}">${esc(e.sev)}</span>　${esc(nz(e.cat))}・${esc(nz(e.status))}・${esc(fmtTime(e.at))}</div>${whoLine(e)}
     ${e.text ? `<div class="pre">${esc(e.text)}</div>` : ""}
     <label>處理紀錄</label><div class="pre">${esc((e.log || "").trim() || "（還沒有）")}</div>
     <label>寫一句處理情形（追加紀錄時必填，認領和解決可留空）<textarea id="ev-text" maxlength="500" placeholder="例：已請水電師傅明早來修，先放警示牌"></textarea></label>

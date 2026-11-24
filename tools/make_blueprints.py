@@ -783,7 +783,7 @@ def status_flow_for(b, respond, W, open_expr, all_res=False, sfx=""):
         "title": sp(L, "日誌標題", "[].plain_text"), "cat": sp(L, "日誌類別", ".name"), "sev": sp(L, "嚴重程度", ".name"),
         "status": sp(L, "處理進度", ".name"), "text": sp(L, "內容說明", "[].plain_text"), "log": sp(L, "處理紀錄", "[].plain_text"),
         "owner": sp(L, "負責人", "[].id"), "by": sp(L, "回報人", "[].id"), "item": sp(L, "整備項目", ".name"),
-        "src": sp(L, "來源", ".name"), "at": f"{{{{{L}.created_time}}}}"})
+        "src": sp(L, "來源", ".name"), "who": sp(L, "反映者", "[].plain_text"), "at": f"{{{{{L}.created_time}}}}"})
     num = lambda p: "{{ifempty(" + sp(O, p, ".number")[2:-2] + "; 0)}}"
     status_body = ('{"ok":true,"me":{"id":"' + f"{{{{{W}.id}}}}" + '","name":"' + enc(w_name) + '","role":"' + w_role + '"},'
                    # id：管理者按「撤收本所」時送回來（hqClose 的 o）
@@ -828,6 +828,8 @@ def ops_routes(b, respond, W, on, act):
         f_sel("日誌類別", pick("1.cat", FIELD_CATS, "交班紀錄")),
         f_sel("嚴重程度", pick("1.sev", SEVS, "中")), f_sel("處理進度", "待處理"), f_text("內容說明", cut("1.text", 1000)),
         f_rel("回報人", f"{{{{{W}.id}}}}"), f_rel("收容所開設", w_open), f_now("發生時間"), f_sel("來源", "LINE 回報"),
+        # 反映者：身分｜姓名，畫面直接顯示（例：工作人員・管理者｜王小明）
+        f_text("反映者", "工作人員・{{replace(" + w_role[2:-2] + '; "（收容所負責人）"; "")}}｜' + w_name),
         f_chk("需回報社會處", urgent),
         {"key": "相關居民", "type": "relation", "value": '{{if(1.g; split(1.g; ","); emptyarray)}}'}])
     report_flow = [new_log, respond("回傳已記錄", '{"ok":true,"id":"' + f"{{{{{new_log['id']}.id}}}}" + '"}')]
@@ -967,6 +969,8 @@ def public_routes(b, respond, W, auth_ok, on, act):
         f_sel("嚴重程度", '{{if(1.cat = "身體不適"; "高"; "中")}}'), f_sel("處理進度", "待處理"),
         f_text("反映者 LINE ID", uid), f_now("發生時間"),
         f_sel("來源", '{{if(' + f"{W}.id" + '; if(' + w_on + '; "工作人員反映"; "民眾反映"); "民眾反映")}}'),
+        # 反映者：身分｜姓名（名冊裡啟用中的用名冊姓名，其他人用 LINE 顯示名稱）
+        f_text("反映者", who + "｜{{if(" + f"{W}.id" + "; if(" + w_on + "; " + sp(W, "姓名", "[].plain_text")[2:-2] + "; 4.data.displayName); 4.data.displayName)}}"),
         f_text("內容說明", "反映者：" + who + "\n反映地點：" + cut("1.where", 40) + "\n" + cut("1.text", 500)),
         {"key": "收容所開設", "type": "relation", "value": '{{if(1.o; split(1.o; ","); emptyarray)}}'},
         # 名冊裡啟用中的人（工作人員、志工）一併記為回報人
@@ -1258,7 +1262,8 @@ def hq_routes(b, respond, W, auth_ok, on, act, load_flow_for):
         f_title("日誌標題", pick("1.cat", FIELD_CATS, "交班紀錄") + "：{{substring(1.text; 0; 24)}}"),
         f_sel("日誌類別", pick("1.cat", FIELD_CATS, "交班紀錄")),
         f_sel("嚴重程度", pick("1.sev", SEVS, "中")), f_sel("處理進度", "待處理"), f_text("內容說明", cut("1.text", 1000)),
-        f_rel("回報人", f"{{{{{W}.id}}}}"), f_rel("收容所開設", "{{1.o}}"), f_now("發生時間"), f_sel("來源", "社會處")])
+        f_rel("回報人", f"{{{{{W}.id}}}}"), f_rel("收容所開設", "{{1.o}}"), f_now("發生時間"), f_sel("來源", "社會處"),
+        f_text("反映者", "社會處｜" + w_name)])
     hqlog_flow = [hq_log, respond("回傳已記錄（社會處）", '{"ok":true,"id":"' + f"{{{{{hq_log['id']}.id}}}}" + '"}')]
 
     hq = lambda a: [is_hq + [act(a)]]

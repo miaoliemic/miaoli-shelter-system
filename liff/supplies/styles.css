@@ -352,3 +352,5 @@ html.framed body { display: none !important; }
 .evgrp.res{border-left-color:#E8590C}
 .evgrp small{font-weight:400;color:var(--soft)}
 .evnone{margin:0 16px 8px !important}
+/* 事件的反映者（身分｜姓名） */
+.whoby{font-size:0.875rem;color:var(--soft);margin-top:3px}
