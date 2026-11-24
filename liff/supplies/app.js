@@ -172,11 +172,12 @@ function animateDots(root) {
 new MutationObserver(ms => { for (const m of ms) animateDots(m.type === "characterData" ? m.target.parentNode : m.target); })
   .observe(document.documentElement, { childList: true, subtree: true, characterData: true });
 function toast(msg) { const d = document.createElement("div"); d.className = "toast"; d.textContent = msg; document.body.append(d); setTimeout(() => d.remove(), 2600); }
+// 庫存文字：有包裝單位就把兩種單位都寫出來，例：庫存 50 瓶（2 箱＋2 瓶）、庫存 1 瓶（0 箱＋1 瓶）
+// 工作人員的物資頁、本所畫面、社會處看該所，全部用這一個函式，顯示一定一致
 function stockText(it) {
-  // 不滿一個包裝就不顯示「約 0 箱」（容易被看成剩 0）
-  const packs = it.pack && it.per > 1 ? Math.floor(it.stock / it.per) : 0;
-  const extra = packs >= 1 ? `（約 ${packs} ${it.pack}）` : "";
-  return `庫存 ${it.stock} ${it.unit}${extra}`;
+  const s = it.stock;
+  const both = it.pack && it.per > 1 && s >= 0 ? `（${Math.floor(s / it.per)} ${it.pack}＋${s % it.per} ${it.unit}）` : "";
+  return `庫存 ${s} ${it.unit}${both}${it.stock < it.safety ? `，低於安全庫存 ${it.safety} ${it.unit}` : ""}`;
 }
 function base(it, p) { return p.unit === it.pack && it.pack ? p.qty * it.per : p.qty; }
 function lines() {
@@ -225,7 +226,7 @@ function render() {
      ${S.showAll ? "" : `<button class="showall" id="showall">顯示全部品項</button>`}` : ""}
   ${S.showAll ? `<div class="list">${shown.map(it => `<div class="row ${it.stock < it.safety ? "low" : ""} ${S.pick[it.id] && S.pick[it.id].qty !== "" ? "picked" : ""}" data-id="${it.id}">
       <div class="top"><div class="name">${esc(it.name)}${it.stock < it.safety ? " ⚠" : ""}</div>${it.code ? `<button class="lbl" data-label="${it.id}" aria-label="${esc(it.name)}的物資標籤">標籤</button>` : ""}</div>
-      <div class="stock">${stockText(it)}${it.stock < it.safety ? `，低於安全庫存 ${it.safety}` : ""}</div>${rowCtrl(it)}</div>`).join("") || `<div class="row">找不到符合的品項</div>`}
+      <div class="stock">${stockText(it)}</div>${rowCtrl(it)}</div>`).join("") || `<div class="row">找不到符合的品項</div>`}
     ${(S.me.role || "").includes("管理者") && !lockOut ? `<button class="addnew" id="addnew">＋ 新增品項</button>` : ""}
     ${S.items.some(x => x.code) ? `<button class="addnew" id="allLabels">🏷 列印全部物資標籤</button>` : ""}</div>` : ""}
   ${S.recent.length ? `<div class="recent"><h3>${REAL ? "這次登記" : "本所最近登記"}</h3>${S.recent.slice(0, 5).map(r => `<div>${esc(r.t)}　${esc(r.text)}</div>`).join("")}</div>` : ""}`);
