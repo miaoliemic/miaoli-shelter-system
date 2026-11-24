@@ -354,3 +354,13 @@ html.framed body { display: none !important; }
 .evnone{margin:0 16px 8px !important}
 /* 事件的反映者（身分｜姓名） */
 .whoby{font-size:0.875rem;color:var(--soft);margin-top:3px}
+/* 等待中（載入中、送出中、處理中…）：大字、鮮明的橘色，一眼看得出系統正在處理，不要再按 */
+:root{--busy:#D9480F}
+@media (prefers-color-scheme:dark){:root{--busy:#FFA94D}}
+:is(p,div,small,h2,span):has(> .ldots){font-size:1.375rem;font-weight:800;color:var(--busy)}
+.blocked p:has(> .ldots){font-size:1.625rem}
+/* 按鈕裡的「送出中…」：字加粗；底色是白的按鈕改用橘字橘框，有底色的按鈕維持白字 */
+button:has(.ldots){font-weight:800}
+button span:has(> .ldots){font-size:inherit;color:inherit}
+button:has(.ldots):not(.go):not(.main):not(.blue){color:var(--busy);border-color:var(--busy)}
+.ldots i{font-size:1.15em}
