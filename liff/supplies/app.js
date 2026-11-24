@@ -21,7 +21,8 @@ class ApiError extends Error { constructor(code) { super(code); this.code = code
 const ENC_KEYS = new Set(["name", "opening", "staff", "area", "line", "tag", "unit", "phone", "event", "addr", "sum"]);
 const safeDecode = s => { try { return decodeURIComponent(s); } catch (e) { return s; } };
 function decodeFields(o) {
-  if (Array.isArray(o)) return o.map(decodeFields);
+  // Make 搜尋 0 筆時，彙整模組仍會吐出一筆「每個欄位都空白」的資料（例如沒有事件卻顯示 1 件「無」）：有 id 欄位但 id 是空的就丟掉
+  if (Array.isArray(o)) return o.filter(x => !(x && typeof x === "object" && "id" in x && !x.id)).map(decodeFields);
   if (o && typeof o === "object") {
     for (const k of Object.keys(o)) o[k] = ENC_KEYS.has(k) && typeof o[k] === "string" ? safeDecode(o[k]) : decodeFields(o[k]);
   }
@@ -277,7 +278,7 @@ function renderOps() {
   // 社會處檢視才能點「在所」看全部居民（工作人員的本所狀況只回外出、未返、需關懷的人，維持原樣）
   body += `<div class="stats">${stat(ro ? "all" : "", `${o.inside}<small style="font-size:0.8125rem">／${o.capacity}</small>`, "在所／容量")}
     ${stat("out", o.out, "外出", o.out ? "warn" : "")}${stat("late", o.late, "未返", o.late ? "alert" : "")}
-    ${stat("care", o.care, "需關懷", o.care ? "warn" : "")}${stat("", evs.length, urgent ? `未結・緊急 ${urgent}` : "未結事件", urgent ? "alert" : evs.length ? "warn" : "")}
+    ${stat("care", o.care, "需關懷", o.care ? "warn" : "")}${stat("", evs.length, urgent ? `待處理・緊急 ${urgent}` : "待處理事件", urgent ? "alert" : evs.length ? "warn" : "")}
     ${stat("", o.needStaff + o.needVol, `缺工 ${o.needStaff}・缺志 ${o.needVol}`, o.needStaff + o.needVol ? "warn" : "")}</div>`;
   if (S.opsShow) {
     const rs = d.residents.filter(r => S.opsShow === "all" ? true : S.opsShow === "care" ? r.care : r.status === (S.opsShow === "late" ? "未返" : "外出"));
@@ -286,12 +287,12 @@ function renderOps() {
       <div class="plist">${rs.map(r => `<div class="prow"><span class="n">${esc(r.name)}</span><span class="meta">${esc(meta(r))}</span></div>`).join("") || `<div class="prow">沒有</div>`}</div>`;
   }
   body += `<div class="sec">在班人員 <small>${d.duty.length} 人</small></div><div class="chips2">${d.duty.map(x => `<span>${esc(x.name)}${x.kind === "志工" ? "（志工）" : x.role ? `・${esc(x.role.replace("（收容所負責人）", ""))}` : ""}</span>`).join("")}</div>`;
-  body += `<div class="sec">待處理事項 <small>${evs.length} 件，緊急的排最上面</small></div>`
+  body += `<div class="sec">待處理事件 <small>${evs.length} 件，緊急的排最上面</small></div>`
     + (evs.map(e => {
       const own = !e.owner ? `<span class="own free">待認領</span>` : e.owner === d.me.id ? `<span class="own mine">我負責</span>` : `<span class="own">${esc(ownerName(e) || "其他人")}處理中</span>`;
       return `<button class="evt ${esc(e.sev)}" data-evt="${esc(e.id)}"><div class="t">${esc(nz(e.title))}</div>
         <div class="m"><span class="sev ${esc(e.sev)}">${esc(e.sev)}</span>${own}<span>${esc(ago(e.at))}</span></div></button>`;
-    }).join("") || `<div class="hint" style="margin:0 16px">目前沒有待處理的事項。</div>`);
+    }).join("") || `<div class="hint" style="margin:0 16px">目前沒有待處理事件。</div>`);
   if (ro && S.hqItems) {
     const low = S.hqItems.filter(it => it.stock < it.safety);
     body += `<div class="sec">物資庫存 <small>${low.length ? `${low.length} 項低於安全庫存` : "都在安全庫存以上"}</small></div>
@@ -300,7 +301,7 @@ function renderOps() {
   body += closeActs(d, ro);
   setHTML(app, head + body);
   if (ro) return;
-  setHTML($("#sum"), evs.length ? `未結 <b>${evs.length}</b>${urgent ? `・緊急 <b>${urgent}</b>` : ""}` : "沒有未結事項");
+  setHTML($("#sum"), evs.length ? `待處理 <b>${evs.length}</b>${urgent ? `・緊急 <b>${urgent}</b>` : ""}` : "沒有待處理事件");
   $("#go").textContent = "＋記錄事件"; $("#go").disabled = false;
 }
 function prepView(d) {
@@ -330,7 +331,7 @@ function closeActs(d, ro) {
 // 撤收前的檢查清單（用本所狀況已有的數字）：還有沒處理完的，按下去會再問一次
 function closeCheckSheet() {
   const d = S.ops, o = d.opening, evs = openEvents(), id = S.hqO || o.id;
-  const rows = [["居民在所", o.inside, "人"], ["居民外出", o.out, "人"], ["居民未返", o.late, "人"], ["未結事件", evs.length, "件"], ["在班工作人員", d.duty.length, "人"]];
+  const rows = [["居民在所", o.inside, "人"], ["居民外出", o.out, "人"], ["居民未返", o.late, "人"], ["待處理事件", evs.length, "件"], ["在班工作人員", d.duty.length, "人"]];
   const left = rows.filter(r => r[1] > 0);
   sheet(`<h2>撤收「${esc(o.name)}」</h2>
     <div class="meta">撤收後不再接受新的報到；外出、返回、離所、物資、事件、簽退照常可用。之後由社會處結案。</div>
@@ -983,7 +984,7 @@ function renderStaff() {
   else if (me.state === "off") setHTML(app, pubHead("工作人員專區", hello + "，目前未上班") + `<div class="card"><div class="body">到現場後，掃服務台張貼的「工作人員簽到」QR Code 簽到。</div></div>
       <div class="biglinks"><button class="biglink blue" id="scanner"><span class="ic">📷</span><span>打開 QR 掃描器<small>掃簽到 QR</small></span></button></div>`);
   else setHTML(app, pubHead("工作人員專區", hello + "，上班中") + (me.role === "社會處" ? hqLinks() : "") + `<div class="biglinks">
-      ${me.kind === "工作人員" ? `<button class="biglink" data-go="?v=ops"><span class="ic">📊</span><span>本所畫面<small>狀況、待處理事項、記錄事件</small></span></button>` : ""}
+      ${me.kind === "工作人員" ? `<button class="biglink" data-go="?v=ops"><span class="ic">📊</span><span>本所畫面<small>狀況、待處理事件、記錄事件</small></span></button>` : ""}
       <button class="biglink" id="scanner"><span class="ic">📷</span><span>掃描 QR<small>物資標籤、居民號碼牌</small></span></button>
       <button class="biglink" data-go="?"><span class="ic">📦</span><span>物資<small>入庫、發放、盤點</small></span></button>
       <button class="biglink" data-go="?v=signout"><span class="ic">👋</span><span>簽退（下班）</span></button></div>`);
@@ -1117,7 +1118,7 @@ function reportText(R) {
     `人：累計收容 ${R.total} 人，最高同時在所 ${R.peak} 人，目前仍在所 ${R.inside} 人`,
     `年齡層：${joinCounts(R.ages, " 人")}`,
     `需關懷：${R.careN} 人（${joinCounts(R.cares)}）`,
-    `事：事件 ${R.ev} 件，已解決或結案 ${R.done} 件（${pct(R.done, R.ev)}），未結 ${R.open} 件`,
+    `事：事件 ${R.ev} 件，已解決或結案 ${R.done} 件（${pct(R.done, R.ev)}），待處理 ${R.open} 件`,
     `事件類別：${joinCounts(R.cats, " 件")}`,
     `嚴重程度：${joinCounts(R.sevs, " 件")}`,
     `物：${R.items.map(([k, t]) => `${k}（${itemText(t)}）`).join("；") || "沒有物資異動"}`,
@@ -1138,7 +1139,7 @@ function reportHtml(R) {
     <div class="sec">年齡層 <small>需關懷 ${R.careN} 人</small></div><div class="plist">${list(R.ages, "人")}</div>
     ${R.cares.length ? `<div class="sec">關懷類別</div><div class="plist">${list(R.cares, "人")}</div>` : ""}
     <div class="sec">事 <small>不含整備回報</small></div>
-    <div class="stats">${big(R.ev, "事件總數")}${big(pct(R.done, R.ev), "已解決＋已結案")}${big(R.open, "未結")}</div>
+    <div class="stats">${big(R.ev, "事件總數")}${big(pct(R.done, R.ev), "已解決＋已結案")}${big(R.open, "待處理")}</div>
     <div class="sec">依類別</div><div class="plist">${list(R.cats, "件")}</div>
     <div class="sec">依嚴重程度</div><div class="plist">${list(R.sevs, "件")}</div>
     <div class="sec">物 <small>依品項彙整異動數量</small></div>
