@@ -212,7 +212,7 @@ function render() {
   const lockOut = !!S.tag;
   setHTML(app, `
   <header>
-    ${tabs()}<div class="title"><h1>${esc(S.me.opening)}・物資</h1><button class="iconbtn" id="reload" aria-label="重新整理">↻</button></div>
+    ${tabs()}<div class="title"><h1>${esc(S.me.opening)}・物資收發管理</h1><button class="iconbtn" id="reload" aria-label="重新整理">↻</button></div>
     <div class="sub">${esc(S.me.event)}　經手人：${esc(S.me.name)}</div>
     ${focus && !S.showAll ? "" : `<div class="seg">${Object.entries(MODES).map(([k, v]) => `<button data-mode="${k}" class="${S.mode === k ? "on" : ""}" ${lockOut && k !== "out" ? "disabled" : ""}>${v}</button>`).join("")}</div>`}
     <div class="hint">${S.mode === "count" ? "填「實際點到的數量」，系統自動算出差額。沒點的品項留空。" : S.mode === "out" ? "填要發出去的數量，可一次填多項。物資標籤和居民號碼牌都用「掃描」，先掃哪個都可以。" : "填收到的數量，可切換瓶或箱，一次填多項。"}</div>
@@ -234,7 +234,7 @@ function render() {
 }
 // ===== 分頁：本所｜居民｜物資 =====
 function tabs() {
-  return `<nav class="tabs">${[["ops", "本所"], ["resident", "居民"], ["supply", "物資"]].map(([k, t]) => `<button data-tab="${k}" class="${S.view === k ? "on" : ""}">${t}</button>`).join("")}</nav>`;
+  return `<nav class="tabs">${[["ops", "本所總覽"], ["resident", "居民進出管理"], ["supply", "物資收發管理"]].map(([k, t]) => `<button data-tab="${k}" class="${S.view === k ? "on" : ""}">${t}</button>`).join("")}</nav>`;
 }
 
 // ===== 本所畫面：知道（狀況、名單、待處理事項）、記錄、處理 =====
@@ -268,7 +268,7 @@ function renderOps() {
   const head = ro ? `<header><div class="title"><button class="iconbtn" id="hqBack" aria-label="回各所現況">‹</button><h1>${esc((o && o.name) || "收容所")}</h1>
       <button class="iconbtn" id="opsReload" aria-label="重新整理">↻</button></div>
     <div class="sub">${o ? `${esc(o.stage)}　${esc(o.light || "")}` : ""}</div></header><div class="hqbanner" style="margin-top:10px">社會處檢視中（現場操作由該所工作人員處理；撤收、結案在最下方）</div>`
-    : `<header>${tabs()}<div class="title"><h1>${esc((o && o.name) || (S.me && S.me.opening) || "本所")}・本所</h1>
+    : `<header>${tabs()}<div class="title"><h1>${esc((o && o.name) || (S.me && S.me.opening) || "本所")}・本所總覽</h1>
       <button class="iconbtn" id="opsReload" aria-label="重新整理">↻</button></div>
     <div class="sub">${o ? `${esc(o.stage)}　${esc(o.light || "")}　` : ""}經手人：${esc((d && d.me.name) || "")}</div></header>`;
   if (!d) { setHTML(app, head + `<div class="blocked"><p>${esc(S.rmsg || "讀取本所狀況中…")}</p></div>`); $("#sum").textContent = ""; $("#go").textContent = "＋記錄事件"; return; }
@@ -451,13 +451,16 @@ function renderResident() {
   $("#bar").hidden = false; $("#bar .in").hidden = false;
   $("#go").textContent = "掃描"; $("#go").disabled = false;
   document.documentElement.style.setProperty("--accent", "var(--blue)");
-  const head = `<header>${tabs()}<div class="title"><h1>${esc((d && d.opening) || (S.me && S.me.opening) || "收容所")}・居民</h1></div>
+  const head = `<header>${tabs()}<div class="title"><h1>${esc((d && d.opening) || (S.me && S.me.opening) || "收容所")}・居民進出管理</h1></div>
     <div class="sub">經手人：${esc((d && d.staff) || (S.me && S.me.name) || "")}${S.rtag ? `　號碼牌 ${esc(S.rtag)}` : ""}</div></header>`;
   if (!d) {
-    const mgr = !S.rtag && S.me && (S.me.role || "").includes("管理者"), last = lastTags();
-    setHTML(app, head + `<div class="blocked"><p>${esc(S.rmsg || (S.rtag ? "讀取號碼牌中…" : "請按下方「掃描」，掃居民號碼牌。"))}</p></div>`
-      + (mgr ? `<div class="biglinks"><button class="biglink" id="mkTags"><span class="ic">🏷</span><span>產生空白號碼牌<small>空白牌不夠時，產生新的號碼牌並列印</small></span></button>
-        ${last ? `<button class="biglink" id="lastTags"><span class="ic">🖨</span><span>重印上次產生的號碼牌<small>${esc(last.p)}・${last.c.length} 張</small></span></button>` : ""}</div>` : ""));
+    // 還沒掃牌：縱向兩個大按鈕（掃描居民進出｜產生新的空白號碼牌）；讀取中或錯誤訊息照舊顯示文字
+    if (S.rtag || S.rmsg) { setHTML(app, head + `<div class="blocked"><p>${esc(S.rmsg || "讀取號碼牌中…")}</p></div>`); return; }
+    const mgr = S.me && (S.me.role || "").includes("管理者"), last = lastTags();
+    setHTML(app, head + `<div class="biglinks rbtns">
+      <button class="biglink blue" id="scanRes"><span class="ic">📷</span><span>掃描居民進出<small>掃居民號碼牌：報到、外出、返回、領物資、離所</small></span></button>
+      <button class="biglink" id="mkTags" ${mgr ? "" : 'disabled style="opacity:.45"'}><span class="ic">🏷</span><span>產生新的空白號碼牌<small>${mgr ? "空白牌不夠時，產生新的號碼牌並列印" : "限收容所管理者"}</small></span></button>
+      ${mgr && last ? `<button class="hq-go ghost" id="lastTags">🖨 重印上次產生的號碼牌（${esc(last.p)}・${last.c.length} 張）</button>` : ""}</div>`);
     return;
   }
   let body = "";
@@ -659,6 +662,7 @@ document.addEventListener("click", async e => {
   else if (b.dataset.label) { const it = S.items.find(x => x.id === b.dataset.label); if (it) labelSheet([it]); }
   else if (b.id === "allLabels") labelSheet(S.items.filter(x => x.code));
   else if (b.id === "lblPrint") printLabels(S.lbl);
+  else if (b.id === "scanRes") scan();
   else if (b.id === "mkTags") tagGenSheet(S.me.opening || "本所", codes => api.addTags(codes));
   else if (b.id === "lastTags") { const d = lastTags(); if (d) tagResultSheet(d); }
 });

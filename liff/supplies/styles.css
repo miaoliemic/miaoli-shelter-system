@@ -117,7 +117,7 @@ header{position:sticky;top:0;z-index:5;background:var(--bg);padding:14px 16px 10
 .chkline{display:flex;align-items:center;gap:8px;margin-top:8px;font-size:0.9375rem;color:var(--text)}
 .chkline input{width:22px;height:22px;min-height:0;margin:0}
 .tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;margin:-4px 0 10px;padding:3px;border-radius:12px;background:var(--chip)}
-.tabs button{padding:7px 0;border-radius:9px;font-weight:700;font-size:0.9375rem;color:var(--soft)}
+.tabs button{padding:7px 2px;line-height:1.25;border-radius:9px;font-weight:700;font-size:0.9375rem;color:var(--soft)}
 .tabs button.on{background:var(--card);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,.12)}
 .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 16px 0}
 .stat{padding:10px 8px;border-radius:14px;background:var(--card);border:1px solid var(--line);text-align:center}
@@ -336,3 +336,6 @@ html.framed body { display: none !important; }
 .ldots i:nth-child(3){animation-delay:.3s}
 @keyframes ldot{0%,60%,100%{transform:translateY(0);opacity:.45}30%{transform:translateY(-.3em);opacity:1}}
 @media (prefers-reduced-motion:reduce){.ldots i{animation:none;opacity:1}}
+/* 居民進出管理：縱向兩個大按鈕 */
+.rbtns{display:grid;gap:12px;margin:16px}
+.rbtns .hq-go{margin:0;width:100%}
