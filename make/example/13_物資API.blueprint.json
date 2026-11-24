@@ -5025,11 +5025,6 @@
                    "a": "處理進度 |&*^%$#@| select",
                    "o": "select:does_not_equal",
                    "b": "已結案"
-                  },
-                  {
-                   "a": "日誌類別 |&*^%$#@| select",
-                   "o": "select:does_not_equal",
-                   "b": "居民反映"
                   }
                  ],
                  [
@@ -6834,7 +6829,7 @@
                  {
                   "key": "日誌標題",
                   "type": "title",
-                  "value": "居民反映：{{switch(1.cat; \"身體不適\"; \"身體不適\"; \"缺物資\"; \"缺物資\"; \"環境問題\"; \"環境問題\"; \"其他\"; \"其他\"; \"其他\")}}"
+                  "value": "反映（{{if(3.id; if(3.properties_value.`啟用中`; ifempty(3.properties_value.`身分類別`.name; \"工作人員\"); \"一般民眾\"); \"一般民眾\")}}）：{{switch(1.cat; \"身體不適\"; \"身體不適\"; \"缺物資\"; \"缺物資\"; \"環境問題\"; \"環境問題\"; \"其他\"; \"其他\"; \"其他\")}}"
                  },
                  {
                   "key": "日誌類別",
@@ -6877,12 +6872,17 @@
                  {
                   "key": "內容說明",
                   "type": "rich_text",
-                  "value": "反映地點：{{substring(1.where; 0; 40)}}\n{{substring(1.text; 0; 500)}}"
+                  "value": "反映者：{{if(3.id; if(3.properties_value.`啟用中`; ifempty(3.properties_value.`身分類別`.name; \"工作人員\"); \"一般民眾\"); \"一般民眾\")}}\n反映地點：{{substring(1.where; 0; 40)}}\n{{substring(1.text; 0; 500)}}"
                  },
                  {
                   "key": "收容所開設",
                   "type": "relation",
                   "value": "{{if(1.o; split(1.o; \",\"); emptyarray)}}"
+                 },
+                 {
+                  "key": "回報人",
+                  "type": "relation",
+                  "value": "{{if(3.id; if(3.properties_value.`啟用中`; split(3.id; \",\"); emptyarray); emptyarray)}}"
                  }
                 ],
                 "select": "map",
@@ -11697,11 +11697,6 @@
                    "a": "處理進度 |&*^%$#@| select",
                    "o": "select:does_not_equal",
                    "b": "已結案"
-                  },
-                  {
-                   "a": "日誌類別 |&*^%$#@| select",
-                   "o": "select:does_not_equal",
-                   "b": "居民反映"
                   }
                  ],
                  [

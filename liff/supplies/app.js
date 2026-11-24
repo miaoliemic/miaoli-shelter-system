@@ -259,6 +259,8 @@ function openEvents() {
   return (S.ops ? S.ops.events : []).filter(e => isOpen(e) && !(e.cat === "整備回報" && !e.item && String(e.title || "").startsWith("整備完成")))
     .sort((a, b) => sevRank(a) - sevRank(b) || new Date(b.at) - new Date(a.at));
 }
+// 居民反映：用「我要反映」送來、反映者不是工作人員或志工的（標題「反映（一般民眾）」或舊格式「居民反映：」）
+const fromResident = e => e.cat === "居民反映" && !/^反映（(工作人員|志工)）/.test(String(e.title || ""));
 function renderOps() {
   const app = $("#app"), d = S.ops;
   document.documentElement.style.setProperty("--accent", "var(--blue)");
@@ -290,12 +292,17 @@ function renderOps() {
       <div class="plist">${rs.map(r => `<div class="prow"><span class="n">${esc(r.name)}</span><span class="meta">${esc(meta(r))}</span></div>`).join("") || `<div class="prow">沒有</div>`}</div>`;
   }
   body += `<div class="sec">在班人員 <small>${d.duty.length} 人</small></div><div class="chips2">${d.duty.map(x => `<span>${esc(x.name)}${x.kind === "志工" ? "（志工）" : x.role ? `・${esc(x.role.replace("（收容所負責人）", ""))}` : ""}</span>`).join("")}</div>`;
-  body += `<div class="sec">待處理事件 <small>${evs.length} 件，緊急的排最上面</small></div>`
-    + (evs.map(e => {
-      const own = !e.owner ? `<span class="own free">待認領</span>` : e.owner === d.me.id ? `<span class="own mine">我負責</span>` : `<span class="own">${esc(ownerName(e) || "其他人")}處理中</span>`;
-      return `<button class="evt ${esc(e.sev)}" data-evt="${esc(e.id)}"><div class="t">${esc(nz(e.title))}</div>
+  // 待處理事件分兩組：工作人員回報的優先看，居民反映（跟個人有關）放後面；各組裡緊急的排最上面
+  const evtBtn = e => {
+    const own = !e.owner ? `<span class="own free">待認領</span>` : e.owner === d.me.id ? `<span class="own mine">我負責</span>` : `<span class="own">${esc(ownerName(e) || "其他人")}處理中</span>`;
+    return `<button class="evt ${esc(e.sev)}" data-evt="${esc(e.id)}"><div class="t">${esc(nz(e.title))}</div>
         <div class="m"><span class="sev ${esc(e.sev)}">${esc(e.sev)}</span>${own}<span>${esc(ago(e.at))}</span></div></button>`;
-    }).join("") || `<div class="hint" style="margin:0 16px">目前沒有待處理事件。</div>`);
+  };
+  const staffEvs = evs.filter(e => !fromResident(e)), resEvs = evs.filter(fromResident);
+  body += `<div class="sec">待處理事件 <small>${evs.length} 件，工作人員回報優先，緊急的排最上面</small></div>`
+    + (evs.length ? `<div class="evgrp">工作人員回報 <small>${staffEvs.length} 件</small></div>${staffEvs.map(evtBtn).join("") || `<div class="hint evnone">沒有</div>`}
+      <div class="evgrp res">居民反映 <small>${resEvs.length} 件</small></div>${resEvs.map(evtBtn).join("") || `<div class="hint evnone">沒有</div>`}`
+      : `<div class="hint" style="margin:0 16px">目前沒有待處理事件。</div>`);
   if (S.hqItems) {
     const low = S.hqItems.filter(it => it.stock < it.safety);
     body += `<div class="sec">物資庫存 <small>${low.length ? `${low.length} 項低於安全庫存` : "都在安全庫存以上"}</small></div>

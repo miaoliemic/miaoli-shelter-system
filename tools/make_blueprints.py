@@ -770,13 +770,12 @@ def status_flow_for(b, respond, W, open_expr, all_res=False, sfx=""):
     res_mods, RJ = agg_json("居民名單", R, {"id": f"{{{{{R}.id}}}}", "name": sp(R, "姓名", "[].plain_text"),
                                          "status": sp(R, "在所狀態", ".name"), "back": sp(R, "預計返回時間", ".start"),
                                          "care": "{{join(map(" + f"{R}.properties_value.`特殊關懷`" + '; "name"); "、")}}'})
-    # 事件：未結的（居民反映除外），加上所有整備回報（整備清單要看已完成的項目）
+    # 事件：未結的（含「我要反映」送來的居民反映，11/24 起列入待處理），加上所有整備回報（整備清單要看已完成的項目）
     logs = b.notion("searchObjects1", "找本所未結事件與整備回報" + sfx, {
         "limit": "60", "select": "data_source_item", "data_source": DS_LOG,
         "sorts": [{"select": "timestamp", "direction": "descending", "timestamp": "created_time"}], "filter": [
             [open_rel(), c("處理進度 |&*^%$#@| select", "select:does_not_equal", "已解決"),
-             c("處理進度 |&*^%$#@| select", "select:does_not_equal", "已結案"),
-             c("日誌類別 |&*^%$#@| select", "select:does_not_equal", "居民反映")],
+             c("處理進度 |&*^%$#@| select", "select:does_not_equal", "已結案")],
             [open_rel(), c("日誌類別 |&*^%$#@| select", "select:equals", "整備回報")]]})
     L = logs["id"]
     log_mods, LJ = agg_json("事件", L, {
@@ -801,7 +800,7 @@ def ops_routes(b, respond, W, on, act):
     """本所畫面（liff/supplies/?v=ops）的動作，掛在情境 13 的「依身分與動作分流」底下（免費方案只能啟用兩個情境）。
     限在班的工作人員（身分類別＝工作人員）；志工屬勞務型，用一般介面，不使用本所畫面。
       a＝status 本所狀況｜report 記錄事件｜update 認領・追加紀錄・解決｜prep 整備回報｜prepDone 送出整備完成
-    事件就是「現場日誌」的一筆；本版不處理居民反映（日誌類別＝居民反映的不列入）。"""
+    事件就是「現場日誌」的一筆；居民用「我要反映」送來的（日誌類別＝居民反映）也列入待處理，可認領、處理。"""
     w_kind = sp(W, "身分類別", ".name")
     staff_on = on + [c(w_kind, "text:equal", "工作人員")]
     w_open = sp(W, "派駐開設", "[].id")
@@ -956,13 +955,20 @@ def public_routes(b, respond, W, auth_ok, on, act):
     ])]
 
     # ---- feedback：我要反映（cat 類別、o 收容所開設 ID 可空白、where 地點名稱、text 說明） ----
+    # 所有人共用同一個「我要反映」；標題標出反映者身分：名冊裡啟用中的用身分類別（工作人員／志工），其他都算一般民眾
+    w_on = sp(W, "啟用中")[2:-2]
+    who = ('{{if(' + f"{W}.id" + '; if(' + w_on + '; ifempty(' + sp(W, "身分類別", ".name")[2:-2]
+           + '; "工作人員"); "一般民眾"); "一般民眾")}}')
     rlog = b.create("新增居民反映（頁面）", DS_LOG, [
-        f_title("日誌標題", "居民反映：" + pick("1.cat", REPORT_CATS, "其他")), f_sel("日誌類別", "居民反映"),
+        f_title("日誌標題", "反映（" + who + "）：" + pick("1.cat", REPORT_CATS, "其他")), f_sel("日誌類別", "居民反映"),
         f_sel("協助類別", pick("1.cat", REPORT_CATS, "其他")),
         f_sel("嚴重程度", '{{if(1.cat = "身體不適"; "高"; "中")}}'), f_sel("處理進度", "待處理"),
         f_text("反映者 LINE ID", uid), f_now("發生時間"), f_sel("來源", "LINE 回報"),
-        f_text("內容說明", "反映地點：" + cut("1.where", 40) + "\n" + cut("1.text", 500)),
-        {"key": "收容所開設", "type": "relation", "value": '{{if(1.o; split(1.o; ","); emptyarray)}}'}])
+        f_text("內容說明", "反映者：" + who + "\n反映地點：" + cut("1.where", 40) + "\n" + cut("1.text", 500)),
+        {"key": "收容所開設", "type": "relation", "value": '{{if(1.o; split(1.o; ","); emptyarray)}}'},
+        # 名冊裡啟用中的人（工作人員、志工）一併記為回報人
+        {"key": "回報人", "type": "relation",
+         "value": '{{if(' + f"{W}.id" + '; if(' + w_on + '; split(' + f"{W}.id" + '; ","); emptyarray); emptyarray)}}'}])
     feedback_flow = [rlog, respond("回傳已收到反映", '{"ok":true}')]
 
     # ---- signout：簽退（名冊改已簽退、解除加乘選單、補出勤簽退時間）。不在班時也解除選單，讓選單恢復一般版 ----
