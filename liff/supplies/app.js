@@ -173,7 +173,9 @@ new MutationObserver(ms => { for (const m of ms) animateDots(m.type === "charact
   .observe(document.documentElement, { childList: true, subtree: true, characterData: true });
 function toast(msg) { const d = document.createElement("div"); d.className = "toast"; d.textContent = msg; document.body.append(d); setTimeout(() => d.remove(), 2600); }
 function stockText(it) {
-  const extra = it.pack && it.per > 1 ? `（約 ${Math.floor(it.stock / it.per)} ${it.pack}）` : "";
+  // 不滿一個包裝就不顯示「約 0 箱」（容易被看成剩 0）
+  const packs = it.pack && it.per > 1 ? Math.floor(it.stock / it.per) : 0;
+  const extra = packs >= 1 ? `（約 ${packs} ${it.pack}）` : "";
   return `庫存 ${it.stock} ${it.unit}${extra}`;
 }
 function base(it, p) { return p.unit === it.pack && it.pack ? p.qty * it.per : p.qty; }
@@ -293,7 +295,7 @@ function renderOps() {
       return `<button class="evt ${esc(e.sev)}" data-evt="${esc(e.id)}"><div class="t">${esc(nz(e.title))}</div>
         <div class="m"><span class="sev ${esc(e.sev)}">${esc(e.sev)}</span>${own}<span>${esc(ago(e.at))}</span></div></button>`;
     }).join("") || `<div class="hint" style="margin:0 16px">目前沒有待處理事件。</div>`);
-  if (ro && S.hqItems) {
+  if (S.hqItems) {
     const low = S.hqItems.filter(it => it.stock < it.safety);
     body += `<div class="sec">物資庫存 <small>${low.length ? `${low.length} 項低於安全庫存` : "都在安全庫存以上"}</small></div>
       <div class="plist">${[...low, ...S.hqItems.filter(it => !low.includes(it))].map(it => `<div class="prow"><span class="n">${esc(it.name)}${it.stock < it.safety ? " ⚠" : ""}</span><span class="meta">${esc(stockText(it))}</span></div>`).join("") || `<div class="prow">沒有品項</div>`}</div>`;
@@ -357,8 +359,10 @@ function closeCheckSheet() {
 async function loadOps() {
   S.view = "ops"; S.ops = null; S.rmsg = ""; render();
   try {
-    const d = await api.ops("status", S.hqO ? { o: S.hqO } : undefined);
-    if (S.hqO) { S.ops = d; S.hqItems = (await api.load(S.hqO)).items; return render(); }
+    // 本所狀況和社會處看該所是同一個畫面：兩邊都一起讀物資庫存（同一支 load，數字一定一致）
+    const [d, ld] = await Promise.all([api.ops("status", S.hqO ? { o: S.hqO } : undefined), api.load(S.hqO || undefined).catch(() => null)]);
+    S.hqItems = ld ? ld.items : null;
+    if (S.hqO) { S.ops = d; return render(); }
     S.ops = d; S.me = { ...(S.me || {}), name: d.me.name, role: d.me.role, opening: d.opening.name, onDuty: true, event: (S.me && S.me.event) || "" };
   } catch (e) { if (handleApiError(e)) return; S.rmsg = "網路不穩，沒讀到本所狀況。請按右上角重新整理。"; }
   render();
