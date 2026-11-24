@@ -248,9 +248,12 @@ function staffName(id) { const d = S.ops && S.ops.duty.find(x => x.id === id); r
 // 負責人：在班的從名單找；已簽退的從處理紀錄裡最後一筆「MM/DD HH:mm 姓名 認領處理」取姓名
 function ownerName(e) {
   const n = staffName(e.owner); if (n) return n;
-  const m = [...(e.log || "").matchAll(/\d{2}\/\d{2} \d{2}:\d{2} (.+?) 認領處理/g)].pop();
+  // 處理紀錄裡最後一筆「認領處理」或「接手處理」（社會處接手寫成「社會處 姓名 接手處理」）
+  const m = [...(e.log || "").matchAll(/\d{2}\/\d{2} \d{2}:\d{2} (.+?) (?:認領處理|接手處理)/g)].pop();
   return m ? m[1] : "";
 }
+// 社會處有指示或接手過：事件清單上加一個標記，現場一眼看到
+const hqMark = e => /\d{2}\/\d{2} \d{2}:\d{2} 社會處 .+? (?:指示|接手處理)/.test(e.log || "") ? `<span class="own hq">📣 社會處</span>` : "";
 function ago(iso) {
   const m = Math.round((Date.now() - new Date(iso)) / 60e3);
   return isNaN(m) ? "" : m < 1 ? "剛剛" : m < 60 ? `${m} 分鐘前` : m < 1440 ? `${Math.floor(m / 60)} 小時前` : fmtTime(iso);
@@ -296,7 +299,7 @@ function renderOps() {
   const evtBtn = e => {
     const own = !e.owner ? `<span class="own free">待認領</span>` : e.owner === d.me.id ? `<span class="own mine">我負責</span>` : `<span class="own">${esc(ownerName(e) || "其他人")}處理中</span>`;
     return `<button class="evt ${esc(e.sev)}" data-evt="${esc(e.id)}"><div class="t">${esc(nz(e.title))}</div>${whoLine(e)}
-        <div class="m"><span class="sev ${esc(e.sev)}">${esc(e.sev)}</span>${own}<span>${esc(ago(e.at))}</span></div></button>`;
+        <div class="m"><span class="sev ${esc(e.sev)}">${esc(e.sev)}</span>${own}${hqMark(e)}<span>${esc(ago(e.at))}</span></div></button>`;
   };
   const staffEvs = evs.filter(e => !fromResident(e)), resEvs = evs.filter(fromResident);
   body += `<div class="sec">待處理事件 <small>${evs.length} 件，工作人員回報優先，緊急的排最上面</small></div>`
@@ -404,7 +407,24 @@ function eventSheet(id) {
     <div class="meta"><span class="sev ${esc(e.sev)}">${esc(e.sev)}</span>　${esc(nz(e.cat))}・${esc(nz(e.status))}・${esc(fmtTime(e.at))}${ownerName(e) ? `・${esc(ownerName(e))} 負責` : ""}</div>${whoLine(e)}
     ${e.text ? `<div class="pre">${esc(e.text)}</div>` : ""}
     <label>處理紀錄</label><div class="pre">${esc((e.log || "").trim() || "（還沒有）")}</div>
-    <div class="acts" style="grid-template-columns:1fr"><button data-close>關閉</button></div>`);
+    ${isOpen(e) ? `<label>給現場的指示（回覆指示必填，接手可留空）<textarea id="hq-text" maxlength="500" placeholder="例：已協調大同國小調 2 箱水過去，14:00 前送到"></textarea></label>
+    <div class="err" id="hq-err"></div>
+    <div class="acts" style="grid-template-columns:1fr 1fr 1fr"><button data-close>關閉</button>
+      <button id="hq-take">社會處接手</button><button class="go" id="hq-reply">回覆指示</button></div>
+    <p class="hint" style="margin:8px 0 0">送出後會 LINE 通知該所在班的管理者；現場按「已解決」時會回報社會處。</p>`
+    : `<div class="acts" style="grid-template-columns:1fr"><button data-close>關閉</button></div>`}`, root => {
+    const btns = root.querySelectorAll("#hq-take,#hq-reply"); if (!btns.length) return;
+    const send = async (a, label) => {
+      const text = root.querySelector("#hq-text").value.trim(), err = root.querySelector("#hq-err");
+      if (a === "hqReply" && !text) return err.textContent = "請寫給現場的指示";
+      btns.forEach(b => b.disabled = true); root.querySelector(a === "hqReply" ? "#hq-reply" : "#hq-take").textContent = "送出中…";
+      try { await api.hq(a, { o: S.hqO, id, text }); closeSheet(); toast(`${label}，已通知該所管理者`); loadOps(); }
+      catch (e) { btns.forEach(b => b.disabled = false); root.querySelector("#hq-reply").textContent = "回覆指示"; root.querySelector("#hq-take").textContent = "社會處接手";
+        err.textContent = e.code === "not_ours" ? "這個事件不屬於這一所" : "網路不穩，沒有送出，請再按一次"; }
+    };
+    root.querySelector("#hq-reply").onclick = () => send("hqReply", "已送出指示");
+    root.querySelector("#hq-take").onclick = () => send("hqTake", "社會處已接手");
+  });
   const mine = e.owner === S.ops.me.id;
   sheet(`<h2>${esc(nz(e.title))}</h2>
     <div class="meta"><span class="sev ${esc(e.sev)}">${esc(e.sev)}</span>　${esc(nz(e.cat))}・${esc(nz(e.status))}・${esc(fmtTime(e.at))}</div>${whoLine(e)}

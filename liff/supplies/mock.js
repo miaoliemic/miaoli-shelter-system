@@ -107,6 +107,13 @@ async function mockHqCall(a, f) {
     return { ok: true, eventId: ev.id, created };
   }
   if (a === "hqApps") return { ok: true, apps: mockHq.apps };
+  if (a === "hqReply" || a === "hqTake") {
+    const e = mockOps.events.find(x => x.id === f.id); if (!e) throw new ApiError("not_ours");
+    const n = new Date(), st = `${n.getMonth() + 1}/${n.getDate()} ${String(n.getHours()).padStart(2, "0")}:${String(n.getMinutes()).padStart(2, "0")}`.replace(/^(\d)\//, "0$1/").replace(/\/(\d) /, "/0$1 ");
+    if (a === "hqReply") e.log += `\n${st} 社會處 測試社會處長 指示：${f.text}`;
+    else { e.owner = "hq1"; e.status = "處理中"; e.log += `\n${st} 社會處 測試社會處長 接手處理${f.text ? "：" + f.text : ""}`; }
+    return { ok: true };
+  }
   if (a === "hqLog") { if (!f.o || !f.text) throw new ApiError("bad_request"); mockOps.events.unshift({ id: "e" + (++mockOps.n), title: `${f.cat}：${f.text.slice(0, 24)}`, cat: f.cat, sev: f.sev, status: "待處理", text: f.text, log: "", owner: "", by: "", item: "", src: "社會處", who: "社會處｜測試社會處長", at: new Date().toISOString() }); return { ok: true }; }
   if (a === "hqTags") { if (!f.s || !f.tg) throw new ApiError("bad_request"); return { ok: true, tags: f.tg }; }
   if (a === "hqApprove" || a === "hqReject") { mockHq.apps = mockHq.apps.filter(x => x.id !== f.id); return { ok: true }; }

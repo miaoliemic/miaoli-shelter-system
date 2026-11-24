@@ -136,7 +136,7 @@ header{position:sticky;top:0;z-index:5;background:var(--bg);padding:14px 16px 10
 .evt .m{font-size:0.8125rem;color:var(--soft);margin-top:4px;display:flex;gap:8px;flex-wrap:wrap}
 .sev{padding:1px 8px;border-radius:999px;font-size:0.75rem;font-weight:700;background:var(--chip)}
 .sev.緊急{background:var(--red);color:#fff}.sev.高{background:var(--amber-bg);color:var(--amber)}
-.own{font-weight:700}.own.free{color:var(--red)}.own.mine{color:var(--green)}
+.own{font-weight:700}.own.free{color:var(--red)}.own.mine{color:var(--green)}.own.hq{color:#7048E8}
 .plist{margin:0 16px;background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden}
 .prow{display:flex;align-items:center;gap:8px;padding:10px 12px;border-top:1px solid var(--line)}
 .prow:first-child{border-top:none}
