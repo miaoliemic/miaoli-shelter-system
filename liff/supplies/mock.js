@@ -140,20 +140,43 @@ function mockReport(o) {
   const openAt = closed ? now - 10 * 864e5 : now - 3 * 864e5, closeAt = closed ? now - 6 * 864e5 : 0, end = closeAt || now;
   const iso = t => new Date(t).toISOString(), nRes = closed ? 18 : 40;
   const ages = ["成人", "成人", "長者", "兒童", "成人", "嬰幼兒", "長者"], cares = ["", "高齡者", "", "身心障礙", "", "幼童,其他", "", "孕婦", "特殊醫療需求", ""];
+  const dests = ["返家", "返家", "投靠親友", "返家", "轉其他收容所", "返家", "投靠親友", "送醫", "返家", ""];   // "" ＝改版前離所、沒有記錄去向
   const residents = Array.from({ length: nRes }, (_, i) => {
     const t = openAt + (i * 1.3 + 1) * H, left = closed || i % 3 === 0;
     return { age: ages[i % ages.length], care: cares[i % cares.length], status: left ? "已離所" : ["在所", "在所", "外出", "未返"][i % 4],
-             in: iso(t), out: left ? iso(Math.min(end - H, t + (20 + i) * H)) : "" };
+             in: iso(t), out: left ? iso(Math.min(end - H, t + (20 + i) * H)) : "", dest: left ? dests[i % dests.length] : "" };
   });
-  const L = (cat, sev, prog) => ({ cat, sev, prog });
-  const logs = [L("整備回報", "低", "已解決"), L("設施環境", "高", "已解決"), L("人員相關", "中", "處理中"), L("緊急事件", "緊急", "已結案"),
-    L("物資相關", "中", "已解決"), L("居民反映", "中", "待處理"), L("交班紀錄", "低", "已解決"), L("重大事件", "高", closed ? "已結案" : "待處理")];
+  // 事件：處理紀錄的時間戳和正式後端相同格式（MM/DD HH:mm 姓名 動作：內容），結報從這裡算出處理用時
+  const two = n => String(n).padStart(2, "0");
+  const stamp = t => { const d = new Date(t); return `${two(d.getMonth() + 1)}/${two(d.getDate())} ${two(d.getHours())}:${two(d.getMinutes())}`; };
+  let n = 0;
+  const L = (cat, sev, prog, h, title, text, steps, extra) => {
+    const at = openAt + h * H, log = (steps || []).map(([m, who, what]) => `${stamp(at + m * 60e3)} ${who} ${what}`).join("\n");
+    return { id: "L" + (++n), cat, sev, prog, title, text, log: log ? "\n" + log : "", src: "LINE 回報", who: "工作人員・門禁組｜測試王小明", help: "", hq: false,
+             at: iso(at), made: iso(at), upd: iso(at + (steps && steps.length ? steps[steps.length - 1][0] : 0) * 60e3), ...(extra || {}) };
+  };
+  const logs = [
+    L("整備回報", "低", "已解決", -20, "整備回報：場地清潔", "場地清潔完成", [[5, "測試王小明", "標記已解決"]]),
+    L("緊急事件", "緊急", "已解決", 6, "緊急事件：長者胸悶", "B 區一位長者胸悶、冒冷汗", [[3, "測試林護理師", "認領處理：量血壓 160/95"], [25, "社會處 測試張科長", "指示：叫救護車送醫"], [70, "測試林護理師", "標記已解決：已送苗栗醫院，家屬陪同"]], { hq: true, who: "工作人員・醫療組｜測試林護理師" }),
+    L("設施環境", "高", "已解決", 10, "設施環境：女廁漏水", "2 樓女廁地板積水，有滑倒危險", [[15, "測試王小明", "認領處理：先放警示牌"], [180, "測試王小明", "標記已解決：水電師傅已修好"]], { hq: true }),
+    L("居民反映", "中", "已解決", 20, "居民反映：缺物資", "需要嬰兒尿布 M 號", [[40, "測試李志工", "認領處理"], [95, "測試李志工", "標記已解決：已從物資區領 1 包"]], { src: "民眾反映", who: "居民｜測試陳美華", help: "缺物資" }),
+    L("物資相關", "中", "已解決", 28, "物資相關：飲用水不足", "飲用水剩 20 瓶，預估撐不到明早", [[10, "社會處 測試張科長", "接手處理"], [240, "社會處 測試張科長", "標記已解決：已調撥 240 瓶"]], { hq: true, src: "社會處", who: "社會處｜測試張科長" }),
+    L("交班紀錄", "低", "已解決", 32, "交班紀錄：晚班交接", "B 區 2 位長者夜間需留意", [[1, "測試王小明", "標記已解決"]]),
+    L("人員相關", "中", closed ? "已解決" : "處理中", 40, "人員相關：夜班人力不足", "今晚只有 2 位工作人員", [[30, "測試王小明", "認領處理：已請社會處加派"]].concat(closed ? [[600, "測試王小明", "標記已解決：加派 2 位志工"]] : [])),
+    L("居民反映", "中", closed ? "已解決" : "待處理", 52, "居民反映：身體不適", "孩子發燒 38 度", closed ? [[20, "測試林護理師", "標記已解決：已給退燒藥，持續觀察"]] : [], { src: "民眾反映", who: "一般民眾｜測試 LINE 名稱", help: "身體不適", hq: true }),
+    L("重大事件", "高", closed ? "已結案" : "待處理", 60, "重大事件：聯外道路坍方", "苗 26 線坍方，物資車改道", closed ? [[90, "社會處 測試張科長", "指示：改走台 13 線"]] : [], { hq: true }),
+  ];
   const M = (name, type, qty) => ({ sum: `${name} ${type} ${qty}`, type, qty });   // 正式後端的 sum 是 URL 編碼，post() 解碼後同這個格式
   const moves = [M("飲用水", "入庫", 240), M("飲用水", "發放", 180), M("泡麵", "入庫", 120), M("泡麵", "發放", 96), M("毛毯", "入庫", 40),
     M("毛毯", "發放", 38), M("暖暖包", "報廢", 5), M("衛生紙", "盤點調整", -2), M("口罩", "調撥", 50)];
   const att = Array.from({ length: closed ? 8 : 14 }, (_, i) => ({ person: "s" + (i % 6), in: iso(openAt + i * 5 * H), out: i % 5 === 4 && !closed ? "" : iso(openAt + (i * 5 + 8) * H) }));
   return { ok: true, opening: { id: o, name: closed ? mockHq.closed.name : (mockHq.openings.find(x => x.id === o) || { name: mock.me.opening }).name,
-    status: stage, openAt: iso(openAt), closeAt: stage === "已撤收" ? iso(closed ? closeAt : now) : "" }, residents, logs, moves, att };
+    status: stage, openAt: iso(openAt), closeAt: stage === "已撤收" ? iso(closed ? closeAt : now) : "" }, residents, logs, moves, att, items: mockReportItems() };
+}
+// 物資品項（正式後端原樣轉出 properties_value，格式同 load）
+function mockReportItems() {
+  const P = (name, unit, stock, safety) => ({ id: "it-" + name, properties_value: { "品名": [{ plain_text: name }], "單位": { name: unit }, "目前庫存": stock, "安全庫存": safety } });
+  return [P("飲用水", "瓶", 60, 50), P("泡麵", "碗", 24, 30), P("毛毯", "條", 2, 10), P("暖暖包", "包", 40, 20), P("口罩", "片", 150, 50)];
 }
 
 const mockApi = {
@@ -205,10 +228,10 @@ const mockApi = {
     mock.people[id] = { id, name: f.name, age: f.age, care: f.care.split(",").filter(Boolean).join("、"), status: "在所", back: "", area: f.area };
     mock.tags[f.tag] = id; return { ok: true, residentId: id };
   },
-  async move(tag, kind, hours) {
+  async move(tag, kind, hours, dest) {
     await wait(500);
     const r = mock.people[mock.tags[tag]];
-    if (kind === "離所") { r.status = "已離所"; mock.tags[tag] = "void"; }
+    if (kind === "離所") { r.status = "已離所"; r.dest = dest || "未填寫"; mock.tags[tag] = "void"; console.log("[模擬] 離所去向：", r.dest); }
     else if (kind === "外出") { r.status = "外出"; r.back = new Date(Date.now() + hours * 3600e3).toISOString(); }
     else r.status = "在所";
     return { ok: true, status: r.status };

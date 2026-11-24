@@ -32,14 +32,14 @@
    }
   },
   {
-   "id": 365,
+   "id": 369,
    "module": "builtin:BasicRouter",
    "version": 1,
    "mapper": null,
    "metadata": {
     "designer": {
      "x": 600,
-     "y": 39450,
+     "y": 40050,
      "name": "請求格式"
     }
    },
@@ -663,14 +663,14 @@
        }
       },
       {
-       "id": 364,
+       "id": 368,
        "module": "builtin:BasicRouter",
        "version": 1,
        "mapper": null,
        "metadata": {
         "designer": {
          "x": 600,
-         "y": 39300,
+         "y": 39900,
          "name": "身分驗證"
         }
        },
@@ -846,14 +846,14 @@
            }
           },
           {
-           "id": 363,
+           "id": 367,
            "module": "builtin:BasicRouter",
            "version": 1,
            "mapper": null,
            "metadata": {
             "designer": {
              "x": 600,
-             "y": 39150,
+             "y": 39750,
              "name": "依身分與動作分流"
             }
            },
@@ -4276,6 +4276,11 @@
                            "start": "{{now}}",
                            "includeTime": true
                           }
+                         },
+                         {
+                          "key": "離所去向",
+                          "type": "select",
+                          "value": "{{switch(1.dest; \"返家\"; \"返家\"; \"投靠親友\"; \"投靠親友\"; \"轉其他收容所\"; \"轉其他收容所\"; \"送醫\"; \"送醫\"; \"其他\"; \"其他\"; \"未填寫\")}}"
                          }
                         ],
                         "select": "map",
@@ -8007,7 +8012,7 @@
             {
              "flow": [
               {
-               "id": 341,
+               "id": 345,
                "module": "gateway:WebhookRespond",
                "version": 1,
                "parameters": {},
@@ -8028,7 +8033,7 @@
                "metadata": {
                 "designer": {
                  "x": 900,
-                 "y": 35850,
+                 "y": 36450,
                  "name": "回傳不是社會處"
                 }
                },
@@ -8698,7 +8703,7 @@
             {
              "flow": [
               {
-               "id": 342,
+               "id": 346,
                "module": "gateway:WebhookRespond",
                "version": 1,
                "parameters": {},
@@ -8719,7 +8724,7 @@
                "metadata": {
                 "designer": {
                  "x": 900,
-                 "y": 36000,
+                 "y": 36600,
                  "name": "回傳缺開設 ID"
                 }
                },
@@ -9173,7 +9178,7 @@
             {
              "flow": [
               {
-               "id": 343,
+               "id": 347,
                "module": "gateway:WebhookRespond",
                "version": 1,
                "parameters": {},
@@ -9194,7 +9199,7 @@
                "metadata": {
                 "designer": {
                  "x": 900,
-                 "y": 36150,
+                 "y": 36750,
                  "name": "回傳不在班（撤收）"
                 }
                },
@@ -9245,7 +9250,7 @@
             {
              "flow": [
               {
-               "id": 344,
+               "id": 348,
                "module": "gateway:WebhookRespond",
                "version": 1,
                "parameters": {},
@@ -9266,7 +9271,7 @@
                "metadata": {
                 "designer": {
                  "x": 900,
-                 "y": 36300,
+                 "y": 36900,
                  "name": "回傳不是本所（撤收）"
                 }
                },
@@ -9671,7 +9676,7 @@
             {
              "flow": [
               {
-               "id": 318,
+               "id": 322,
                "module": "notion:getADatabaseItem",
                "version": 1,
                "mapper": {
@@ -9682,7 +9687,7 @@
                "metadata": {
                 "designer": {
                  "x": 900,
-                 "y": 32400,
+                 "y": 33000,
                  "name": "讀收容所（號碼牌）"
                 },
                 "parameters": [
@@ -9738,7 +9743,7 @@
                }
               },
               {
-               "id": 319,
+               "id": 323,
                "module": "builtin:BasicFeeder",
                "version": 1,
                "mapper": {
@@ -9747,13 +9752,13 @@
                "metadata": {
                 "designer": {
                  "x": 900,
-                 "y": 32550,
+                 "y": 33150,
                  "name": "逐張建立號碼牌（社會處）"
                 }
                }
               },
               {
-               "id": 320,
+               "id": 324,
                "module": "notion:createDataSourceItem",
                "version": 1,
                "mapper": {
@@ -9761,7 +9766,7 @@
                  {
                   "key": "編號",
                   "type": "title",
-                  "value": "{{substring(319.value; 0; 9)}}"
+                  "value": "{{substring(323.value; 0; 9)}}"
                  },
                  {
                   "key": "狀態",
@@ -9772,7 +9777,7 @@
                   "key": "存放收容所",
                   "type": "relation",
                   "value": [
-                   "{{318.id}}"
+                   "{{322.id}}"
                   ]
                  }
                 ],
@@ -9782,7 +9787,7 @@
                "metadata": {
                 "designer": {
                  "x": 900,
-                 "y": 32700,
+                 "y": 33300,
                  "name": "新增空白號碼牌（社會處）"
                 },
                 "parameters": [
@@ -9802,7 +9807,7 @@
                 "conditions": [
                  [
                   {
-                   "a": "{{319.value}}",
+                   "a": "{{323.value}}",
                    "o": "text:startwith",
                    "b": "MLS-"
                   }
@@ -9811,32 +9816,32 @@
                }
               },
               {
-               "id": 321,
+               "id": 325,
                "module": "util:TextAggregator",
                "version": 1,
                "parameters": {
-                "feeder": 319,
+                "feeder": 323,
                 "rowSeparator": ","
                },
                "mapper": {
-                "value": "{{substring(319.value; 0; 9)}}"
+                "value": "{{substring(323.value; 0; 9)}}"
                },
                "metadata": {
                 "designer": {
                  "x": 900,
-                 "y": 32850,
+                 "y": 33450,
                  "name": "彙整號碼牌（社會處）"
                 }
                }
               },
               {
-               "id": 322,
+               "id": 326,
                "module": "gateway:WebhookRespond",
                "version": 1,
                "parameters": {},
                "mapper": {
                 "status": "200",
-                "body": "{\"ok\":true,\"tags\":\"{{321.text}}\"}",
+                "body": "{\"ok\":true,\"tags\":\"{{325.text}}\"}",
                 "headers": [
                  {
                   "key": "Content-Type",
@@ -9851,7 +9856,7 @@
                "metadata": {
                 "designer": {
                  "x": 900,
-                 "y": 33000,
+                 "y": 33600,
                  "name": "回傳號碼牌（社會處）"
                 }
                }
@@ -9861,7 +9866,7 @@
             {
              "flow": [
               {
-               "id": 345,
+               "id": 349,
                "module": "gateway:WebhookRespond",
                "version": 1,
                "parameters": {},
@@ -9882,7 +9887,7 @@
                "metadata": {
                 "designer": {
                  "x": 900,
-                 "y": 36450,
+                 "y": 37050,
                  "name": "回傳缺收容所（號碼牌）"
                 }
                },
@@ -10065,7 +10070,7 @@
                 "rowSeparator": ","
                },
                "mapper": {
-                "value": "{\"age\":\"{{309.properties_value.`年齡層`.name}}\",\"care\":\"{{join(map(309.properties_value.`特殊關懷`; \"name\"); \",\")}}\",\"status\":\"{{309.properties_value.`在所狀態`.name}}\",\"in\":\"{{309.properties_value.`報到時間`.start}}\",\"out\":\"{{309.properties_value.`離所時間`.start}}\"}"
+                "value": "{\"age\":\"{{309.properties_value.`年齡層`.name}}\",\"care\":\"{{join(map(309.properties_value.`特殊關懷`; \"name\"); \",\")}}\",\"status\":\"{{309.properties_value.`在所狀態`.name}}\",\"in\":\"{{309.properties_value.`報到時間`.start}}\",\"out\":\"{{309.properties_value.`離所時間`.start}}\",\"dest\":\"{{309.properties_value.`離所去向`.name}}\"}"
                },
                "metadata": {
                 "designer": {
@@ -10114,14 +10119,26 @@
               },
               {
                "id": 312,
-               "module": "util:TextAggregator",
+               "module": "builtin:BasicAggregator",
                "version": 1,
                "parameters": {
-                "feeder": 311,
-                "rowSeparator": ","
+                "feeder": 311
                },
                "mapper": {
-                "value": "{\"cat\":\"{{311.properties_value.`日誌類別`.name}}\",\"sev\":\"{{311.properties_value.`嚴重程度`.name}}\",\"prog\":\"{{311.properties_value.`處理進度`.name}}\"}"
+                "id": "{{311.id}}",
+                "cat": "{{311.properties_value.`日誌類別`.name}}",
+                "sev": "{{311.properties_value.`嚴重程度`.name}}",
+                "prog": "{{311.properties_value.`處理進度`.name}}",
+                "title": "{{311.properties_value.`日誌標題`[].plain_text}}",
+                "text": "{{311.properties_value.`內容說明`[].plain_text}}",
+                "log": "{{311.properties_value.`處理紀錄`[].plain_text}}",
+                "src": "{{311.properties_value.`來源`.name}}",
+                "who": "{{311.properties_value.`反映者`[].plain_text}}",
+                "help": "{{311.properties_value.`協助類別`.name}}",
+                "hq": "{{311.properties_value.`需回報社會處`}}",
+                "at": "{{311.properties_value.`發生時間`.start}}",
+                "made": "{{311.created_time}}",
+                "upd": "{{311.last_edited_time}}"
                },
                "metadata": {
                 "designer": {
@@ -10133,6 +10150,24 @@
               },
               {
                "id": 313,
+               "module": "json:TransformToJSON",
+               "version": 1,
+               "parameters": {
+                "space": ""
+               },
+               "mapper": {
+                "object": "{{312.array}}"
+               },
+               "metadata": {
+                "designer": {
+                 "x": 900,
+                 "y": 31650,
+                 "name": "現場日誌（結報）轉成 JSON"
+                }
+               }
+              },
+              {
+               "id": 317,
                "module": "notion:searchObjects1",
                "version": 1,
                "mapper": {
@@ -10152,7 +10187,7 @@
                "metadata": {
                 "designer": {
                  "x": 900,
-                 "y": 31650,
+                 "y": 32250,
                  "name": "找物資異動（結報）"
                 },
                 "parameters": [
@@ -10169,26 +10204,26 @@
                }
               },
               {
-               "id": 314,
+               "id": 318,
                "module": "util:TextAggregator",
                "version": 1,
                "parameters": {
-                "feeder": 313,
+                "feeder": 317,
                 "rowSeparator": ","
                },
                "mapper": {
-                "value": "{\"sum\":\"{{encodeURL(313.properties_value.`摘要`[].plain_text)}}\",\"type\":\"{{313.properties_value.`異動類型`.name}}\",\"qty\":{{ifempty(313.properties_value.`數量`.number; 0)}}}"
+                "value": "{\"sum\":\"{{encodeURL(317.properties_value.`摘要`[].plain_text)}}\",\"type\":\"{{317.properties_value.`異動類型`.name}}\",\"qty\":{{ifempty(317.properties_value.`數量`.number; 0)}}}"
                },
                "metadata": {
                 "designer": {
                  "x": 900,
-                 "y": 31800,
+                 "y": 32400,
                  "name": "彙整物資異動（結報）"
                 }
                }
               },
               {
-               "id": 315,
+               "id": 319,
                "module": "notion:searchObjects1",
                "version": 1,
                "mapper": {
@@ -10208,7 +10243,7 @@
                "metadata": {
                 "designer": {
                  "x": 900,
-                 "y": 31950,
+                 "y": 32550,
                  "name": "找出勤紀錄（結報）"
                 },
                 "parameters": [
@@ -10225,32 +10260,106 @@
                }
               },
               {
-               "id": 316,
+               "id": 320,
                "module": "util:TextAggregator",
                "version": 1,
                "parameters": {
-                "feeder": 315,
+                "feeder": 319,
                 "rowSeparator": ","
                },
                "mapper": {
-                "value": "{\"in\":\"{{315.properties_value.`簽到時間`.start}}\",\"out\":\"{{315.properties_value.`簽退時間`.start}}\",\"person\":\"{{first(map(315.properties_value.`人員`; \"id\"))}}\"}"
+                "value": "{\"in\":\"{{319.properties_value.`簽到時間`.start}}\",\"out\":\"{{319.properties_value.`簽退時間`.start}}\",\"person\":\"{{first(map(319.properties_value.`人員`; \"id\"))}}\"}"
                },
                "metadata": {
                 "designer": {
                  "x": 900,
-                 "y": 32100,
+                 "y": 32700,
                  "name": "彙整出勤紀錄（結報）"
                 }
                }
               },
               {
-               "id": 317,
+               "id": 314,
+               "module": "notion:searchObjects1",
+               "version": 1,
+               "mapper": {
+                "limit": "100",
+                "filter": [
+                 [
+                  {
+                   "a": "收容所 |&*^%$#@| relation",
+                   "o": "relation:contains",
+                   "b": "{{308.properties_value.`收容所`[].id}}"
+                  }
+                 ]
+                ],
+                "select": "data_source_item",
+                "data_source": "<物資品項 的 data source ID>"
+               },
+               "metadata": {
+                "designer": {
+                 "x": 900,
+                 "y": 31800,
+                 "name": "找物資品項（結報）"
+                },
+                "parameters": [
+                 {
+                  "name": "__IMTCONN__",
+                  "type": "account:notion2,notion3",
+                  "label": "Connection",
+                  "required": true
+                 }
+                ]
+               },
+               "parameters": {
+                "__IMTCONN__": 0
+               }
+              },
+              {
+               "id": 315,
+               "module": "builtin:BasicAggregator",
+               "version": 1,
+               "parameters": {
+                "feeder": 314
+               },
+               "mapper": {
+                "id": "{{314.id}}",
+                "properties_value": "{{314.properties_value}}"
+               },
+               "metadata": {
+                "designer": {
+                 "x": 900,
+                 "y": 31950,
+                 "name": "彙整物資品項（結報）"
+                }
+               }
+              },
+              {
+               "id": 316,
+               "module": "json:TransformToJSON",
+               "version": 1,
+               "parameters": {
+                "space": ""
+               },
+               "mapper": {
+                "object": "{{315.array}}"
+               },
+               "metadata": {
+                "designer": {
+                 "x": 900,
+                 "y": 32100,
+                 "name": "物資品項（結報）轉成 JSON"
+                }
+               }
+              },
+              {
+               "id": 321,
                "module": "gateway:WebhookRespond",
                "version": 1,
                "parameters": {},
                "mapper": {
                 "status": "200",
-                "body": "{\"ok\":true,\"opening\":{\"id\":\"{{308.id}}\",\"name\":\"{{encodeURL(308.properties_value.`開設名稱`[].plain_text)}}\",\"status\":\"{{308.properties_value.`開設狀態`.name}}\",\"openAt\":\"{{308.properties_value.`開設時間`.start}}\",\"closeAt\":\"{{308.properties_value.`撤收時間`.start}}\"},\"residents\":[{{310.text}}],\"logs\":[{{312.text}}],\"moves\":[{{314.text}}],\"att\":[{{316.text}}]}",
+                "body": "{\"ok\":true,\"opening\":{\"id\":\"{{308.id}}\",\"name\":\"{{encodeURL(308.properties_value.`開設名稱`[].plain_text)}}\",\"status\":\"{{308.properties_value.`開設狀態`.name}}\",\"openAt\":\"{{308.properties_value.`開設時間`.start}}\",\"closeAt\":\"{{308.properties_value.`撤收時間`.start}}\"},\"residents\":[{{310.text}}],\"logs\":{{313.json}},\"moves\":[{{318.text}}],\"att\":[{{320.text}}],\"items\":{{316.json}}}",
                 "headers": [
                  {
                   "key": "Content-Type",
@@ -10265,7 +10374,7 @@
                "metadata": {
                 "designer": {
                  "x": 900,
-                 "y": 32250,
+                 "y": 32850,
                  "name": "回傳結報資料"
                 }
                }
@@ -10275,7 +10384,7 @@
             {
              "flow": [
               {
-               "id": 323,
+               "id": 327,
                "module": "notion:createDataSourceItem",
                "version": 1,
                "mapper": {
@@ -10349,7 +10458,7 @@
                "metadata": {
                 "designer": {
                  "x": 900,
-                 "y": 33150,
+                 "y": 33750,
                  "name": "新增事件（社會處）"
                 },
                 "parameters": [
@@ -10405,13 +10514,13 @@
                }
               },
               {
-               "id": 324,
+               "id": 328,
                "module": "gateway:WebhookRespond",
                "version": 1,
                "parameters": {},
                "mapper": {
                 "status": "200",
-                "body": "{\"ok\":true,\"id\":\"{{323.id}}\"}",
+                "body": "{\"ok\":true,\"id\":\"{{327.id}}\"}",
                 "headers": [
                  {
                   "key": "Content-Type",
@@ -10426,13 +10535,13 @@
                "metadata": {
                 "designer": {
                  "x": 900,
-                 "y": 33300,
+                 "y": 33900,
                  "name": "回傳已記錄（社會處）"
                 }
                }
               },
               {
-               "id": 325,
+               "id": 329,
                "module": "notion:searchObjects1",
                "version": 1,
                "mapper": {
@@ -10462,7 +10571,7 @@
                "metadata": {
                 "designer": {
                  "x": 900,
-                 "y": 33450,
+                 "y": 34050,
                  "name": "找該所在班管理者（社會處交辦）"
                 },
                 "parameters": [
@@ -10479,7 +10588,7 @@
                }
               },
               {
-               "id": 326,
+               "id": 330,
                "module": "line:makeApiCall",
                "version": 1,
                "mapper": {
@@ -10491,12 +10600,12 @@
                   "value": "application/json"
                  }
                 ],
-                "body": "{\"to\": \"{{325.properties_value.`LINE User ID`[].plain_text}}\", \"messages\": [{\"type\": \"text\", \"text\": \"📣 社會處交辦一件「{{switch(1.cat; \"緊急事件\"; \"緊急事件\"; \"重大事件\"; \"重大事件\"; \"人員相關\"; \"人員相關\"; \"物資相關\"; \"物資相關\"; \"設施環境\"; \"設施環境\"; \"交班紀錄\"; \"交班紀錄\"; \"交班紀錄\")}}」事件，請打開本所總覽查看：\\nhttps://liff.line.me/<現場頁面的 LIFF ID（必填：圖文選單每一格都打開它）>?v=ops\"}]}"
+                "body": "{\"to\": \"{{329.properties_value.`LINE User ID`[].plain_text}}\", \"messages\": [{\"type\": \"text\", \"text\": \"📣 社會處交辦一件「{{switch(1.cat; \"緊急事件\"; \"緊急事件\"; \"重大事件\"; \"重大事件\"; \"人員相關\"; \"人員相關\"; \"物資相關\"; \"物資相關\"; \"設施環境\"; \"設施環境\"; \"交班紀錄\"; \"交班紀錄\"; \"交班紀錄\")}}」事件，請打開本所總覽查看：\\nhttps://liff.line.me/<現場頁面的 LIFF ID（必填：圖文選單每一格都打開它）>?v=ops\"}]}"
                },
                "metadata": {
                 "designer": {
                  "x": 900,
-                 "y": 33600,
+                 "y": 34200,
                  "name": "推播給該所管理者（社會處交辦）"
                 },
                 "parameters": [
@@ -10517,7 +10626,7 @@
             {
              "flow": [
               {
-               "id": 327,
+               "id": 331,
                "module": "notion:getADatabaseItem",
                "version": 1,
                "mapper": {
@@ -10528,7 +10637,7 @@
                "metadata": {
                 "designer": {
                  "x": 900,
-                 "y": 33750,
+                 "y": 34350,
                  "name": "讀事件（回覆指示）"
                 },
                 "parameters": [
@@ -10588,14 +10697,14 @@
                }
               },
               {
-               "id": 333,
+               "id": 337,
                "module": "builtin:BasicRouter",
                "version": 1,
                "mapper": null,
                "metadata": {
                 "designer": {
                  "x": 600,
-                 "y": 34650,
+                 "y": 35250,
                  "name": "事件是不是這一所（回覆指示）"
                 }
                },
@@ -10603,7 +10712,7 @@
                 {
                  "flow": [
                   {
-                   "id": 329,
+                   "id": 333,
                    "module": "gateway:WebhookRespond",
                    "version": 1,
                    "parameters": {},
@@ -10624,7 +10733,7 @@
                    "metadata": {
                     "designer": {
                      "x": 900,
-                     "y": 34050,
+                     "y": 34650,
                      "name": "回傳不是這一所（回覆指示）"
                     }
                    },
@@ -10633,7 +10742,7 @@
                     "conditions": [
                      [
                       {
-                       "a": "{{327.properties_value.`收容所開設`[].id}}",
+                       "a": "{{331.properties_value.`收容所開設`[].id}}",
                        "o": "text:notcontain",
                        "b": "{{1.o}}"
                       }
@@ -10646,16 +10755,16 @@
                 {
                  "flow": [
                   {
-                   "id": 328,
+                   "id": 332,
                    "module": "notion:updateADatabaseItem",
                    "version": 1,
                    "mapper": {
-                    "page": "{{327.id}}",
+                    "page": "{{331.id}}",
                     "fields": [
                      {
                       "key": "處理紀錄",
                       "type": "rich_text",
-                      "value": "{{327.properties_value.`處理紀錄`[].plain_text}}\n{{formatDate(now; \"MM/DD HH:mm\")}} 社會處 {{3.properties_value.`姓名`[].plain_text}} 指示：{{substring(1.text; 0; 500)}}"
+                      "value": "{{331.properties_value.`處理紀錄`[].plain_text}}\n{{formatDate(now; \"MM/DD HH:mm\")}} 社會處 {{3.properties_value.`姓名`[].plain_text}} 指示：{{substring(1.text; 0; 500)}}"
                      },
                      {
                       "key": "需回報社會處",
@@ -10670,7 +10779,7 @@
                    "metadata": {
                     "designer": {
                      "x": 900,
-                     "y": 33900,
+                     "y": 34500,
                      "name": "更新事件（回覆指示）"
                     },
                     "parameters": [
@@ -10690,7 +10799,7 @@
                     "conditions": [
                      [
                       {
-                       "a": "{{327.properties_value.`收容所開設`[].id}}",
+                       "a": "{{331.properties_value.`收容所開設`[].id}}",
                        "o": "text:contain",
                        "b": "{{1.o}}"
                       }
@@ -10699,7 +10808,7 @@
                    }
                   },
                   {
-                   "id": 330,
+                   "id": 334,
                    "module": "gateway:WebhookRespond",
                    "version": 1,
                    "parameters": {},
@@ -10720,13 +10829,13 @@
                    "metadata": {
                     "designer": {
                      "x": 900,
-                     "y": 34200,
+                     "y": 34800,
                      "name": "回傳完成（回覆指示）"
                     }
                    }
                   },
                   {
-                   "id": 331,
+                   "id": 335,
                    "module": "notion:searchObjects1",
                    "version": 1,
                    "mapper": {
@@ -10756,7 +10865,7 @@
                    "metadata": {
                     "designer": {
                      "x": 900,
-                     "y": 34350,
+                     "y": 34950,
                      "name": "找該所在班管理者（回覆指示）"
                     },
                     "parameters": [
@@ -10773,7 +10882,7 @@
                    }
                   },
                   {
-                   "id": 332,
+                   "id": 336,
                    "module": "line:makeApiCall",
                    "version": 1,
                    "mapper": {
@@ -10785,12 +10894,12 @@
                       "value": "application/json"
                      }
                     ],
-                    "body": "{\"to\": \"{{331.properties_value.`LINE User ID`[].plain_text}}\", \"messages\": [{\"type\": \"text\", \"text\": \"📣 社會處對「{{327.properties_value.`日誌類別`.name}}」事件有新的指示，請打開本所總覽查看：\\nhttps://liff.line.me/<現場頁面的 LIFF ID（必填：圖文選單每一格都打開它）>?v=ops\"}]}"
+                    "body": "{\"to\": \"{{335.properties_value.`LINE User ID`[].plain_text}}\", \"messages\": [{\"type\": \"text\", \"text\": \"📣 社會處對「{{331.properties_value.`日誌類別`.name}}」事件有新的指示，請打開本所總覽查看：\\nhttps://liff.line.me/<現場頁面的 LIFF ID（必填：圖文選單每一格都打開它）>?v=ops\"}]}"
                    },
                    "metadata": {
                     "designer": {
                      "x": 900,
-                     "y": 34500,
+                     "y": 35100,
                      "name": "推播給該所管理者（回覆指示）"
                     },
                     "parameters": [
@@ -10815,7 +10924,7 @@
             {
              "flow": [
               {
-               "id": 334,
+               "id": 338,
                "module": "notion:getADatabaseItem",
                "version": 1,
                "mapper": {
@@ -10826,7 +10935,7 @@
                "metadata": {
                 "designer": {
                  "x": 900,
-                 "y": 34800,
+                 "y": 35400,
                  "name": "讀事件（社會處接手）"
                 },
                 "parameters": [
@@ -10882,14 +10991,14 @@
                }
               },
               {
-               "id": 340,
+               "id": 344,
                "module": "builtin:BasicRouter",
                "version": 1,
                "mapper": null,
                "metadata": {
                 "designer": {
                  "x": 600,
-                 "y": 35700,
+                 "y": 36300,
                  "name": "事件是不是這一所（社會處接手）"
                 }
                },
@@ -10897,7 +11006,7 @@
                 {
                  "flow": [
                   {
-                   "id": 336,
+                   "id": 340,
                    "module": "gateway:WebhookRespond",
                    "version": 1,
                    "parameters": {},
@@ -10918,7 +11027,7 @@
                    "metadata": {
                     "designer": {
                      "x": 900,
-                     "y": 35100,
+                     "y": 35700,
                      "name": "回傳不是這一所（社會處接手）"
                     }
                    },
@@ -10927,7 +11036,7 @@
                     "conditions": [
                      [
                       {
-                       "a": "{{334.properties_value.`收容所開設`[].id}}",
+                       "a": "{{338.properties_value.`收容所開設`[].id}}",
                        "o": "text:notcontain",
                        "b": "{{1.o}}"
                       }
@@ -10940,11 +11049,11 @@
                 {
                  "flow": [
                   {
-                   "id": 335,
+                   "id": 339,
                    "module": "notion:updateADatabaseItem",
                    "version": 1,
                    "mapper": {
-                    "page": "{{334.id}}",
+                    "page": "{{338.id}}",
                     "fields": [
                      {
                       "key": "負責人",
@@ -10966,7 +11075,7 @@
                      {
                       "key": "處理紀錄",
                       "type": "rich_text",
-                      "value": "{{334.properties_value.`處理紀錄`[].plain_text}}\n{{formatDate(now; \"MM/DD HH:mm\")}} 社會處 {{3.properties_value.`姓名`[].plain_text}} 接手處理{{if(1.text; \"：\"; \"\")}}{{substring(1.text; 0; 500)}}"
+                      "value": "{{338.properties_value.`處理紀錄`[].plain_text}}\n{{formatDate(now; \"MM/DD HH:mm\")}} 社會處 {{3.properties_value.`姓名`[].plain_text}} 接手處理{{if(1.text; \"：\"; \"\")}}{{substring(1.text; 0; 500)}}"
                      }
                     ],
                     "select": "map",
@@ -10976,7 +11085,7 @@
                    "metadata": {
                     "designer": {
                      "x": 900,
-                     "y": 34950,
+                     "y": 35550,
                      "name": "更新事件（社會處接手）"
                     },
                     "parameters": [
@@ -10996,7 +11105,7 @@
                     "conditions": [
                      [
                       {
-                       "a": "{{334.properties_value.`收容所開設`[].id}}",
+                       "a": "{{338.properties_value.`收容所開設`[].id}}",
                        "o": "text:contain",
                        "b": "{{1.o}}"
                       }
@@ -11005,7 +11114,7 @@
                    }
                   },
                   {
-                   "id": 337,
+                   "id": 341,
                    "module": "gateway:WebhookRespond",
                    "version": 1,
                    "parameters": {},
@@ -11026,13 +11135,13 @@
                    "metadata": {
                     "designer": {
                      "x": 900,
-                     "y": 35250,
+                     "y": 35850,
                      "name": "回傳完成（社會處接手）"
                     }
                    }
                   },
                   {
-                   "id": 338,
+                   "id": 342,
                    "module": "notion:searchObjects1",
                    "version": 1,
                    "mapper": {
@@ -11062,7 +11171,7 @@
                    "metadata": {
                     "designer": {
                      "x": 900,
-                     "y": 35400,
+                     "y": 36000,
                      "name": "找該所在班管理者（社會處接手）"
                     },
                     "parameters": [
@@ -11079,7 +11188,7 @@
                    }
                   },
                   {
-                   "id": 339,
+                   "id": 343,
                    "module": "line:makeApiCall",
                    "version": 1,
                    "mapper": {
@@ -11091,12 +11200,12 @@
                       "value": "application/json"
                      }
                     ],
-                    "body": "{\"to\": \"{{338.properties_value.`LINE User ID`[].plain_text}}\", \"messages\": [{\"type\": \"text\", \"text\": \"📣 社會處已接手「{{334.properties_value.`日誌類別`.name}}」事件，請打開本所總覽查看：\\nhttps://liff.line.me/<現場頁面的 LIFF ID（必填：圖文選單每一格都打開它）>?v=ops\"}]}"
+                    "body": "{\"to\": \"{{342.properties_value.`LINE User ID`[].plain_text}}\", \"messages\": [{\"type\": \"text\", \"text\": \"📣 社會處已接手「{{338.properties_value.`日誌類別`.name}}」事件，請打開本所總覽查看：\\nhttps://liff.line.me/<現場頁面的 LIFF ID（必填：圖文選單每一格都打開它）>?v=ops\"}]}"
                    },
                    "metadata": {
                     "designer": {
                      "x": 900,
-                     "y": 35550,
+                     "y": 36150,
                      "name": "推播給該所管理者（社會處接手）"
                     },
                     "parameters": [
@@ -13036,7 +13145,7 @@
             {
              "flow": [
               {
-               "id": 346,
+               "id": 350,
                "module": "notion:getADatabaseItem",
                "version": 1,
                "mapper": {
@@ -13047,7 +13156,7 @@
                "metadata": {
                 "designer": {
                  "x": 900,
-                 "y": 36600,
+                 "y": 37200,
                  "name": "讀派駐開設（本所）（社會處）"
                 },
                 "parameters": [
@@ -13099,7 +13208,7 @@
                }
               },
               {
-               "id": 347,
+               "id": 351,
                "module": "notion:searchObjects1",
                "version": 1,
                "mapper": {
@@ -13124,7 +13233,7 @@
                "metadata": {
                 "designer": {
                  "x": 900,
-                 "y": 36750,
+                 "y": 37350,
                  "name": "找本所在班人員（社會處）"
                 },
                 "parameters": [
@@ -13141,46 +13250,46 @@
                }
               },
               {
-               "id": 348,
+               "id": 352,
                "module": "builtin:BasicAggregator",
                "version": 1,
                "parameters": {
-                "feeder": 347
+                "feeder": 351
                },
                "mapper": {
-                "id": "{{347.id}}",
-                "name": "{{347.properties_value.`姓名`[].plain_text}}",
-                "role": "{{347.properties_value.`角色`.name}}",
-                "kind": "{{347.properties_value.`身分類別`.name}}"
+                "id": "{{351.id}}",
+                "name": "{{351.properties_value.`姓名`[].plain_text}}",
+                "role": "{{351.properties_value.`角色`.name}}",
+                "kind": "{{351.properties_value.`身分類別`.name}}"
                },
                "metadata": {
                 "designer": {
                  "x": 900,
-                 "y": 36900,
+                 "y": 37500,
                  "name": "彙整在班人員（社會處）"
                 }
                }
               },
               {
-               "id": 349,
+               "id": 353,
                "module": "json:TransformToJSON",
                "version": 1,
                "parameters": {
                 "space": ""
                },
                "mapper": {
-                "object": "{{348.array}}"
+                "object": "{{352.array}}"
                },
                "metadata": {
                 "designer": {
                  "x": 900,
-                 "y": 37050,
+                 "y": 37650,
                  "name": "在班人員轉成 JSON（社會處）"
                 }
                }
               },
               {
-               "id": 350,
+               "id": 354,
                "module": "notion:searchObjects1",
                "version": 1,
                "mapper": {
@@ -13205,7 +13314,7 @@
                "metadata": {
                 "designer": {
                  "x": 900,
-                 "y": 37200,
+                 "y": 37800,
                  "name": "找本所居民（社會處）"
                 },
                 "parameters": [
@@ -13222,47 +13331,47 @@
                }
               },
               {
-               "id": 351,
+               "id": 355,
                "module": "builtin:BasicAggregator",
                "version": 1,
                "parameters": {
-                "feeder": 350
+                "feeder": 354
                },
                "mapper": {
-                "id": "{{350.id}}",
-                "name": "{{350.properties_value.`姓名`[].plain_text}}",
-                "status": "{{350.properties_value.`在所狀態`.name}}",
-                "back": "{{350.properties_value.`預計返回時間`.start}}",
-                "care": "{{join(map(350.properties_value.`特殊關懷`; \"name\"); \"、\")}}"
+                "id": "{{354.id}}",
+                "name": "{{354.properties_value.`姓名`[].plain_text}}",
+                "status": "{{354.properties_value.`在所狀態`.name}}",
+                "back": "{{354.properties_value.`預計返回時間`.start}}",
+                "care": "{{join(map(354.properties_value.`特殊關懷`; \"name\"); \"、\")}}"
                },
                "metadata": {
                 "designer": {
                  "x": 900,
-                 "y": 37350,
+                 "y": 37950,
                  "name": "彙整居民名單（社會處）"
                 }
                }
               },
               {
-               "id": 352,
+               "id": 356,
                "module": "json:TransformToJSON",
                "version": 1,
                "parameters": {
                 "space": ""
                },
                "mapper": {
-                "object": "{{351.array}}"
+                "object": "{{355.array}}"
                },
                "metadata": {
                 "designer": {
                  "x": 900,
-                 "y": 37500,
+                 "y": 38100,
                  "name": "居民名單轉成 JSON（社會處）"
                 }
                }
               },
               {
-               "id": 353,
+               "id": 357,
                "module": "notion:searchObjects1",
                "version": 1,
                "mapper": {
@@ -13311,7 +13420,7 @@
                "metadata": {
                 "designer": {
                  "x": 900,
-                 "y": 37650,
+                 "y": 38250,
                  "name": "找本所未結事件與整備回報（社會處）"
                 },
                 "parameters": [
@@ -13328,61 +13437,61 @@
                }
               },
               {
-               "id": 354,
+               "id": 358,
                "module": "builtin:BasicAggregator",
                "version": 1,
                "parameters": {
-                "feeder": 353
+                "feeder": 357
                },
                "mapper": {
-                "id": "{{353.id}}",
-                "title": "{{353.properties_value.`日誌標題`[].plain_text}}",
-                "cat": "{{353.properties_value.`日誌類別`.name}}",
-                "sev": "{{353.properties_value.`嚴重程度`.name}}",
-                "status": "{{353.properties_value.`處理進度`.name}}",
-                "text": "{{353.properties_value.`內容說明`[].plain_text}}",
-                "log": "{{353.properties_value.`處理紀錄`[].plain_text}}",
-                "owner": "{{353.properties_value.`負責人`[].id}}",
-                "by": "{{353.properties_value.`回報人`[].id}}",
-                "item": "{{353.properties_value.`整備項目`.name}}",
-                "src": "{{353.properties_value.`來源`.name}}",
-                "who": "{{353.properties_value.`反映者`[].plain_text}}",
-                "at": "{{353.created_time}}"
+                "id": "{{357.id}}",
+                "title": "{{357.properties_value.`日誌標題`[].plain_text}}",
+                "cat": "{{357.properties_value.`日誌類別`.name}}",
+                "sev": "{{357.properties_value.`嚴重程度`.name}}",
+                "status": "{{357.properties_value.`處理進度`.name}}",
+                "text": "{{357.properties_value.`內容說明`[].plain_text}}",
+                "log": "{{357.properties_value.`處理紀錄`[].plain_text}}",
+                "owner": "{{357.properties_value.`負責人`[].id}}",
+                "by": "{{357.properties_value.`回報人`[].id}}",
+                "item": "{{357.properties_value.`整備項目`.name}}",
+                "src": "{{357.properties_value.`來源`.name}}",
+                "who": "{{357.properties_value.`反映者`[].plain_text}}",
+                "at": "{{357.created_time}}"
                },
                "metadata": {
                 "designer": {
                  "x": 900,
-                 "y": 37800,
+                 "y": 38400,
                  "name": "彙整事件（社會處）"
                 }
                }
               },
               {
-               "id": 355,
+               "id": 359,
                "module": "json:TransformToJSON",
                "version": 1,
                "parameters": {
                 "space": ""
                },
                "mapper": {
-                "object": "{{354.array}}"
+                "object": "{{358.array}}"
                },
                "metadata": {
                 "designer": {
                  "x": 900,
-                 "y": 37950,
+                 "y": 38550,
                  "name": "事件轉成 JSON（社會處）"
                 }
                }
               },
               {
-               "id": 356,
+               "id": 360,
                "module": "gateway:WebhookRespond",
                "version": 1,
                "parameters": {},
                "mapper": {
                 "status": "200",
-                "body": "{\"ok\":true,\"me\":{\"id\":\"{{3.id}}\",\"name\":\"{{encodeURL(3.properties_value.`姓名`[].plain_text)}}\",\"role\":\"{{3.properties_value.`角色`.name}}\"},\"opening\":{\"id\":\"{{346.id}}\",\"name\":\"{{encodeURL(346.properties_value.`開設名稱`[].plain_text)}}\",\"stage\":\"{{346.properties_value.`開設狀態`.name}}\",\"light\":\"{{346.properties_value.`狀況燈號`.string}}\",\"inside\":{{ifempty(346.properties_value.`在所人數`.number; 0)}},\"capacity\":{{ifempty(346.properties_value.`容納人數`.number; 0)}},\"out\":{{ifempty(346.properties_value.`外出人數`.number; 0)}},\"late\":{{ifempty(346.properties_value.`未返人數`.number; 0)}},\"care\":{{ifempty(346.properties_value.`需關懷人數`.number; 0)}},\"open\":{{ifempty(346.properties_value.`未結日誌數`.number; 0)}},\"urgent\":{{ifempty(346.properties_value.`緊急未結數`.number; 0)}},\"needStaff\":{{ifempty(346.properties_value.`缺工作人員`.number; 0)}},\"needVol\":{{ifempty(346.properties_value.`缺志工`.number; 0)}}},\"duty\":{{349.json}},\"residents\":{{352.json}},\"events\":{{355.json}}}",
+                "body": "{\"ok\":true,\"me\":{\"id\":\"{{3.id}}\",\"name\":\"{{encodeURL(3.properties_value.`姓名`[].plain_text)}}\",\"role\":\"{{3.properties_value.`角色`.name}}\"},\"opening\":{\"id\":\"{{350.id}}\",\"name\":\"{{encodeURL(350.properties_value.`開設名稱`[].plain_text)}}\",\"stage\":\"{{350.properties_value.`開設狀態`.name}}\",\"light\":\"{{350.properties_value.`狀況燈號`.string}}\",\"inside\":{{ifempty(350.properties_value.`在所人數`.number; 0)}},\"capacity\":{{ifempty(350.properties_value.`容納人數`.number; 0)}},\"out\":{{ifempty(350.properties_value.`外出人數`.number; 0)}},\"late\":{{ifempty(350.properties_value.`未返人數`.number; 0)}},\"care\":{{ifempty(350.properties_value.`需關懷人數`.number; 0)}},\"open\":{{ifempty(350.properties_value.`未結日誌數`.number; 0)}},\"urgent\":{{ifempty(350.properties_value.`緊急未結數`.number; 0)}},\"needStaff\":{{ifempty(350.properties_value.`缺工作人員`.number; 0)}},\"needVol\":{{ifempty(350.properties_value.`缺志工`.number; 0)}}},\"duty\":{{353.json}},\"residents\":{{356.json}},\"events\":{{359.json}}}",
                 "headers": [
                  {
                   "key": "Content-Type",
@@ -13397,7 +13506,7 @@
                "metadata": {
                 "designer": {
                  "x": 900,
-                 "y": 38100,
+                 "y": 38700,
                  "name": "回傳本所狀況（社會處）"
                 }
                }
@@ -13407,7 +13516,7 @@
             {
              "flow": [
               {
-               "id": 357,
+               "id": 361,
                "module": "notion:getADatabaseItem",
                "version": 1,
                "mapper": {
@@ -13418,7 +13527,7 @@
                "metadata": {
                 "designer": {
                  "x": 900,
-                 "y": 38250,
+                 "y": 38850,
                  "name": "讀派駐開設（社會處）"
                 },
                 "parameters": [
@@ -13470,7 +13579,7 @@
                }
               },
               {
-               "id": 358,
+               "id": 362,
                "module": "notion:searchObjects1",
                "version": 1,
                "mapper": {
@@ -13480,7 +13589,7 @@
                   {
                    "a": "收容所 |&*^%$#@| relation",
                    "o": "relation:contains",
-                   "b": "{{357.properties_value.`收容所`[].id}}"
+                   "b": "{{361.properties_value.`收容所`[].id}}"
                   }
                  ]
                 ],
@@ -13490,7 +13599,7 @@
                "metadata": {
                 "designer": {
                  "x": 900,
-                 "y": 38400,
+                 "y": 39000,
                  "name": "找本所物資品項（社會處）"
                 },
                 "parameters": [
@@ -13507,50 +13616,50 @@
                }
               },
               {
-               "id": 359,
+               "id": 363,
                "module": "builtin:BasicAggregator",
                "version": 1,
                "parameters": {
-                "feeder": 358
+                "feeder": 362
                },
                "mapper": {
-                "id": "{{358.id}}",
-                "properties_value": "{{358.properties_value}}"
+                "id": "{{362.id}}",
+                "properties_value": "{{362.properties_value}}"
                },
                "metadata": {
                 "designer": {
                  "x": 900,
-                 "y": 38550,
+                 "y": 39150,
                  "name": "彙整品項（社會處）"
                 }
                }
               },
               {
-               "id": 360,
+               "id": 364,
                "module": "json:TransformToJSON",
                "version": 1,
                "parameters": {
                 "space": ""
                },
                "mapper": {
-                "object": "{{359.array}}"
+                "object": "{{363.array}}"
                },
                "metadata": {
                 "designer": {
                  "x": 900,
-                 "y": 38700,
+                 "y": 39300,
                  "name": "品項轉成 JSON（社會處）"
                 }
                }
               },
               {
-               "id": 361,
+               "id": 365,
                "module": "gateway:WebhookRespond",
                "version": 1,
                "parameters": {},
                "mapper": {
                 "status": "200",
-                "body": "{\"ok\":true,\"me\":{\"name\":\"{{encodeURL(3.properties_value.`姓名`[].plain_text)}}\",\"role\":\"{{3.properties_value.`角色`.name}}\",\"opening\":\"{{encodeURL(357.properties_value.`開設名稱`[].plain_text)}}\",\"openingId\":\"{{357.id}}\"},\"items\":{{360.json}}}",
+                "body": "{\"ok\":true,\"me\":{\"name\":\"{{encodeURL(3.properties_value.`姓名`[].plain_text)}}\",\"role\":\"{{3.properties_value.`角色`.name}}\",\"opening\":\"{{encodeURL(361.properties_value.`開設名稱`[].plain_text)}}\",\"openingId\":\"{{361.id}}\"},\"items\":{{364.json}}}",
                 "headers": [
                  {
                   "key": "Content-Type",
@@ -13565,7 +13674,7 @@
                "metadata": {
                 "designer": {
                  "x": 900,
-                 "y": 38850,
+                 "y": 39450,
                  "name": "回傳庫存（社會處）"
                 }
                }
@@ -13575,7 +13684,7 @@
             {
              "flow": [
               {
-               "id": 362,
+               "id": 366,
                "module": "gateway:WebhookRespond",
                "version": 1,
                "parameters": {},
@@ -13596,7 +13705,7 @@
                "metadata": {
                 "designer": {
                  "x": 900,
-                 "y": 39000,
+                 "y": 39600,
                  "name": "回傳不是社會處（指定收容所）"
                 }
                },

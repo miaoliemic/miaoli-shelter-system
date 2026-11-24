@@ -278,6 +278,47 @@ body.pub{font-size:1.0625rem}
 .prow .meta.bad{color:var(--red);font-weight:700}
 .prow .meta.ok{color:var(--green)}
 .finacts{margin-top:18px}
+/* 結報改版（11/24）：總覽／完整版切換、結論燈號、長條、事件時間軸 */
+.repmode{grid-template-columns:1fr 1.6fr;margin:12px 16px 0}
+.repmode button.on{background:var(--blue);border-color:var(--blue);color:#fff}
+.rep-head{margin:12px 16px 0;padding:12px 14px;border-radius:14px;font-weight:700;line-height:1.45}
+.rep-head.ok{background:var(--green-bg);color:var(--green)}
+.rep-head.warn{background:var(--amber-bg);color:var(--amber)}
+.verdicts{margin:0 16px;display:grid;gap:8px}
+.vd{padding:10px 12px;border-radius:12px;background:var(--card);border:1px solid var(--line);box-shadow:inset 4px 0 0 var(--green);line-height:1.5}
+.vd.warn{box-shadow:inset 4px 0 0 var(--amber)}
+.vd.bad{box-shadow:inset 4px 0 0 var(--red);border-color:var(--red)}
+.vd b{display:block;margin-bottom:2px}
+.vd span{font-size:0.9375rem}
+.stats+.stats{margin-top:8px}
+.stat.bad b{color:var(--red)}
+.prow.bar .n{flex:none;width:6.5em}
+.prow.bar .track{flex:1;height:10px;border-radius:999px;background:var(--chip);overflow:hidden}
+.prow.bar .track i{display:block;height:100%;background:var(--blue);border-radius:999px}
+.prow.bar>.meta{flex:none}
+.prow.bar.day .n{width:3.5em}
+.prow.bar.day>.meta{font-size:0.8125rem}
+.sec.sub{margin-top:12px;font-size:0.875rem}
+.sec.sub.bad{color:var(--red)}
+.evc{margin:0 16px 8px;padding:10px 12px;border-radius:12px;background:var(--card);border:1px solid var(--line);break-inside:avoid}
+.evc.open{border-color:var(--red);box-shadow:inset 4px 0 0 var(--red)}
+.evh{display:flex;align-items:center;gap:8px}
+.evh b{flex:1;min-width:0}
+.evc>.meta{font-size:0.8125rem;color:var(--soft);margin-top:4px}
+.evc>.meta.ok{color:var(--green);font-weight:700}
+.evc>.meta.bad{color:var(--red);font-weight:700}
+.evx{margin-top:6px;font-size:0.9375rem;line-height:1.5;white-space:pre-wrap}
+.tl{margin:8px 0 0;padding:0 0 0 14px;border-left:2px solid var(--line);list-style:none;font-size:0.875rem;line-height:1.5}
+.tl li{margin:0 0 4px}
+.tl time{color:var(--soft);margin-right:6px;font-variant-numeric:tabular-nums}
+.badge.sev-緊急{background:var(--red-bg);color:var(--red)}
+.badge.sev-高{background:var(--amber-bg);color:var(--amber)}
+.badge.sev-中,.badge.sev-低{background:var(--chip);color:var(--soft)}
+.hours.dests{grid-template-columns:repeat(3,1fr)}
+@media print{
+  #printArea .rep-print .verdicts,#printArea .rep-print .evc{break-inside:avoid}
+  #printArea .rep-print .prow.bar .track i,#printArea .rep-print .vd,#printArea .rep-print .rep-head{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}
 /* 指揮台：收容所清單收合後的一行摘要；展開時固定在畫面下方的「已選 N 所・選好了」列 */
 .picked{display:flex;align-items:center;gap:8px;margin-top:8px;padding:10px 12px;border-radius:12px;background:var(--blue-bg);color:var(--blue);font-weight:700}
 .picked span{flex:1;min-width:0}

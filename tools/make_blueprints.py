@@ -233,6 +233,7 @@ def pick(field, options, default):
 
 FIELD_CATS = ["緊急事件", "重大事件", "人員相關", "物資相關", "設施環境", "交班紀錄"]
 SEVS = ["緊急", "高", "中", "低"]
+DESTS = ["返家", "投靠親友", "轉其他收容所", "送醫", "其他"]   # 離所去向（收容登記；頁面沒送就寫「未填寫」）
 REPORT_CATS = ["身體不適", "缺物資", "環境問題", "其他"]
 AGES = ["成人", "長者", "兒童", "嬰幼兒"]
 KINDS = ["風災", "水災", "震災", "土石流", "海嘯", "其他"]
@@ -673,7 +674,8 @@ def build_supply_api():
                     b.update("居民改在所（居民頁面）", DS_RES, f"{{{{{RM}.id}}}}", [f_sel("在所狀態", "在所")]),
                     io("返回"), done("返回", "在所")]),
                 (flt("離所", [[kind("離所"), c(r_stat, "text:notequal", "已離所")]]), [
-                    b.update("居民改已離所（居民頁面）", DS_RES, f"{{{{{RM}.id}}}}", [f_sel("在所狀態", "已離所"), f_now("離所時間")]),
+                    b.update("居民改已離所（居民頁面）", DS_RES, f"{{{{{RM}.id}}}}", [
+                        f_sel("在所狀態", "已離所"), f_now("離所時間"), f_sel("離所去向", pick("1.dest", DESTS, "未填寫"))]),
                     b.update("號碼牌回收失效（居民頁面）", DS_TAG, f"{{{{{TM}.id}}}}", [
                         f_sel("狀態", "失效"), f_sel("失效原因", "離所回收"), f_now("失效時間")]),
                     io("離所"), done("離所", "已離所")]),
@@ -1263,8 +1265,10 @@ def hq_routes(b, respond, W, auth_ok, on, act, load_flow_for):
             respond("回傳不是撤收中", '{"ok":false,"error":"bad_state","stage":"' + of_stage + '"}', "409")]),
     ])]
 
-    # ---- hqReport：結報原始資料（各最多 100 筆）。不回傳姓名、電話、證號、照護說明；統計由頁面做 ----
-    # 每張表一個搜尋＋一個文字彙整（直接組 JSON 物件，用逗號串起來），共 4×2＋讀開設＋回應 ＝ 10 個模組
+    # ---- hqReport：結報原始資料（各最多 100 筆）。居民不回傳姓名、電話、證號、照護說明；統計由頁面做 ----
+    # 事件（現場日誌）另外回傳標題、內容、處理紀錄、反映者，給結報「完整版」的事件細節（限社會處，可能含姓名）
+    # 每張表一個搜尋＋一個彙整：居民、物資異動、出勤直接組 JSON 文字；事件、物資品項有自由文字，改用 JSON 轉換模組
+    # 共 5×2＋讀開設＋回應 ＝ 12 個模組
     orp = b.get("讀開設（結報）", "{{1.o}}")
     ORP = orp["id"]
     in_open = c("收容所開設 |&*^%$#@| relation", "relation:contains", "{{1.o}}")
@@ -1276,8 +1280,22 @@ def hq_routes(b, respond, W, auth_ok, on, act, load_flow_for):
         return [s, b.aggregate(f"彙整{name}（結報）", X, body, sep=",")]
     r_mods = rep_rows("收容登記", DS_RES, [
         ("age", ("年齡層", ".name")), ("care", lambda X: '"{{join(map(' + f"{X}.properties_value.`特殊關懷`" + '; "name"); ",")}}"'),
-        ("status", ("在所狀態", ".name")), ("in", ("報到時間", ".start")), ("out", ("離所時間", ".start"))])
-    l_mods = rep_rows("現場日誌", DS_LOG, [("cat", ("日誌類別", ".name")), ("sev", ("嚴重程度", ".name")), ("prog", ("處理進度", ".name"))])
+        ("status", ("在所狀態", ".name")), ("in", ("報到時間", ".start")), ("out", ("離所時間", ".start")),
+        ("dest", ("離所去向", ".name"))])
+    ls = search_all("找現場日誌（結報）", DS_LOG, [in_open], 100)
+    LS = ls["id"]
+    l_agg, LJ = agg_json("現場日誌（結報）", LS, {
+        "id": f"{{{{{LS}.id}}}}", "cat": sp(LS, "日誌類別", ".name"), "sev": sp(LS, "嚴重程度", ".name"), "prog": sp(LS, "處理進度", ".name"),
+        "title": sp(LS, "日誌標題", "[].plain_text"), "text": sp(LS, "內容說明", "[].plain_text"), "log": sp(LS, "處理紀錄", "[].plain_text"),
+        "src": sp(LS, "來源", ".name"), "who": sp(LS, "反映者", "[].plain_text"), "help": sp(LS, "協助類別", ".name"),
+        "hq": sp(LS, "需回報社會處"), "at": sp(LS, "發生時間", ".start"), "made": f"{{{{{LS}.created_time}}}}",
+        "upd": f"{{{{{LS}.last_edited_time}}}}"})
+    l_mods = [ls, *l_agg]
+    # 物資品項（掛在收容所主檔，不是開設）：結案時的庫存與安全庫存
+    its = search_all("找物資品項（結報）", DS_ITEM, [c("收容所 |&*^%$#@| relation", "relation:contains", sp(ORP, "收容所", "[].id"))], 100)
+    ITS = its["id"]
+    i_agg, IJ = agg_json("物資品項（結報）", ITS, {"id": f"{{{{{ITS}.id}}}}", "properties_value": f"{{{{{ITS}.properties_value}}}}"})
+    i_mods = [its, *i_agg]
     m_mods = rep_rows("物資異動", DS_MOVE, [
         ("sum", lambda X: '"' + enc(sp(X, "摘要", "[].plain_text")) + '"'), ("type", ("異動類型", ".name")),
         ("qty", lambda X: "{{ifempty(" + sp(X, "數量", ".number")[2:-2] + "; 0)}}")])
@@ -1287,9 +1305,9 @@ def hq_routes(b, respond, W, auth_ok, on, act, load_flow_for):
     arr = lambda mods: "[" + f"{{{{{mods[1]['id']}.text}}}}" + "]"
     report_body = ('{"ok":true,"opening":{"id":"' + f"{{{{{ORP}.id}}}}" + '","name":"' + enc(sp(ORP, "開設名稱", "[].plain_text"))
                    + '","status":"' + sp(ORP, "開設狀態", ".name") + '","openAt":"' + sp(ORP, "開設時間", ".start")
-                   + '","closeAt":"' + sp(ORP, "撤收時間", ".start") + '"},"residents":' + arr(r_mods) + ',"logs":' + arr(l_mods)
-                   + ',"moves":' + arr(m_mods) + ',"att":' + arr(a_mods) + "}")
-    report_flow = [orp, *r_mods, *l_mods, *m_mods, *a_mods, respond("回傳結報資料", report_body)]
+                   + '","closeAt":"' + sp(ORP, "撤收時間", ".start") + '"},"residents":' + arr(r_mods) + ',"logs":' + f"{{{{{LJ}.json}}}}"
+                   + ',"moves":' + arr(m_mods) + ',"att":' + arr(a_mods) + ',"items":' + f"{{{{{IJ}.json}}}}" + "}")
+    report_flow = [orp, *r_mods, *l_mods, *m_mods, *a_mods, *i_mods, respond("回傳結報資料", report_body)]
 
     # ---- hqTags：社會處替任一收容所產生空白號碼牌（s＝收容所主檔 ID；不用先開設，可平時先印好放在收容所） ----
     g_sh = b.get("讀收容所（號碼牌）", "{{1.s}}")

@@ -95,7 +95,8 @@ const real = {
   // 產生空白號碼牌（管理者，本所）。社會處走 hq("hqTags", { s 收容所主檔 ID, tg })。回傳實際建立的編號
   async addTags(codes) { const d = await post({ a: "addTags", tg: codes.join(",") }); return String(d.tags || "").split(",").filter(Boolean); },
   async register(f) { return await post({ a: "register", ...f }); },
-  async move(tag, kind, hours) { return await post({ a: "move", tag, kind, hours: String(hours || "") }); },
+  // dest：離所去向（返家、投靠親友…），結報統計安全撤離用
+  async move(tag, kind, hours, dest) { return await post({ a: "move", tag, kind, hours: String(hours || ""), dest: dest || "" }); },
   // 本所：status 狀況｜report 記錄事件｜update 認領・追加紀錄・解決｜prep 整備回報｜prepDone 送出整備完成
   async ops(a, f) { return await post({ a, ...(f || {}) }); },
   // 一般畫面：info 收容所資訊｜me 我的狀態｜apply 申請開通｜feedback 我要反映｜signout 簽退
@@ -538,6 +539,9 @@ function residentView(d) {
       <button id="doOut" ${dis}>${lab("外出", "🚶 外出")}</button><button class="warn" id="doLeave" ${dis}>${lab("離所", "離所")}</button></div>
       ${S.rmsg === "pickHours" && !mv ? `<div class="form"><b>預計多久回來？</b><div class="hours">${[[1, "1 小時"], [3, "3 小時"], [6, "6 小時"], [12, "過夜"]].map(([h, t]) => `<button data-hours="${h}">${t}</button>`).join("")}</div></div>` : ""}`;
   else if (st === "外出" || st === "未返") acts = `<div class="ract"><button class="main" id="doBack" ${dis}>${lab("返回", "↩ 返回")}</button><button class="warn" id="doLeave" style="grid-column:1 / -1" ${dis}>${lab("離所", "離所")}</button></div>`;
+  // 按「離所」先選去向（和外出的「預計多久回來」共用 rmsg，一次只開一個）
+  if (S.rmsg === "pickDest" && !mv && CAN_GATE(d.role)) acts += `<div class="form"><b>離所後去哪裡？</b><div class="meta">結報會統計大家是否安全撤離</div>
+      <div class="hours dests">${DESTS.map(t => `<button data-dest="${esc(t)}">${esc(t)}</button>`).join("")}</div></div>`;
   if (CAN_GATE(d.role) && st !== "已離所") acts += `<div class="ract"><button id="doReport" style="grid-column:1 / -1">📝 記錄這位居民的事件</button></div>`;
   return `<div class="rcard"><h2>${esc(r.name || S.rtag)}</h2>
       <div class="meta">${esc(S.rtag)}　${esc(r.age || "")}${r.area ? `　${esc(r.area)}` : ""}</div>
@@ -552,12 +556,12 @@ async function loadResident(tag) {
   } catch (e) { if (handleApiError(e)) return; S.rmsg = "網路不穩，沒讀到號碼牌。請按下方「掃描」再掃一次。"; }
   render();
 }
-async function residentAction(kind, hours) {
+async function residentAction(kind, hours, dest) {
   if (S.busy) return;
-  if (kind === "離所" && !confirm(`確定 ${S.rinfo.resident.name || S.rtag} 要離所嗎？\n離所後號碼牌會失效，不能再用。`)) return;
+  if (kind === "離所" && !confirm(`確定 ${S.rinfo.resident.name || S.rtag} 要離所（${dest}）嗎？\n離所後號碼牌會失效，不能再用。`)) return;
   S.busy = true; S.moving = kind; S.rmsg = ""; render();
   try {
-    const d = await api.move(S.rtag, kind, hours);
+    const d = await api.move(S.rtag, kind, hours, dest);
     S.rinfo.resident.status = d.status;
     if (kind === "外出") S.rinfo.resident.back = new Date(Date.now() + hours * 3600e3).toISOString();
     if (kind === "離所") S.rinfo.state = "void";
@@ -664,7 +668,12 @@ document.addEventListener("click", async e => {
   else if (b.id === "opsFinish" || b.id === "opsReport") go(`?v=report&o=${encodeURIComponent(S.hqO)}`);
   else if (b.id === "finBack") history.length > 1 ? history.back() : go("?v=sites");
   else if (b.id === "finReload") loadFinal();
-  else if (b.id === "finPrint") { if (inLine()) openPrintView("printrep", slimReport(computeReport(F.d))); else window.print(); }
+  else if (b.id === "finPrint") {
+    if (F.full && !confirm("完整版含事件內容，可能有居民或工作人員姓名。\n請只交給需要的人，不要轉傳到群組。要繼續嗎？")) return;
+    const R = computeReport(F.d); R.full = F.full;
+    if (inLine()) openPrintView("printrep", slimReport(R)); else window.print();
+  }
+  else if (b.dataset.repfull !== undefined) { F.full = b.dataset.repfull === "1"; render(); }
   else if (b.id === "doPrintNow") window.print();
   else if (b.id === "finDo") doFinish();
   else if (b.dataset.show !== undefined && b.dataset.show !== "") { S.opsShow = S.opsShow === b.dataset.show ? "" : b.dataset.show; render(); }
@@ -689,7 +698,8 @@ document.addEventListener("click", async e => {
   else if (b.id === "doOut") { S.rmsg = S.rmsg === "pickHours" ? "" : "pickHours"; render(); }
   else if (b.dataset.hours) { S.rmsg = ""; residentAction("外出", +b.dataset.hours); }
   else if (b.id === "doBack") residentAction("返回");
-  else if (b.id === "doLeave") residentAction("離所");
+  else if (b.id === "doLeave") { S.rmsg = S.rmsg === "pickDest" ? "" : "pickDest"; render(); }
+  else if (b.dataset.dest) { S.rmsg = ""; residentAction("離所", null, b.dataset.dest); }
   else if (b.id === "doRegister") doRegister();
   else if (b.dataset.pick) {
     const k = b.dataset.pick, v = b.dataset.v, f = S.rform;
@@ -1155,96 +1165,233 @@ document.addEventListener("click", async e => {
 
 // ===== 結報（?v=report&o=…，限社會處）：hqReport 回原始資料，這裡統計；撤收中可以確認結案（hqFinish） =====
 // 後端不回傳姓名、電話、證號、照護說明；每張表最多 100 筆，到上限時畫面會註明
-const F = { d: null, msg: "", busy: false };
+const F = { d: null, msg: "", busy: false, full: false };   // full：完整版（含事件細節，可能有姓名，限社會處）
 const MOVE_TYPES = ["入庫", "發放", "調撥", "報廢", "盤點調整"];
+const DESTS = ["返家", "投靠親友", "轉其他收容所", "送醫", "其他"];
+const NOT_EVENT = new Set(["整備回報", "交班紀錄"]);   // 不算「事件」：整備回報是開設前的檢查，交班紀錄是工作日誌
 const LIMIT = 100;
+const two = n => String(n).padStart(2, "0");
 function fmtFull(iso) {
   const d = new Date(iso); if (!iso || isNaN(d)) return "";
-  return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()} ${two(d.getHours())}:${two(d.getMinutes())}`;
 }
+function fmtShort(t) { const d = new Date(t); return isNaN(d) ? "" : `${d.getMonth() + 1}/${d.getDate()} ${two(d.getHours())}:${two(d.getMinutes())}`; }
 function fmtDur(ms) {
   if (!(ms > 0)) return "0 小時";
   const h = Math.round(ms / 3600e3), d = Math.floor(h / 24);
   return d ? `${d} 天 ${h % 24} 小時` : `${h} 小時`;
 }
+// 處理用時：不到 1 小時用分鐘，不到 1 天用「時＋分」，再長用天
+function fmtSpan(ms) {
+  if (!(ms >= 0)) return "";
+  const m = Math.round(ms / 60e3);
+  if (m < 60) return `${m} 分鐘`;
+  if (m < 1440) return `${Math.floor(m / 60)} 小時${m % 60 ? ` ${m % 60} 分` : ""}`;
+  return fmtDur(ms);
+}
 const countBy = (list, key) => list.reduce((m, x) => { const k = key(x) || "未填"; m[k] = (m[k] || 0) + 1; return m; }, {});
 const ordered = (m, order) => Object.entries(m).sort((a, b) => ((order.indexOf(a[0]) + 1) || 99) - ((order.indexOf(b[0]) + 1) || 99) || b[1] - a[1]);
 const joinCounts = (pairs, unit) => pairs.map(([k, n]) => `${k} ${n}${unit || ""}`).join("、") || "無";
-// 最高同時在所：報到 +1、離所 −1，依時間掃一遍取最大值（沒有離所時間的算到現在；同一時間先算離所）
-function peakInside(rs) {
-  const now = Date.now(), ev = [];
+const avg = a => a.length ? a.reduce((s, x) => s + x, 0) / a.length : NaN;
+const pct = (a, b) => b ? `${Math.round(a / b * 100)}%` : "—";
+const isDone = p => /已解決|已結案/.test(p || "");
+// 報到 +1、離所 −1 的時間序列（沒有離所時間的算到結束；同一時間先算離所）
+function inOutEvents(rs, end) {
+  const ev = [];
   for (const r of rs) {
     const a = Date.parse(r.in); if (isNaN(a)) continue;
-    const b = Date.parse(r.out); ev.push([a, 1], [isNaN(b) ? now : Math.max(a, b), -1]);
+    const b = Date.parse(r.out); ev.push([a, 1], [isNaN(b) ? end : Math.max(a, b), -1]);
   }
-  ev.sort((x, y) => x[0] - y[0] || x[1] - y[1]);
+  return ev.sort((x, y) => x[0] - y[0] || x[1] - y[1]);
+}
+function peakInside(rs, end) {
   let cur = 0, max = 0;
-  for (const [, d] of ev) { cur += d; if (cur > max) max = cur; }
+  for (const [, d] of inOutEvents(rs, end || Date.now())) { cur += d; if (cur > max) max = cur; }
   return max;
 }
+// 每日進出：報到、離所、當日最高在所、當日事件數（最多 31 天）
+function dailyRows(rs, evs, start, end) {
+  const s = new Date(isNaN(start) ? end : start); s.setHours(0, 0, 0, 0);
+  const io = inOutEvents(rs, end), rows = [];
+  let i = 0, cur = 0;
+  for (let d = s.getTime(); d <= end && rows.length < 31; ) {
+    const next = new Date(d); next.setDate(next.getDate() + 1); const n = next.getTime();
+    let peak = cur, ins = 0, outs = 0;
+    while (i < io.length && io[i][0] < n) {
+      const [t, k] = io[i++]; cur += k; if (cur > peak) peak = cur;
+      if (k > 0) ins++; else if (t < end) outs++;
+    }
+    rows.push({ day: `${new Date(d).getMonth() + 1}/${new Date(d).getDate()}`, ins, outs, peak, ev: evs.filter(e => e.t >= d && e.t < n).length });
+    d = n;
+  }
+  return rows;
+}
+// 處理紀錄每一行：「MM/DD HH:mm 姓名 動作：內容」→ { t, text }（年份取發生時間的年；跨年的往後加一年）
+function logSteps(log, base) {
+  const y = new Date(isNaN(base) ? Date.now() : base).getFullYear();
+  return String(log || "").split("\n").map(s => s.trim()).filter(Boolean).map(s => {
+    const m = s.match(/^(\d{1,2})\/(\d{1,2}) (\d{1,2}):(\d{2}) (.*)$/);
+    if (!m) return { t: NaN, text: s };
+    let t = new Date(y, m[1] - 1, +m[2], +m[3], +m[4]).getTime();
+    if (!isNaN(base) && t < base - 180 * 864e5) t = new Date(y + 1, m[1] - 1, +m[2], +m[3], +m[4]).getTime();
+    return { t, text: m[5] };
+  });
+}
+function eventOf(l) {
+  const t = Date.parse(l.at) || Date.parse(l.made), steps = logSteps(l.log, t), done = isDone(l.prog);
+  const fin = [...steps].reverse().find(s => /標記已解決|已結案/.test(s.text) && !isNaN(s.t));
+  const doneAt = done ? (fin ? fin.t : Date.parse(l.upd)) : NaN;
+  const act = steps.find(s => !isNaN(s.t) && /認領|接手|指示|標記已解決/.test(s.text));
+  return { title: l.title || l.cat || "事件", text: l.text || "", cat: l.cat || "未填", sev: l.sev || "未填", prog: l.prog || "待處理",
+           src: l.src || "", who: l.who || "", help: l.help || "", done, t,
+           hq: l.hq === true || l.hq === "true" || l.src === "社會處" || steps.some(s => /社會處/.test(s.text)),
+           res: l.src === "民眾反映" || l.cat === "居民反映",
+           urgent: /緊急|高/.test(l.sev || ""), steps, dur: done && !isNaN(t) && doneAt >= t ? doneAt - t : NaN,
+           react: act && !isNaN(t) && act.t >= t ? act.t - t : NaN };
+}
+function itemOf(r) {
+  const p = r.properties_value || {};
+  return { name: txt(p["品名"]) || "（未命名）", unit: txt(p["單位"]) || "", stock: num(p["目前庫存"]), safety: num(p["安全庫存"]) };
+}
 function computeReport(d) {
-  const o = d.opening, rs = d.residents || [], logs = (d.logs || []).filter(l => l.cat !== "整備回報"), mv = d.moves || [], att = d.att || [];
+  const o = d.opening, rs = d.residents || [], logs = d.logs || [], mv = d.moves || [], att = d.att || [];
   const start = Date.parse(o.openAt), end = Date.parse(o.closeAt) || Date.now();
   const cares = rs.map(r => String(r.care || "").split(/[,、]/).map(x => x.trim()).filter(Boolean));
   const careCount = {}; for (const c of cares) for (const k of c) careCount[k] = (careCount[k] || 0) + 1;
-  const done = logs.filter(l => /已解決|已結案/.test(l.prog)).length;
-  const items = {};
+  // 人：停留時間（已離所的用離所時間，還在的算到結束）、去向
+  const stays = rs.map(r => { const a = Date.parse(r.in), b = Date.parse(r.out) || end; return isNaN(a) ? NaN : b - a; }).filter(x => x >= 0);
+  const left = rs.filter(r => r.status === "已離所");
+  const dests = ordered(countBy(left, r => DESTS.includes(r.dest) ? r.dest : "未記錄"), DESTS.concat("未記錄"));
+  // 事：不含整備回報、交班紀錄
+  const all = logs.filter(l => l.cat !== "整備回報").map(eventOf), evs = all.filter(e => !NOT_EVENT.has(e.cat));
+  const open = evs.filter(e => !e.done), urgent = evs.filter(e => e.urgent);
+  const byCat = {}; for (const e of evs) { const c = byCat[e.cat] || (byCat[e.cat] = [0, 0]); c[0]++; if (e.done) c[1]++; }
+  // 物：異動依品項加總，再對上結案時的庫存
+  const moves = {};
   for (const m of mv) {
     const name = String(m.sum || "").trim().split(/\s+/)[0] || "（未命名）", type = m.type || "其他";
-    const t = items[name] || (items[name] = {}); t[type] = (t[type] || 0) + (+m.qty || 0);
+    const t = moves[name] || (moves[name] = {}); t[type] = (t[type] || 0) + (+m.qty || 0);
   }
+  const stock = (d.items || []).map(itemOf);
+  const names = [...new Set(stock.map(x => x.name).concat(Object.keys(moves)))].sort((a, b) => a.localeCompare(b));
+  const items = names.map(n => { const s = stock.find(x => x.name === n); return { name: n, mv: moves[n] || {}, unit: s ? s.unit : "", stock: s ? s.stock : null, safety: s ? s.safety : 0 }; });
+  const low = items.filter(x => x.stock !== null && x.safety > 0 && x.stock < x.safety);
   let hours = 0, noOut = 0;
   for (const a of att) { const i = Date.parse(a.in), x = Date.parse(a.out); if (isNaN(i) || isNaN(x)) { noOut++; continue; } hours += Math.max(0, x - i) / 3600e3; }
-  return {
+  const R = {
     o, start, end, ongoing: !o.closeAt,
-    total: rs.length, peak: peakInside(rs), inside: rs.filter(r => r.status && r.status !== "已離所").length,
+    total: rs.length, peak: peakInside(rs, end), inside: rs.filter(r => r.status && r.status !== "已離所").length,
+    out: rs.filter(r => r.status === "外出").length, late: rs.filter(r => r.status === "未返").length,
+    stay: avg(stays), left: left.length, dests, noDest: left.filter(r => !DESTS.includes(r.dest)).length,
     ages: ordered(countBy(rs, r => r.age), AGES), careN: cares.filter(c => c.length).length, cares: ordered(careCount, CARES),
-    ev: logs.length, cats: ordered(countBy(logs, l => l.cat), CATS), sevs: ordered(countBy(logs, l => l.sev), SEVS), done, open: logs.length - done,
-    items: Object.entries(items).sort((a, b) => a[0].localeCompare(b[0])),
+    ev: evs.length, done: evs.length - open.length, open: open.length, cats: ordered(countBy(evs, e => e.cat), CATS), byCat,
+    sevs: ordered(countBy(evs, e => e.sev), SEVS), urgentN: urgent.length, urgentOpen: urgent.filter(e => !e.done).length,
+    urgentDur: avg(urgent.map(e => e.dur).filter(x => x >= 0)), react: avg(evs.map(e => e.react).filter(x => x >= 0)),
+    hqN: evs.filter(e => e.hq).length, resN: evs.filter(e => e.res).length, resDone: evs.filter(e => e.res && e.done).length,
+    shiftLogs: all.filter(e => e.cat === "交班紀錄").length,
+    days: dailyRows(rs, evs, start, end),
+    items, low: low.map(x => x.name),
     shifts: att.length, people: new Set(att.map(a => a.person).filter(Boolean)).size, hours: Math.round(hours * 10) / 10, noOut,
     capped: ["residents", "logs", "moves", "att"].filter(k => (d[k] || []).length >= LIMIT),
+    // 完整版才用：事件細節（未解決的排最前面，再來緊急／高，最後依發生時間）
+    events: evs.slice().sort((a, b) => (a.done - b.done) || (b.urgent - a.urgent) || ((a.t || 0) - (b.t || 0))),
   };
+  R.verdicts = verdicts(R);
+  return R;
 }
-const pct = (a, b) => b ? `${Math.round(a / b * 100)}%` : "—";
+// 結論：四段（安置、事件、撤離、物資與人力），每段一個燈號 ok｜warn｜bad 和一句話
+function verdicts(R) {
+  const V = [];
+  V.push({ k: "安置", lv: "ok", t: `累計收容 ${R.total} 人，最高同時在所 ${R.peak} 人${R.stay >= 0 ? `，平均停留 ${fmtDur(R.stay)}` : ""}。`
+    + (R.careN ? `需關懷 ${R.careN} 人（${joinCounts(R.cares, " 人")}）。` : "沒有需關懷的居民。") });
+  const evLv = R.urgentOpen ? "bad" : R.open ? "warn" : "ok";
+  V.push({ k: "事件", lv: evLv, t: !R.ev ? "沒有事件紀錄。" : `共 ${R.ev} 件，已解決 ${R.done} 件（${pct(R.done, R.ev)}）`
+    + (R.open ? `，未解決 ${R.open} 件${R.urgentOpen ? `（緊急或高 ${R.urgentOpen} 件）` : ""}` : "，全部處理完畢")
+    + (R.urgentN ? `。緊急或高嚴重度 ${R.urgentN} 件${R.urgentDur >= 0 ? `，平均 ${fmtSpan(R.urgentDur)}解決` : ""}` : "")
+    + (R.react >= 0 ? `；平均 ${fmtSpan(R.react)}開始處理` : "")
+    + (R.hqN ? `；社會處介入 ${R.hqN} 件` : "") + (R.resN ? `；居民反映 ${R.resN} 件，已處理 ${R.resDone} 件` : "") + "。" });
+  const destT = R.left ? `離所去向：${joinCounts(R.dests.filter(([k]) => k !== "未記錄"), " 人") }${R.noDest ? `；未記錄去向 ${R.noDest} 人` : ""}。` : "";
+  if (!R.total) V.push({ k: "撤離", lv: "ok", t: "沒有收容居民。" });
+  else if (!R.inside) V.push({ k: "撤離", lv: R.noDest ? "warn" : "ok", t: `全部 ${R.total} 人已安全離所，沒有人未返。${destT}` });
+  else V.push({ k: "撤離", lv: R.ongoing ? "warn" : "bad", t: `${R.ongoing ? "目前" : "結案時"}仍有 ${R.inside} 人未離所`
+    + (R.out || R.late ? `（外出 ${R.out} 人、未返 ${R.late} 人）` : "") + `，已離所 ${R.left} 人。${destT}` });
+  const given = R.items.map(x => [x.name, x.mv["發放"] || 0, x.unit]).filter(x => x[1] > 0).sort((a, b) => b[1] - a[1]).slice(0, 3);
+  const resLv = R.low.length || R.noOut ? "warn" : "ok";
+  V.push({ k: "物資與人力", lv: resLv, t: (given.length ? `發放最多：${given.map(([n, q, u]) => `${n} ${q}${u ? " " + u : ""}`).join("、")}。` : "沒有物資發放紀錄。")
+    + (R.low.length ? `結案時 ${R.low.length} 項低於安全庫存（${R.low.join("、")}）。` : "")
+    + `出勤 ${R.shifts} 人次、${R.people} 人，共 ${R.hours} 小時${R.noOut ? `（未簽退 ${R.noOut} 筆不計）` : ""}。` });
+  return V;
+}
+const LV_ICON = { ok: "✅", warn: "⚠", bad: "⛔" };
+function headline(R) {
+  const bad = R.verdicts.filter(v => v.lv !== "ok");
+  return bad.length ? `${bad.length} 項需要注意：${bad.map(v => v.k).join("、")}` : (R.ongoing ? "目前一切正常" : "本次開設順利完成：人員安全撤離、事件全數處理");
+}
 const itemText = t => MOVE_TYPES.filter(k => t[k]).concat(Object.keys(t).filter(k => !MOVE_TYPES.includes(k) && t[k])).map(k => `${k} ${t[k]}`).join("、") || "無異動";
-// 純文字摘要（每段一行）：hqFinish 寫進 Notion 的「結報摘要」和開設頁面內文
+// 純文字摘要：hqFinish 寫進 Notion 的「結報摘要」和開設頁面內文。只放結論和數字，不放事件內容（避免個資）
 function reportText(R) {
   const L = [
     `開設：${R.o.name}`,
     `期間：${fmtFull(R.o.openAt) || "未記錄"} ～ ${R.ongoing ? `${fmtFull(new Date().toISOString())}（結案時）` : fmtFull(R.o.closeAt)}，共 ${fmtDur(R.end - R.start)}`,
-    `人：累計收容 ${R.total} 人，最高同時在所 ${R.peak} 人，目前仍在所 ${R.inside} 人`,
+    `結論：${headline(R)}`,
+    ...R.verdicts.map(v => `${LV_ICON[v.lv]} ${v.k}：${v.t}`),
     `年齡層：${joinCounts(R.ages, " 人")}`,
-    `需關懷：${R.careN} 人（${joinCounts(R.cares)}）`,
-    `事：事件 ${R.ev} 件，已解決或結案 ${R.done} 件（${pct(R.done, R.ev)}），待處理 ${R.open} 件`,
     `事件類別：${joinCounts(R.cats, " 件")}`,
-    `嚴重程度：${joinCounts(R.sevs, " 件")}`,
-    `物：${R.items.map(([k, t]) => `${k}（${itemText(t)}）`).join("；") || "沒有物資異動"}`,
-    `人力：出勤 ${R.shifts} 人次、${R.people} 人，總時數 ${R.hours} 小時${R.noOut ? `（未簽退 ${R.noOut} 筆不計）` : ""}`,
+    `物資：${R.items.map(x => `${x.name}（${itemText(x.mv)}${x.stock !== null ? `；結存 ${x.stock}` : ""}）`).join("；") || "沒有物資異動"}`,
   ];
   if (R.capped.length) L.push(`註：部分資料超過 ${LIMIT} 筆，只統計前 ${LIMIT} 筆`);
   return L.join("\n").slice(0, 1900);
 }
 function reportHtml(R) {
-  const kv = (k, v) => `<div class="prow"><span class="n">${esc(k)}</span><span class="meta">${esc(v)}</span></div>`;
+  const kv = (k, v, cls) => `<div class="prow"><span class="n">${esc(k)}</span><span class="meta${cls ? " " + cls : ""}">${esc(v)}</span></div>`;
   const list = (pairs, unit) => pairs.map(([k, n]) => kv(k, `${n} ${unit}`)).join("") || kv("無", "");
-  const big = (n, label) => `<div class="stat"><b>${esc(n)}</b><span>${esc(label)}</span></div>`;
+  const big = (n, label, cls) => `<div class="stat${cls ? " " + cls : ""}"><b>${esc(n)}</b><span>${esc(label)}</span></div>`;
+  const bar = (k, n, max, unit) => `<div class="prow bar"><span class="n">${esc(k)}</span><span class="track"><i style="width:${max ? Math.round(n / max * 100) : 0}%"></i></span><span class="meta">${esc(n)} ${esc(unit)}</span></div>`;
   const stLabel = R.o.status === "已撤收" ? "已結案" : R.o.status;
-  return `<div class="rep-h"><h2>${esc(R.o.name || "收容所")}</h2>
+  const allOk = R.verdicts.every(v => v.lv === "ok");
+  const maxDest = Math.max(1, ...R.dests.map(x => x[1])), maxPeak = Math.max(1, ...R.days.map(x => x.peak));
+  let h = `<div class="rep-h"><h2>${esc(R.o.name || "收容所")}${R.full ? "　結報（完整版）" : "　結報"}</h2>
       <div class="meta">${esc(fmtFull(R.o.openAt) || "未記錄")} ～ ${R.ongoing ? "進行中" : esc(fmtFull(R.o.closeAt))}・共 ${esc(fmtDur(R.end - R.start))}・<b>${esc(stLabel)}</b></div></div>
-    <div class="sec">人</div>
-    <div class="stats">${big(R.total, "累計收容")}${big(R.peak, "最高同時在所")}${big(R.inside, "目前仍在所")}</div>
-    <div class="sec">年齡層 <small>需關懷 ${R.careN} 人</small></div><div class="plist">${list(R.ages, "人")}</div>
+    <div class="rep-head ${allOk ? "ok" : "warn"}">${allOk ? "✅" : "⚠"} ${esc(headline(R))}</div>
+    <div class="sec">結論</div>
+    <div class="verdicts">${R.verdicts.map(v => `<div class="vd ${v.lv}"><b>${LV_ICON[v.lv]} ${esc(v.k)}</b><span>${esc(v.t)}</span></div>`).join("")}</div>
+    <div class="sec">人數與進出</div>
+    <div class="stats">${big(R.total, "累計收容")}${big(R.peak, "最高同時在所")}${big(R.stay >= 0 ? fmtDur(R.stay) : "—", "平均停留")}</div>
+    <div class="stats">${big(R.left, "已離所")}${big(R.inside, "仍未離所", R.inside ? "bad" : "")}${big(R.late, "未返", R.late ? "bad" : "")}</div>
+    ${R.left ? `<div class="sec">離所去向 <small>安全撤離</small></div><div class="plist">${R.dests.map(([k, n]) => bar(k, n, maxDest, "人")).join("")}</div>` : ""}
+    ${R.days.length ? `<div class="sec">每日進出 <small>報到／離所／當日最高在所／事件</small></div>
+      <div class="plist">${R.days.map(x => `<div class="prow bar day"><span class="n">${esc(x.day)}</span><span class="track"><i style="width:${Math.round(x.peak / maxPeak * 100)}%"></i></span>
+        <span class="meta">+${esc(x.ins)}　−${esc(x.outs)}　最高 ${esc(x.peak)}　事件 ${esc(x.ev)}</span></div>`).join("")}</div>` : ""}
+    <div class="sec">年齡層 <small>需關懷 ${esc(R.careN)} 人</small></div><div class="plist">${list(R.ages, "人")}</div>
     ${R.cares.length ? `<div class="sec">關懷類別</div><div class="plist">${list(R.cares, "人")}</div>` : ""}
-    <div class="sec">事 <small>不含整備回報</small></div>
-    <div class="stats">${big(R.ev, "事件總數")}${big(pct(R.done, R.ev), "已解決＋已結案")}${big(R.open, "待處理")}</div>
-    <div class="sec">依類別</div><div class="plist">${list(R.cats, "件")}</div>
+    <div class="sec">事件與處理 <small>不含整備回報、交班紀錄${R.shiftLogs ? `（交班紀錄 ${esc(R.shiftLogs)} 筆）` : ""}</small></div>
+    <div class="stats">${big(R.ev, "事件總數")}${big(pct(R.done, R.ev), "已解決")}${big(R.open, "未解決", R.open ? "bad" : "")}</div>
+    <div class="stats">${big(R.urgentN, "緊急／高")}${big(R.urgentDur >= 0 ? fmtSpan(R.urgentDur) : "—", "緊急平均解決")}${big(R.hqN, "社會處介入")}</div>
+    <div class="sec">依類別 <small>已解決／件數</small></div>
+    <div class="plist">${Object.entries(R.byCat).sort((a, b) => b[1][0] - a[1][0]).map(([k, [n, ok]]) => kv(k, `${ok}／${n} 件`, ok < n ? "bad" : "ok")).join("") || kv("無", "")}</div>
     <div class="sec">依嚴重程度</div><div class="plist">${list(R.sevs, "件")}</div>
-    <div class="sec">物 <small>依品項彙整異動數量</small></div>
-    <div class="plist">${R.items.map(([k, t]) => kv(k, itemText(t))).join("") || kv("沒有物資異動", "")}</div>
+    <div class="sec">物資 <small>異動數量與結案時庫存</small></div>
+    <div class="plist">${R.items.map(x => `<div class="prow stk${R.low.includes(x.name) ? " low" : ""}"><span class="n">${esc(x.name)}</span>
+      <span class="meta">${esc(itemText(x.mv))}${x.stock !== null ? `｜結存 ${esc(x.stock)}${x.unit ? " " + esc(x.unit) : ""}${x.safety ? `（安全庫存 ${esc(x.safety)}）` : ""}` : ""}</span></div>`).join("") || kv("沒有物資紀錄", "")}</div>
     <div class="sec">人力</div>
     <div class="stats">${big(R.shifts, "出勤人次")}${big(R.people, "不重複人數")}${big(R.hours, "總時數")}</div>
-    ${R.noOut ? `<div class="hint" style="margin:6px 16px 0">未簽退 ${R.noOut} 筆，不計入總時數。</div>` : ""}
-    ${R.capped.length ? `<div class="hint" style="margin:10px 16px 0">⚠ 部分資料超過 ${LIMIT} 筆，只統計前 ${LIMIT} 筆。</div>` : ""}`;
+    ${R.noOut ? `<div class="hint" style="margin:6px 16px 0">未簽退 ${esc(R.noOut)} 筆，不計入總時數。</div>` : ""}`;
+  if (R.full) h += eventDetail(R);
+  if (R.capped.length) h += `<div class="hint" style="margin:10px 16px 0">⚠ 部分資料超過 ${LIMIT} 筆，只統計前 ${LIMIT} 筆。</div>`;
+  return h;
+}
+// 完整版：逐件事件（未解決 → 緊急／高 → 其他），每件列出發生、處理紀錄的時間軸、處理用時
+function eventDetail(R) {
+  const card = e => `<div class="evc ${e.done ? "" : "open"}"><div class="evh"><span class="badge sev-${esc(e.sev)}">${esc(e.sev)}</span><b>${esc(e.title)}</b></div>
+      <div class="meta">${esc(fmtShort(e.t) || "時間未記錄")}・${esc(e.cat)}${e.src ? "・" + esc(e.src) : ""}${e.who ? "・" + esc(e.who) : ""}</div>
+      ${e.text ? `<div class="evx">${esc(e.text)}</div>` : ""}
+      ${e.steps.length ? `<ol class="tl">${e.steps.map(s => `<li><time>${esc(isNaN(s.t) ? "" : fmtShort(s.t))}</time>${esc(s.text)}</li>`).join("")}</ol>` : ""}
+      <div class="meta ${e.done ? "ok" : "bad"}">${e.done ? `${esc(e.prog)}${e.dur >= 0 ? `・用時 ${esc(fmtSpan(e.dur))}` : ""}` : `未解決（${esc(e.prog)}）`}</div></div>`;
+  const open = R.events.filter(e => !e.done), urgent = R.events.filter(e => e.done && e.urgent), rest = R.events.filter(e => e.done && !e.urgent);
+  return `<div class="sec">事件細節 <small>完整版・內容可能有姓名，請勿外傳</small></div>`
+    + (open.length ? `<div class="sec sub bad">未解決 ${open.length} 件 <small>需交接或後續追蹤</small></div>${open.map(card).join("")}` : `<div class="hint" style="margin:0 16px">沒有未解決的事件。</div>`)
+    + (urgent.length ? `<div class="sec sub">緊急與高嚴重度（已處理）${urgent.length} 件</div>${urgent.map(card).join("")}` : "")
+    + (rest.length ? `<div class="sec sub">其他已處理 ${rest.length} 件</div>${rest.map(card).join("")}` : "");
 }
 function renderFinal() {
   $("#bar").hidden = REAL; $("#bar .in").style.display = "none";   // 原型只留示範切換列
@@ -1252,10 +1399,14 @@ function renderFinal() {
   const head = `<header><div class="title"><button class="iconbtn" id="finBack" aria-label="回上一頁">‹</button><h1>結報</h1>
     <button class="iconbtn" id="finReload" aria-label="重新整理">↻</button></div></header>`;
   if (!F.d) { setHTML($("#app"), head + `<div class="blocked"><p>${esc(F.msg || "讀取結報資料中…")}</p></div>`); return; }
-  const R = computeReport(F.d), st = F.d.opening.status, rep = reportHtml(R);
+  const R = computeReport(F.d), st = F.d.opening.status;
+  R.full = F.full;
+  const rep = reportHtml(R);
   const note = st === "撤收中" ? "結報預覽：確認數字無誤後按「確認結案」，狀態改為已撤收，結報寫進 Notion。"
     : st === "已撤收" ? "" : `這一所目前「${st}」，數字是到現在為止的統計。`;
-  setHTML($("#app"), head + (note ? `<div class="hqbanner" style="margin-top:10px">${esc(note)}</div>` : "") + rep
+  // 總覽＝結論和數字（寫進 Notion 的也是這些）；完整版＝再加上逐件事件細節
+  const modes = `<div class="seg repmode">${[[false, "總覽"], [true, "完整版（含事件細節）"]].map(([v, t]) => `<button data-repfull="${v ? 1 : 0}" class="${F.full === v ? "on" : ""}">${t}</button>`).join("")}</div>`;
+  setHTML($("#app"), head + (note ? `<div class="hqbanner" style="margin-top:10px">${esc(note)}</div>` : "") + modes + rep
     + `<div class="ract finacts">${st === "撤收中" ? `<button class="main" id="finDo" ${F.busy ? "disabled" : ""}>${F.busy ? "結案中…" : "確認結案"}</button>` : ""}
       <button id="finPrint" style="grid-column:1 / -1">${inLine() ? "存成 PDF（用瀏覽器開啟）" : "列印結報"}</button></div>
     <p class="hint" style="margin:6px 16px 0">${esc(inLine() ? PDF_HINT : "列印視窗的「目的地」選「另存為 PDF」就能存成 PDF。")}</p>`);
@@ -1302,18 +1453,26 @@ function openPrintView(v, data) {
   if (REAL) { try { return liff.openWindow({ url, external: true }); } catch (e) {} }
   location.href = url;   // 原型（或開不了外部瀏覽器時）：在同一個分頁開啟
 }
-// 結報只帶統計結果（不帶開設 ID）
-function slimReport(R) { const { id, ...o } = R.o; return { ...R, o }; }
-// 網址來的資料一律重新整理型別：數字轉數字、文字轉文字（畫面仍會經過 esc 和 DOMPurify）
+// 結報不帶開設 ID；總覽不帶事件細節（網址裡只有結論和數字）
+function slimReport(R) {
+  const { id, ...o } = R.o, out = { ...R, o };
+  if (!R.full) out.events = [];
+  else out.events = R.events.map(e => ({ ...e, text: e.text.slice(0, 300), steps: e.steps.slice(-8).map(x => ({ t: x.t, text: x.text.slice(0, 200) })) }));
+  return out;
+}
+// 網址來的資料一律重新整理型別：只留文字、數字、布林、陣列、一般物件（畫面仍會經過 esc 和 DOMPurify）
+// JSON 會把 NaN 變成 null：時間、用時這類欄位改回 NaN，畫面才會顯示「—」
 function normReport(d) {
-  const N = v => Number.isFinite(+v) ? +v : 0, T = v => typeof v === "string" ? v : "";
-  const pairs = a => Array.isArray(a) ? a.map(x => [T(x && x[0]), N(x && x[1])]) : [];
-  const R = { o: { name: T(d.o && d.o.name), status: T(d.o && d.o.status), openAt: T(d.o && d.o.openAt), closeAt: T(d.o && d.o.closeAt) } };
-  for (const k of ["start", "end", "total", "peak", "inside", "careN", "ev", "done", "open", "shifts", "people", "hours", "noOut"]) R[k] = N(d[k]);
-  R.ongoing = !!d.ongoing;
-  for (const k of ["ages", "cares", "cats", "sevs"]) R[k] = pairs(d[k]);
-  R.items = Array.isArray(d.items) ? d.items.map(([k, t]) => [T(k), Object.fromEntries(Object.entries(t || {}).map(([a, b]) => [T(a), N(b)]))]) : [];
-  R.capped = Array.isArray(d.capped) ? d.capped.map(T) : [];
+  const clean = (v, depth) => depth > 6 ? null : typeof v === "string" ? v.slice(0, 2000) : typeof v === "number" ? (Number.isFinite(v) ? v : NaN)
+    : typeof v === "boolean" ? v : Array.isArray(v) ? v.slice(0, 400).map(x => clean(x, depth + 1))
+    : v && typeof v === "object" ? Object.fromEntries(Object.entries(v).slice(0, 200).map(([k, x]) => [String(k), clean(x, depth + 1)])) : null;
+  const R = clean(d, 0) || {}, N = v => typeof v === "number" ? v : NaN, A = v => Array.isArray(v) ? v : [];
+  R.o = R.o || {};
+  for (const k of ["stay", "urgentDur", "react", "start", "end"]) R[k] = N(R[k]);
+  for (const k of ["ages", "cares", "cats", "sevs", "dests", "days", "items", "low", "capped", "verdicts", "events"]) R[k] = A(R[k]);
+  R.byCat = R.byCat && typeof R.byCat === "object" && !Array.isArray(R.byCat) ? R.byCat : {};
+  R.items = R.items.map(x => ({ ...x, mv: x && x.mv && typeof x.mv === "object" ? x.mv : {}, stock: typeof (x && x.stock) === "number" ? x.stock : null }));
+  R.events = R.events.map(e => ({ ...e, t: N(e.t), dur: N(e.dur), react: N(e.react), steps: A(e.steps).map(x => ({ t: N(x && x.t), text: String((x && x.text) || "") })) }));
   return R;
 }
 function renderPrintView() {
@@ -1350,7 +1509,7 @@ function renderPrintView() {
     }
   } else {
     head = "結報";
-    try { if (d && d.o) { const R = normReport(d); body = `<div class="rep-print">${reportHtml(R)}</div>`; screen = body; title = `${R.o.name || ""}結報`; ok = true; } } catch (e) {}
+    try { if (d && d.o) { const R = normReport(d); body = `<div class="rep-print">${reportHtml(R)}</div>`; screen = body; title = `${R.o.name || ""}結報${R.full ? "（完整版）" : ""}`; ok = true; } } catch (e) {}
   }
   document.title = fileTitle(title || head);
   if (!ok) { setHTML($("#app"), pubHead(head) + `<div class="blocked"><p>列印資料不完整。請回到 LINE，再按一次「存成 PDF」。</p></div>`); return; }
