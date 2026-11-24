@@ -291,7 +291,11 @@ body.pub{font-size:1.0625rem}
 @media print{
   body>*:not(#printArea){display:none !important}
   #printArea{display:block}
-  #printArea .qrcard{width:210mm;height:297mm;border:0;border-radius:0;page-break-after:always;break-after:page;outline:none}
+  #printArea .qrcard{box-sizing:border-box;width:210mm;height:296mm;overflow:hidden;margin:0;border:0;border-radius:0;page-break-after:always;break-after:page;outline:none}
+  /* 最後一張不要再換頁（否則多一張空白頁）；高度留 1mm 避免捨入誤差溢出到下一頁 */
+  #printArea>:last-child,#printArea .qrcards>:last-child{page-break-after:auto;break-after:auto}
+  html,body{margin:0 !important;padding:0 !important}   /* 畫面上留給「字 大」按鈕的 padding-bottom 會在列印時多擠出一頁 */
+  #printArea,#printArea .qrcards{margin:0;padding:0}
   #printArea .qrcard .band{padding:22mm 14mm 14mm}
   #printArea .qrcard .band b{font-size:34pt}
   #printArea .qrcard .band span{font-size:16pt;margin-top:3mm}
