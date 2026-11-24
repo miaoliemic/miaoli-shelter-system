@@ -339,3 +339,8 @@ html.framed body { display: none !important; }
 /* 居民進出管理：縱向兩個大按鈕 */
 .rbtns{display:grid;gap:12px;margin:16px}
 .rbtns .hq-go{margin:0;width:100%}
+/* 物資庫存清單：品名一行、庫存一行（庫存文字長，左右排會把品名擠成一個字寬） */
+.prow.stk{display:block}
+.prow.stk .n{display:block}
+.prow.stk .meta{display:block;margin-top:2px}
+.prow.stk.low .meta{color:var(--red)}
