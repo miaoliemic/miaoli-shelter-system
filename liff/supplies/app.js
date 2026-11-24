@@ -775,16 +775,25 @@ const labelData = list => ({ e: S.me.event || "", p: S.me.opening || "", c: list
 // 存 PDF 的檔名：一項「牙刷的物資標籤」；多項「清華里活動中心的物資標籤（9 項）」
 const labelTitle = d => d.c.length === 1 ? `${d.c[0][0]}的物資標籤` : `${d.p}的物資標籤（${d.c.length} 項）`;
 const labelPrintUrl = d => `${location.origin}${location.pathname}?v=printitem#${b64e(d)}`;
-function labelMailHref(d) {
-  const subject = `【物資標籤】${d.c.length === 1 ? d.c[0][0] : `${d.c.length} 項`}（${d.p}）`;
-  const body = `${d.p} ${d.c.length === 1 ? `「${d.c[0][0]}」的物資標籤` : `物資標籤 ${d.c.length} 項：${d.c.map(x => x[0]).join("、")}`}
-災害：${d.e}
-
-用手機或電腦打開下面的連結就看得到 QR Code，可以列印或存成 PDF：
-${labelPrintUrl(d)}
-
-請貼在物資棧板或存放處，工作人員用 LINE 掃描就能入庫、發放。`;
+// Email 內文：mailto 的換行要用 CRLF（%0D%0A，RFC 6068），iPhone Gmail App 只認這種，只用 LF 會全部黏成一段
+function mailHref(subject, lines) {
+  const body = lines.join("\r\n");
   return `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+}
+function labelMailHref(d) {
+  const one = d.c.length === 1;
+  return mailHref(`【物資標籤】${one ? d.c[0][0] : `${d.c.length} 項`}（${d.p}）`, [
+    `■ ${d.p}｜物資標籤`,
+    one ? `品項：${d.c[0][0]}` : `品項（${d.c.length} 項）：${d.c.map(x => x[0]).join("、")}`,
+    `災害：${d.e}`,
+    "",
+    "▶ 點下面的連結，就看得到 QR Code，可以列印或存成 PDF：",
+    "",
+    labelPrintUrl(d),
+    "",
+    "▶ 用法：",
+    "貼在物資棧板或存放處，工作人員用 LINE 掃描就能入庫、發放。",
+  ]);
 }
 function printLabels(d) {
   if (inLine()) return openPrintView("printitem", d);   // LINE 裡不能列印：用手機瀏覽器開列印頁
@@ -816,9 +825,20 @@ const tagPages = d => Array.from({ length: Math.ceil(d.c.length / 6) }, (_, i) =
 const tagTitle = d => `${d.p}的居民號碼牌（${d.c.length} 張）`;
 const tagPrintUrl = d => `${location.origin}${location.pathname}?v=printtag#${b64e(d)}`;
 function tagMailHref(d) {
-  const subject = `【居民號碼牌】${d.p}（${d.c.length} 張）`;
-  const body = `${d.p} 的空白居民號碼牌，共 ${d.c.length} 張\n\n用手機或電腦打開下面的連結就看得到，可以列印或存成 PDF（一張 A4 排 6 張，沿虛線剪開）：\n${tagPrintUrl(d)}\n\n居民報到時，門禁組或管理者用 LINE 掃描空白牌就會出現報到表單。\n請只轉給本所工作人員。`;
-  return `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  return mailHref(`【居民號碼牌】${d.p}（${d.c.length} 張）`, [
+    `■ ${d.p}｜空白居民號碼牌`,
+    `數量：${d.c.length} 張`,
+    "",
+    "▶ 點下面的連結，就看得到號碼牌，可以列印或存成 PDF：",
+    "（一張 A4 排 6 張，沿虛線剪開）",
+    "",
+    tagPrintUrl(d),
+    "",
+    "▶ 用法：",
+    "居民報到時，門禁組或管理者用 LINE 掃描空白牌，就會出現報到表單。",
+    "",
+    "※ 請只轉給本所工作人員。",
+  ]);
 }
 function printTags(d) {
   if (inLine()) return openPrintView("printtag", d);   // LINE 裡不能列印：用手機瀏覽器開列印頁

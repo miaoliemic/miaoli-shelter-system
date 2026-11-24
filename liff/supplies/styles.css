@@ -232,7 +232,10 @@ body.pub{font-size:1.0625rem}
 .qrcard .qr svg{width:100%;height:auto;display:block}
 .qrcard p{font-size:0.6875rem;padding-bottom:8px}
 .qrcard.new{outline:3px solid var(--blue);outline-offset:-3px}
-.qrcard .qrmail{display:block;width:100%;border-top:1px solid var(--line);padding:10px 6px;font-size:0.8125rem;font-weight:700;color:#1F5FA8;text-decoration:none;background:#F3F7FC}
+.qrcard .qrmail{display:flex;align-items:center;justify-content:center;gap:6px;width:calc(100% - 16px);margin:0 8px 10px;padding:11px 6px;border-radius:10px;font-size:0.875rem;font-weight:700;color:#fff;text-decoration:none;background:#1F5FA8;box-shadow:0 2px 0 #163F70}
+.qrcard .qrmail:active{transform:translateY(1px);box-shadow:none}
+.mailtip{margin:10px 16px 0;padding:10px 12px;border-radius:12px;background:#EAF2FB;border:1px solid #C5D9F0;color:#1F3B5C;font-size:0.875rem;line-height:1.5}
+.mailtip b{color:#1F5FA8}
 @media print{.qrcard .qrmail{display:none}}
 /* 物資標籤：藍色色帶，品名放最大（貼在棧板上遠遠看得到） */
 .qrcard.item .band{background:#1C7ED6}

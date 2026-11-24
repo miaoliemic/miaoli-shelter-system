@@ -154,7 +154,7 @@ function renderCmd() {
       <p class="hint">每所一張，貼在服務台給工作人員掃描簽到，一所一張 A4。</p>
       <button class="hq-go" id="hq-print" style="margin:10px 0 0;width:100%;background:var(--green)">${inLine() ? "存成 PDF（用瀏覽器開啟）" : `列印簽到 QR（${os.length} 張）`}</button>
       <p class="hint">${esc(inLine() ? PDF_HINT : "列印視窗的「目的地」選「另存為 PDF」就能存成 PDF。")}</p></div>
-      <p class="hint" style="margin:6px 16px 0">要直接傳給同仁：按每張卡下方「用 Email 寄給同仁」，會打開手機的郵件 App，內文附 QR 連結。</p>
+      <div class="mailtip">📧 <b>要請同事幫忙列印？</b><br>按每張卡最下面的藍色按鈕 <b>「✉ 用 Email 寄給同仁」</b> → 手機郵件 App 會打開 → 填同事的信箱寄出。同事用電腦點信裡的連結就能列印。</div>
       <div class="qrcards">${os.map(o => qrCard(o, ev.name, true)).join("")}</div>`;
   }
   setHTML(app, html);
@@ -176,9 +176,19 @@ function qrPrintUrl(evName, name, code) {
   return `${location.origin}${location.pathname}?v=printqr#${b64e({ e: evName, c: [[name, code]] })}`;
 }
 function qrMailHref(evName, name, code) {
-  const subject = `【簽到 QR Code】${name}（${evName}）`;
-  const body = `${name} 的工作人員簽到 QR Code\n災害：${evName}\n\n用手機或電腦打開下面的連結就看得到 QR Code，可以列印或存成 PDF：\n${qrPrintUrl(evName, name, code)}\n\n請貼在服務台，給本所工作人員用 LINE 掃描簽到。\n這個連結含有簽到碼，請只轉給本所工作人員。`;
-  return `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  return mailHref(`【簽到 QR Code】${name}（${evName}）`, [
+    `■ ${name}｜工作人員簽到 QR Code`,
+    `災害：${evName}`,
+    "",
+    "▶ 點下面的連結，就看得到 QR Code，可以列印或存成 PDF：",
+    "",
+    qrPrintUrl(evName, name, code),
+    "",
+    "▶ 用法：",
+    "印出來貼在服務台，給本所工作人員用 LINE 掃描簽到。",
+    "",
+    "※ 這個連結含有簽到碼，請只轉給本所工作人員。",
+  ]);
 }
 // 存成 PDF 時的檔名（手機瀏覽器用網頁標題當檔名）：去掉檔名不能用的字元
 const fileTitle = s => String(s).replace(/[\\/:*?"<>|]/g, "_").trim();
