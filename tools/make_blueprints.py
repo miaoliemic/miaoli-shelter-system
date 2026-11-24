@@ -1301,8 +1301,12 @@ def hq_routes(b, respond, W, auth_ok, on, act, load_flow_for):
         f_sel("日誌類別", pick("1.cat", FIELD_CATS, "交班紀錄")),
         f_sel("嚴重程度", pick("1.sev", SEVS, "中")), f_sel("處理進度", "待處理"), f_text("內容說明", cut("1.text", 1000)),
         f_rel("回報人", f"{{{{{W}.id}}}}"), f_rel("收容所開設", "{{1.o}}"), f_now("發生時間"), f_sel("來源", "社會處"),
-        f_text("反映者", "社會處｜" + w_name)])
-    hqlog_flow = [hq_log, respond("回傳已記錄（社會處）", '{"ok":true,"id":"' + f"{{{{{hq_log['id']}.id}}}}" + '"}')]
+        f_text("反映者", "社會處｜" + w_name), f_chk("需回報社會處", True)])
+    # 社會處交辦：回應之後推播該所在班的管理者；現場按「已解決」時會回報社會處（需回報社會處已勾）
+    hqlog_flow = [hq_log, respond("回傳已記錄（社會處）", '{"ok":true,"id":"' + f"{{{{{hq_log['id']}.id}}}}" + '"}'),
+                  *push_to_managers(b, "（社會處交辦）", "{{1.o}}",
+                                    "📣 社會處交辦一件「" + pick("1.cat", FIELD_CATS, "交班紀錄") + "」事件，請打開本所總覽查看：\n"
+                                    + f"https://liff.line.me/{LIFF_ID}?v=ops")]
 
     # ---- hqReply 回覆指示｜hqTake 社會處接手（o＝開設 ID、id＝事件 ID、text 指示或說明）；寫進處理紀錄並推播該所在班管理者 ----
     def hq_evt_flow(kind):

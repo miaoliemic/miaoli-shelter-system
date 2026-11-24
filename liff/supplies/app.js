@@ -252,8 +252,9 @@ function ownerName(e) {
   const m = [...(e.log || "").matchAll(/\d{2}\/\d{2} \d{2}:\d{2} (.+?) (?:認領處理|接手處理)/g)].pop();
   return m ? m[1] : "";
 }
-// 社會處有指示或接手過：事件清單上加一個標記，現場一眼看到
-const hqMark = e => /\d{2}\/\d{2} \d{2}:\d{2} 社會處 .+? (?:指示|接手處理)/.test(e.log || "") ? `<span class="own hq">📣 社會處</span>` : "";
+// 社會處交辦、指示或接手過：事件清單上加一個標記，現場一眼看到
+const fromHq = e => e.src === "社會處" || /\d{2}\/\d{2} \d{2}:\d{2} 社會處 .+? (?:指示|接手處理)/.test(e.log || "");
+const hqMark = e => fromHq(e) ? `<span class="own hq">📣 社會處</span>` : "";
 function ago(iso) {
   const m = Math.round((Date.now() - new Date(iso)) / 60e3);
   return isNaN(m) ? "" : m < 1 ? "剛剛" : m < 60 ? `${m} 分鐘前` : m < 1440 ? `${Math.floor(m / 60)} 小時前` : fmtTime(iso);
@@ -301,7 +302,8 @@ function renderOps() {
     return `<button class="evt ${esc(e.sev)}" data-evt="${esc(e.id)}"><div class="t">${esc(nz(e.title))}</div>${whoLine(e)}
         <div class="m"><span class="sev ${esc(e.sev)}">${esc(e.sev)}</span>${own}${hqMark(e)}<span>${esc(ago(e.at))}</span></div></button>`;
   };
-  const staffEvs = evs.filter(e => !fromResident(e)), resEvs = evs.filter(fromResident);
+  // 工作人員回報組：社會處交辦／指示的排最上面，其次照原本的嚴重程度、時間
+  const staffEvs = evs.filter(e => !fromResident(e)).sort((a, b) => fromHq(b) - fromHq(a)), resEvs = evs.filter(fromResident);
   body += `<div class="sec">待處理事件 <small>${evs.length} 件，工作人員回報優先，緊急的排最上面</small></div>`
     + (evs.length ? `<div class="evgrp">工作人員回報 <small>${staffEvs.length} 件</small></div>${staffEvs.map(evtBtn).join("") || `<div class="hint evnone">沒有</div>`}
       <div class="evgrp res">居民反映 <small>${resEvs.length} 件</small></div>${resEvs.map(evtBtn).join("") || `<div class="hint evnone">沒有</div>`}`
@@ -1017,7 +1019,7 @@ function renderReport() {
     // 工作人員版：和本所總覽的「記錄事件」同一張表單（類別、嚴重程度、說明）；社會處多一個「哪一所」
     const L = P.log || (P.log = { cat: "", sev: "中", o: "", text: "" });
     const opens = P.info.shelters;
-    setHTML($("#app"), pubHead("我要反映", mode === "hq" ? "社會處：記錄某一所的事件，該所工作人員會在待處理事件看到" : "工作人員：記錄到您派駐的收容所，本所總覽的待處理事件會看到") + `<div class="form">
+    setHTML($("#app"), pubHead("我要反映", mode === "hq" ? "社會處交辦：送出後 LINE 通知該所在班的管理者，處理完會回報您" : "工作人員：記錄到您派駐的收容所，本所總覽的待處理事件會看到") + `<div class="form">
       ${mode === "hq" ? `<label>哪一所？<b>*</b></label><div class="pick" id="lg-o">${opens.map(o => `<button data-lgo="${esc(o.id)}" class="${L.o === o.id ? "on" : ""}">${esc(o.name)}</button>`).join("") || "目前沒有開設中的收容所"}</div>` : ""}
       <label>類別 <b>*</b></label><div class="pick">${CATS.map(c => `<button data-lgc="${c}" class="${L.cat === c ? "on" : ""}">${c}</button>`).join("")}</div>
       <label>嚴重程度</label><div class="pick">${SEVS.map(v => `<button data-lgs="${v}" class="${L.sev === v ? "on" : ""}">${v}</button>`).join("")}</div>
@@ -1125,7 +1127,7 @@ document.addEventListener("click", async e => {
     try { await (mode === "hq" ? api.hq("hqLog", { o: L.o, cat: L.cat, sev: L.sev, text: L.text }) : api.ops("report", { cat: L.cat, sev: L.sev, text: L.text, g: "" })); ok = true; }
     catch (e) { if (!handleApiError(e)) P.msg = e.code === "not_on_duty" ? "您目前不在班，請先到現場掃簽到 QR。" : "網路不穩，沒有送出，請再按一次。"; }
     S.busy = false;
-    if (ok) { const cat = L.cat; P.log = null; return pubDone("📝", "已記錄", `（${cat}）${mode === "hq" ? "該所" : "本所"}工作人員會在「待處理事件」看到。${/緊急|高/.test(L.sev) ? "緊急狀況請同時電話通報。" : ""}`, "再記錄一件"); }
+    if (ok) { const cat = L.cat; P.log = null; return pubDone("📝", "已記錄", `（${cat}）${mode === "hq" ? "已 LINE 通知該所在班的管理者；現場按「已解決」時會回報您。" : "本所工作人員會在「待處理事件」看到。"}${/緊急|高/.test(L.sev) ? "緊急狀況請同時電話通報。" : ""}`, "再記錄一件"); }
     return render();
   }
   if (t.id === "sendReport" && f.cat && f.where && !S.busy) {
