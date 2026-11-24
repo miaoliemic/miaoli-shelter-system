@@ -259,8 +259,8 @@ function openEvents() {
   return (S.ops ? S.ops.events : []).filter(e => isOpen(e) && !(e.cat === "整備回報" && !e.item && String(e.title || "").startsWith("整備完成")))
     .sort((a, b) => sevRank(a) - sevRank(b) || new Date(b.at) - new Date(a.at));
 }
-// 居民反映：用「我要反映」送來、反映者不是工作人員或志工的（標題「反映（一般民眾）」或舊格式「居民反映：」）
-const fromResident = e => e.cat === "居民反映" && !/^反映（(工作人員|志工)）/.test(String(e.title || ""));
+// 居民反映：「我要反映」來源＝民眾反映（舊資料：日誌類別＝居民反映，且標題不是「反映（工作人員／志工）」）
+const fromResident = e => e.src === "民眾反映" || (e.cat === "居民反映" && !/^反映（(工作人員|志工)）/.test(String(e.title || "")));
 function renderOps() {
   const app = $("#app"), d = S.ops;
   document.documentElement.style.setProperty("--accent", "var(--blue)");
@@ -974,9 +974,33 @@ function renderSos() {
     ${em ? `<div class="card"><h3>${esc(em.title)}</h3><div class="body">${linkify(em.text)}</div></div>` : `<div class="card"><small>${esc(S.pub.msg || "載入其他聯絡方式…")}</small></div>`}
     <div class="biglinks"><button class="biglink" data-go="?v=report"><span class="ic">🙋</span><span>不緊急，我要反映</span></button></div>`);
 }
+// 我要反映的表單種類：社會處（hq）｜在班的工作人員（staff）｜其他人，含志工、沒在班的工作人員（public）
+function reportMode() {
+  const me = S.pub.me;
+  if (!me) return "public";
+  if (me.role === "社會處" && me.state !== "pending" && me.state !== "none") return "hq";
+  if (me.state === "on" && me.kind === "工作人員") return "staff";
+  return "public";
+}
 function renderReport() {
   const P = S.pub, f = P.form;
   if (!P.info) { setHTML($("#app"), pubHead("我要反映") + `<div class="blocked"><p>${esc(P.msg || "載入中…")}</p></div>`); return; }
+  const mode = reportMode();
+  if (mode !== "public") {
+    // 工作人員版：和本所總覽的「記錄事件」同一張表單（類別、嚴重程度、說明）；社會處多一個「哪一所」
+    const L = P.log || (P.log = { cat: "", sev: "中", o: "", text: "" });
+    const opens = P.info.shelters;
+    setHTML($("#app"), pubHead("我要反映", mode === "hq" ? "社會處：記錄某一所的事件，該所工作人員會在待處理事件看到" : "工作人員：記錄到您派駐的收容所，本所總覽的待處理事件會看到") + `<div class="form">
+      ${mode === "hq" ? `<label>哪一所？<b>*</b></label><div class="pick" id="lg-o">${opens.map(o => `<button data-lgo="${esc(o.id)}" class="${L.o === o.id ? "on" : ""}">${esc(o.name)}</button>`).join("") || "目前沒有開設中的收容所"}</div>` : ""}
+      <label>類別 <b>*</b></label><div class="pick">${CATS.map(c => `<button data-lgc="${c}" class="${L.cat === c ? "on" : ""}">${c}</button>`).join("")}</div>
+      <label>嚴重程度</label><div class="pick">${SEVS.map(v => `<button data-lgs="${v}" class="${L.sev === v ? "on" : ""}">${v}</button>`).join("")}</div>
+      ${/緊急|高/.test(L.sev) ? `<p class="err">⚠ 緊急狀況請同時電話通報。</p>` : ""}
+      <label>發生什麼事 <b>*</b></label><textarea id="lg-text" maxlength="1000" placeholder="例：2 樓男廁洗手台漏水，地板濕滑，已放警示牌">${esc(L.text)}</textarea>
+      ${P.msg ? `<p class="err">${esc(P.msg)}</p>` : ""}
+    </div>
+    <div class="biglinks"><button class="biglink blue" id="sendLog" ${!S.busy ? "" : "disabled"}><span class="ic">📨</span><span>${S.busy ? "送出中…" : "送出"}</span></button></div>`);
+    return;
+  }
   const places = [...P.info.shelters, { id: "", name: "不在收容所" }];
   setHTML($("#app"), pubHead("我要反映", "現場工作人員會盡快處理") + `<div class="form">
       <label>要反映什麼？<b>*</b></label><div class="pick" id="cats">${REPORT_CATS.map(c => `<button data-cat="${c}" class="${f.cat === c ? "on" : ""}">${c}</button>`).join("")}</div>
@@ -1034,7 +1058,12 @@ async function pubCall(a, f) {
 }
 async function loadPub() {
   const P = S.pub;
-  if (S.view === "info" || S.view === "report" || S.view === "sos") { const d = await pubCall("info"); if (d) { P.info = d; P.msg = ""; } return render(); }
+  if (S.view === "report") {
+    // 我要反映：同一個按鈕，依身分打開不同的表單（在班工作人員→記錄事件、社會處→選所記錄事件、其他人→簡易反映）
+    const [d, me] = await Promise.all([pubCall("info"), pubCall("me")]);
+    if (d) { P.info = d; P.me = me; P.msg = ""; } return render();
+  }
+  if (S.view === "info" || S.view === "sos") { const d = await pubCall("info"); if (d) { P.info = d; P.msg = ""; } return render(); }
   const me = await pubCall("me"); if (!me) return;
   P.me = me; P.msg = "";
   // 簽退畫面但不在班：順手解除加乘選單（名冊和選單對不上時讓它自己恢復）
@@ -1049,9 +1078,29 @@ document.addEventListener("click", async e => {
   if (t.id === "close") return closeLiff();
   if (t.id === "scanner") return openScanner();
   if (t.id === "cancel") return closeLiff();
-  if (t.id === "again") { P.done = ""; P.form = { cat: "", o: "", where: "", text: "" }; return render(); }
+  if (t.id === "again") { P.done = ""; P.form = { cat: "", o: "", where: "", text: "" }; P.log = null; return render(); }
   if (t.dataset.cat) { f.text = ($("#rtext") || {}).value || f.text; f.cat = t.dataset.cat; P.msg = ""; return render(); }
   if (t.dataset.where != null) { f.text = ($("#rtext") || {}).value || f.text; f.o = t.dataset.o; f.where = t.dataset.where; P.msg = ""; return render(); }
+  if (t.dataset.lgo != null || t.dataset.lgc || t.dataset.lgs) {
+    const L = P.log; L.text = ($("#lg-text") || {}).value || L.text;
+    if (t.dataset.lgo != null) L.o = t.dataset.lgo;
+    if (t.dataset.lgc) { L.cat = t.dataset.lgc; L.sev = SEV_OF[L.cat] || "中"; }
+    if (t.dataset.lgs) L.sev = t.dataset.lgs;
+    P.msg = ""; return render();
+  }
+  if (t.id === "sendLog" && !S.busy) {
+    const L = P.log, mode = reportMode(); L.text = $("#lg-text").value.trim();
+    if (mode === "hq" && !L.o) { P.msg = "請選哪一所"; return render(); }
+    if (!L.cat) { P.msg = "請選類別"; return render(); }
+    if (!L.text) { P.msg = "請寫發生什麼事"; return render(); }
+    S.busy = true; P.msg = ""; render();
+    let ok = false;
+    try { await (mode === "hq" ? api.hq("hqLog", { o: L.o, cat: L.cat, sev: L.sev, text: L.text }) : api.ops("report", { cat: L.cat, sev: L.sev, text: L.text, g: "" })); ok = true; }
+    catch (e) { if (!handleApiError(e)) P.msg = e.code === "not_on_duty" ? "您目前不在班，請先到現場掃簽到 QR。" : "網路不穩，沒有送出，請再按一次。"; }
+    S.busy = false;
+    if (ok) { const cat = L.cat; P.log = null; return pubDone("📝", "已記錄", `（${cat}）${mode === "hq" ? "該所" : "本所"}工作人員會在「待處理事件」看到。${/緊急|高/.test(L.sev) ? "緊急狀況請同時電話通報。" : ""}`, "再記錄一件"); }
+    return render();
+  }
   if (t.id === "sendReport" && f.cat && f.where && !S.busy) {
     f.text = $("#rtext").value.trim(); S.busy = true; render();
     const d = await pubCall("feedback", { cat: f.cat, o: f.o, where: f.where, text: f.text }); S.busy = false;

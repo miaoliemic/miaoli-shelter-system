@@ -107,6 +107,7 @@ async function mockHqCall(a, f) {
     return { ok: true, eventId: ev.id, created };
   }
   if (a === "hqApps") return { ok: true, apps: mockHq.apps };
+  if (a === "hqLog") { if (!f.o || !f.text) throw new ApiError("bad_request"); mockOps.events.unshift({ id: "e" + (++mockOps.n), title: `${f.cat}：${f.text.slice(0, 24)}`, cat: f.cat, sev: f.sev, status: "待處理", text: f.text, log: "", owner: "", by: "", item: "", src: "社會處", at: new Date().toISOString() }); return { ok: true }; }
   if (a === "hqTags") { if (!f.s || !f.tg) throw new ApiError("bad_request"); return { ok: true, tags: f.tg }; }
   if (a === "hqApprove" || a === "hqReject") { mockHq.apps = mockHq.apps.filter(x => x.id !== f.id); return { ok: true }; }
   if (a === "hqSites") return { ok: true, sites: mockHq.openings.filter(o => /開設中|撤收中/.test(mockStage(o.id))).map((o, i) => {
