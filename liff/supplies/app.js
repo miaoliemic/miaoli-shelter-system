@@ -155,6 +155,21 @@ function setHTML(el, html) {
   el.innerHTML = DOMPurify.sanitize(String(html).replace(/(\s)style="/g, '$1data-css="'), PURIFY);
   for (const n of el.querySelectorAll("[data-css]")) { n.style.cssText = n.dataset.css; n.removeAttribute("data-css"); }
 }
+// 「載入中…」「送出中…」等等待文字：結尾的「…」自動換成三個會跳的點（不用逐一改各畫面）
+// 用 MutationObserver 抓畫面上新出現、以「中…」結尾的文字，包成 <span class="ldots">
+const LOADING_RE = /中…$/;
+function animateDots(root) {
+  const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, { acceptNode: n => LOADING_RE.test(n.nodeValue.trim()) && !n.parentNode.closest(".ldots") ? 1 : 3 });
+  const hits = []; while (w.nextNode()) hits.push(w.currentNode);
+  for (const n of hits) {
+    const t = n.nodeValue.replace(/…(\s*)$/, "$1");
+    const sp = document.createElement("span"); sp.className = "ldots"; sp.setAttribute("aria-hidden", "true");
+    for (let i = 0; i < 3; i++) { const d = document.createElement("i"); d.textContent = "."; sp.append(d); }
+    n.nodeValue = t; n.after(sp);
+  }
+}
+new MutationObserver(ms => { for (const m of ms) animateDots(m.type === "characterData" ? m.target.parentNode : m.target); })
+  .observe(document.documentElement, { childList: true, subtree: true, characterData: true });
 function toast(msg) { const d = document.createElement("div"); d.className = "toast"; d.textContent = msg; document.body.append(d); setTimeout(() => d.remove(), 2600); }
 function stockText(it) {
   const extra = it.pack && it.per > 1 ? `（約 ${Math.floor(it.stock / it.per)} ${it.pack}）` : "";

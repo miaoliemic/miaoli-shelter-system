@@ -325,3 +325,10 @@ body{padding-bottom:64px}   /* 最後一段內容可以捲到按鈕上方 */
 @media print{.fontbtn{display:none}}
 /* 被其他網站用框架嵌入時不顯示任何內容（framebust.js） */
 html.framed body { display: none !important; }
+/* 等待中的三個點：依序上下跳動 */
+.ldots{display:inline-flex;margin-left:1px}
+.ldots i{font-style:normal;display:inline-block;animation:ldot 1.2s infinite ease-in-out}
+.ldots i:nth-child(2){animation-delay:.15s}
+.ldots i:nth-child(3){animation-delay:.3s}
+@keyframes ldot{0%,60%,100%{transform:translateY(0);opacity:.45}30%{transform:translateY(-.3em);opacity:1}}
+@media (prefers-reduced-motion:reduce){.ldots i{animation:none;opacity:1}}
