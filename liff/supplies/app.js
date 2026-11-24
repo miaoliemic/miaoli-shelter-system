@@ -494,11 +494,14 @@ function residentView(d) {
   const r = d.resident || {}, st = r.status || "";
   const care = (r.care || "").split(/[、,]/).filter(Boolean);
   let acts = "";
+  // 送出中：按下的那顆改成「登記中…」（點點會跳），其他進出按鈕一起停用，避免連按重複登記
+  const mv = S.busy && S.moving, dis = mv ? "disabled" : "";
+  const lab = (k, t) => mv === k ? "登記中…" : t;
   if (!CAN_GATE(d.role)) acts = `<div class="hint" style="margin:12px 16px">進出登記限管理者、門禁組、志工。</div>`;
-  else if (st === "在所") acts = `<div class="ract"><button class="main" id="doSupply">🎁 領物資</button>
-      <button id="doOut">🚶 外出</button><button class="warn" id="doLeave">離所</button></div>
-      ${S.rmsg === "pickHours" ? `<div class="form"><b>預計多久回來？</b><div class="hours">${[[1, "1 小時"], [3, "3 小時"], [6, "6 小時"], [12, "過夜"]].map(([h, t]) => `<button data-hours="${h}">${t}</button>`).join("")}</div></div>` : ""}`;
-  else if (st === "外出" || st === "未返") acts = `<div class="ract"><button class="main" id="doBack">↩ 返回</button><button class="warn" id="doLeave" style="grid-column:1 / -1">離所</button></div>`;
+  else if (st === "在所") acts = `<div class="ract"><button class="main" id="doSupply" ${dis}>🎁 領物資</button>
+      <button id="doOut" ${dis}>${lab("外出", "🚶 外出")}</button><button class="warn" id="doLeave" ${dis}>${lab("離所", "離所")}</button></div>
+      ${S.rmsg === "pickHours" && !mv ? `<div class="form"><b>預計多久回來？</b><div class="hours">${[[1, "1 小時"], [3, "3 小時"], [6, "6 小時"], [12, "過夜"]].map(([h, t]) => `<button data-hours="${h}">${t}</button>`).join("")}</div></div>` : ""}`;
+  else if (st === "外出" || st === "未返") acts = `<div class="ract"><button class="main" id="doBack" ${dis}>${lab("返回", "↩ 返回")}</button><button class="warn" id="doLeave" style="grid-column:1 / -1" ${dis}>${lab("離所", "離所")}</button></div>`;
   if (CAN_GATE(d.role) && st !== "已離所") acts += `<div class="ract"><button id="doReport" style="grid-column:1 / -1">📝 記錄這位居民的事件</button></div>`;
   return `<div class="rcard"><h2>${esc(r.name || S.rtag)}</h2>
       <div class="meta">${esc(S.rtag)}　${esc(r.age || "")}${r.area ? `　${esc(r.area)}` : ""}</div>
@@ -516,7 +519,7 @@ async function loadResident(tag) {
 async function residentAction(kind, hours) {
   if (S.busy) return;
   if (kind === "離所" && !confirm(`確定 ${S.rinfo.resident.name || S.rtag} 要離所嗎？\n離所後號碼牌會失效，不能再用。`)) return;
-  S.busy = true; S.rmsg = ""; render();
+  S.busy = true; S.moving = kind; S.rmsg = ""; render();
   try {
     const d = await api.move(S.rtag, kind, hours);
     S.rinfo.resident.status = d.status;
@@ -525,10 +528,10 @@ async function residentAction(kind, hours) {
     const who = S.rinfo.resident.name || S.rtag;   // 志工看不到姓名，用號碼牌編號
     toast(kind === "離所" ? `${who} 已離所，號碼牌已回收` : `${who} ${kind === "外出" ? `已外出，預計 ${fmtTime(S.rinfo.resident.back)} 返回` : "已返回"}`);
   } catch (e) {
-    if (e.code === "bad_state") { toast("狀態已被其他人更新，已重新讀取"); S.busy = false; return loadResident(S.rtag); }
+    if (e.code === "bad_state") { toast("狀態已被其他人更新，已重新讀取"); S.busy = false; S.moving = null; return loadResident(S.rtag); }
     if (e.code === "no_permission") toast("進出登記限管理者、門禁組、志工");
     else if (!handleApiError(e)) toast("網路不穩，沒有送出，請再按一次");
-  } finally { S.busy = false; render(); }
+  } finally { S.busy = false; S.moving = null; render(); }
 }
 async function doRegister() {
   const f = S.rform, err = m => { $("#f-err").textContent = m; };

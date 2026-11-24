@@ -344,3 +344,6 @@ html.framed body { display: none !important; }
 .prow.stk .n{display:block}
 .prow.stk .meta{display:block;margin-top:2px}
 .prow.stk.low .meta{color:var(--red)}
+/* 居民進出送出中：其他按鈕變淡，正在登記的那顆（有跳動的點）維持清楚 */
+.ract button:disabled{opacity:.45}
+.ract button:disabled:has(.ldots){opacity:1}
