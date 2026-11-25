@@ -508,6 +508,8 @@ function renderResident() {
   }
   let body = "";
   if (d.state === "none") body = `<div class="rcard void"><h2>不是本所的號碼牌</h2><div class="meta">${esc(S.rtag)}　請確認後再掃一次</div></div>`;
+  // 剛辦完離所：不是警告，是完成畫面（之後再掃到這張才顯示失效警告）
+  else if (d.state === "left") body = `<div class="rcard done"><h2>✅ 已完成離所手續</h2><div class="meta">此號碼牌已登出（${esc(S.rtag)}）${d.leftName || d.leftDest ? `<br>${[d.leftName, d.leftDest ? `去向：${d.leftDest}` : ""].filter(Boolean).map(esc).join("・")}` : ""}<br>請收回號碼牌，不能再用於進出。</div></div>`;
   else if (d.state === "void") body = `<div class="rcard void"><h2>⚠ 此號碼牌已失效</h2><div class="meta">${esc(S.rtag)}　請勿放行，並通知現場負責人</div></div>`;
   else if (d.state === "blank") body = blankView(d);
   else body = residentView(d);
@@ -570,9 +572,9 @@ async function residentAction(kind, hours, dest) {
     const d = await api.move(S.rtag, kind, hours, dest);
     S.rinfo.resident.status = d.status;
     if (kind === "外出") S.rinfo.resident.back = new Date(Date.now() + hours * 3600e3).toISOString();
-    if (kind === "離所") S.rinfo.state = "void";
+    if (kind === "離所") Object.assign(S.rinfo, { state: "left", leftName: S.rinfo.resident.name || "", leftDest: dest || "" });
     const who = S.rinfo.resident.name || S.rtag;   // 志工看不到姓名，用號碼牌編號
-    toast(kind === "離所" ? `${who} 已離所，號碼牌已回收` : `${who} ${kind === "外出" ? `已外出，預計 ${fmtTime(S.rinfo.resident.back)} 返回` : "已返回"}`);
+    toast(kind === "離所" ? `${who} 已完成離所手續` : `${who} ${kind === "外出" ? `已外出，預計 ${fmtTime(S.rinfo.resident.back)} 返回` : "已返回"}`);
   } catch (e) {
     if (e.code === "bad_state") { toast("狀態已被其他人更新，已重新讀取"); S.busy = false; S.moving = null; return loadResident(S.rtag); }
     if (e.code === "no_permission") toast("進出登記限管理者、門禁組、志工");
