@@ -237,30 +237,20 @@ function renderInbox() {
 
 function appSheet(id) {
   const a = H.apps.find(x => x.id === id); if (!a) return;
-  const f = { kind: "工作人員", role: "" };
+  // 雛形測試先簡化：不分身分、角色，核准的人一律是「工作人員・管理者（收容所負責人）」（11/25 使用者決定）
+  const f = { kind: "工作人員", role: "管理者（收容所負責人）" };
   sheet(`<h2>${esc(a.name)}</h2>
     <div class="meta">${esc(nz(a.unit))}・${esc(nz(a.phone))}<br>LINE 名稱：${esc(nz(a.line))}・${esc(ago(a.at))}申請</div>
-    <label>身分</label><div class="pick" id="ap-kind"></div>
-    <div id="ap-rolebox"><label>角色</label><div class="pick" id="ap-role"></div></div>
-    <p class="hint" style="margin-top:8px">核准後對方會收到 LINE 通知，到收容所掃簽到 QR 就能開始上班；簽到的那一所就是他派駐的收容所。</p>
+    <p class="hint" style="margin-top:8px">核准後權限是「管理者」，對方會收到 LINE 通知，到收容所掃簽到 QR 就能開始上班；簽到的那一所就是他派駐的收容所。</p>
     <div class="err" id="ap-err"></div>
     <div class="acts"><button id="ap-no">不核准</button><button class="go" id="ap-ok" style="background:var(--green)">核准</button></div>`, root => {
-    const draw = () => {
-      setHTML(root.querySelector("#ap-kind"), ["工作人員", "志工"].map(k => `<button data-k="${k}" class="${f.kind === k ? "on" : ""}">${k}</button>`).join(""));
-      setHTML(root.querySelector("#ap-role"), HQ_ROLES.map(r => `<button data-r="${esc(r)}" class="${f.role === r ? "on" : ""}">${esc(r)}</button>`).join(""));
-      root.querySelector("#ap-rolebox").style.display = f.kind === "志工" ? "none" : "";
-    };
-    draw();
-    root.querySelector("#ap-kind").onclick = e => { const b = e.target.closest("button"); if (b) { f.kind = b.dataset.k; draw(); } };
-    root.querySelector("#ap-role").onclick = e => { const b = e.target.closest("button"); if (b) { f.role = b.dataset.r; draw(); } };
     root.querySelector("#ap-ok").onclick = async () => {
-      const role = f.kind === "志工" ? "志工" : f.role;
-      if (!role) { root.querySelector("#ap-err").textContent = "請選角色"; return; }
+      const role = f.role;
       const b = root.querySelector("#ap-ok"); b.disabled = true; b.textContent = "核准中…";
       const r = await hqCall("hqApprove", { id, kind: f.kind, role });
       if (!r) { b.disabled = false; b.textContent = "核准"; return; }
       closeSheet(); H.apps = H.apps.filter(x => x.id !== id); render();
-      toast(`已核准 ${a.name}（${role}），已用 LINE 通知對方`);
+      toast(`已核准 ${a.name}，已用 LINE 通知對方`);
     };
     root.querySelector("#ap-no").onclick = async () => {
       if (!confirm(`不核准 ${a.name} 的申請？\n對方之後可以重新申請。`)) return;
