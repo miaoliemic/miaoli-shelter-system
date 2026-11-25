@@ -151,6 +151,7 @@ body.ops .stat{padding:14px 10px}
 body.ops .stat b{font-size:3rem}
 body.ops .stat b small{font-size:1.625rem!important}
 body.ops .stat span{font-size:1.375rem}
+body.ops .stat span small{font-size:0.95rem;white-space:nowrap}
 body.ops .sec{font-size:1.875rem;margin-top:22px}
 body.ops .sec{flex-direction:column;align-items:flex-start;gap:0}
 body.ops .sec small{font-size:1.375rem}

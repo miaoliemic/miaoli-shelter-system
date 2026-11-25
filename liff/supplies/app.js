@@ -291,7 +291,7 @@ function renderOps() {
     ${stat("care", o.care, "需關懷", o.care ? "warn" : "")}${stat("", evs.length, urgent ? `待處理・緊急 ${urgent}` : "待處理事件", urgent ? "alert" : evs.length ? "warn" : "")}
     ${(() => {   // 在班人數：沒有「足額」標準，所以只顯示現在有幾人，不算缺幾人
       const vol = d.duty.filter(x => x.kind === "志工").length, staff = d.duty.length - vol;
-      return stat("", d.duty.length, `在班・工作人員 ${staff}・志工 ${vol}`);
+      return stat("", d.duty.length, `在班人數<br><small>工作人員 ${staff}・志工 ${vol}</small>`);
     })()}</div>`;
   if (S.opsShow) {
     const rs = d.residents.filter(r => S.opsShow === "all" ? true : S.opsShow === "care" ? r.care : r.status === (S.opsShow === "late" ? "未返" : "外出"));
@@ -522,10 +522,10 @@ function blankView(d) {
     <label>年齡層 <b>*</b></label>${pick("age", AGES)}
     <label>特殊關懷（可複選）</label>${pick("care", CARES, true)}
     <label>聯絡電話<input id="f-phone" maxlength="20" inputmode="tel" value="${esc(f.phone)}" placeholder="例：0912345678"></label>
-    <label>緊急聯絡人<input id="f-contact" maxlength="60" value="${esc(f.contact)}" placeholder="例：王大明（兒子）0933…"></label>
-    <label>身分證後四碼<input id="f-id4" inputmode="numeric" maxlength="4" value="${esc(f.id4)}" placeholder="只填後四碼" ${f.noId ? "disabled" : ""}></label>
+    <label>身分證後四碼<input id="f-id4" inputmode="numeric" maxlength="4" value="${esc(f.id4)}" placeholder="本人的，只填後四碼" ${f.noId ? "disabled" : ""}></label>
     <div class="chkline"><input type="checkbox" id="f-noid" ${f.noId ? "checked" : ""}><span>沒有帶證件，之後補查</span></div>
     <label>照護需求說明（敏感資料，只有授權人員看得到）<textarea id="f-note" maxlength="500" placeholder="例：需每日服用降血壓藥">${esc(f.note)}</textarea></label>
+    <label>緊急聯絡人<input id="f-contact" maxlength="60" value="${esc(f.contact)}" placeholder="例：王大明（兒子）0933…"></label>
     <label>分配區域<input id="f-area" maxlength="40" value="${esc(f.area)}" placeholder="例：A 區 3 號床"></label>
     <div class="err" id="f-err"></div>
     <div class="ract"><button class="main" id="doRegister" ${S.busy ? "disabled" : ""}>${S.busy ? "報到中…" : "完成報到"}</button></div></div>`;
