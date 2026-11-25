@@ -259,13 +259,16 @@ function ownerName(e) {
 }
 // 社會處交辦、指示或接手過：事件清單上加一個標記，現場一眼看到
 const fromHq = e => e.src === "社會處" || /\d{2}\/\d{2} \d{2}:\d{2} 社會處 .+? (?:指示|接手處理)/.test(e.log || "");
-const hqMark = e => fromHq(e) ? `<span class="own hq">📣 社會處</span>` : "";
+// 已回報社會處：需回報社會處有勾（工作人員按「回報社會處」、選單我要反映、緊急或高、社會處交辦）
+const toHq = e => e.hq === true || e.hq === "true" || fromHq(e);
+const hqMark = e => fromHq(e) ? `<span class="own hq">📣 社會處</span>` : toHq(e) ? `<span class="own hq">已回報社會處</span>` : "";
 function ago(iso) {
   const m = Math.round((Date.now() - new Date(iso)) / 60e3);
   return isNaN(m) ? "" : m < 1 ? "剛剛" : m < 60 ? `${m} 分鐘前` : m < 1440 ? `${Math.floor(m / 60)} 小時前` : fmtTime(iso);
 }
 function openEvents() {
-  return (S.ops ? S.ops.events : []).filter(e => isOpen(e) && !(e.cat === "整備回報" && !e.item && String(e.title || "").startsWith("整備完成")))
+  // 社會處看某一所時只看「已回報社會處」的事件：居民反映先由現場處理，處理不了才回報（權責分清楚）
+  return (S.ops ? S.ops.events : []).filter(e => isOpen(e) && !(e.cat === "整備回報" && !e.item && String(e.title || "").startsWith("整備完成")) && (!S.hqO || toHq(e)))
     .sort((a, b) => sevRank(a) - sevRank(b) || new Date(b.at) - new Date(a.at));
 }
 // 居民反映：「我要反映」來源＝民眾反映（舊資料：日誌類別＝居民反映，且標題不是「反映（工作人員／志工）」）
@@ -473,10 +476,13 @@ function eventSheet(id) {
     <div class="err" id="ev-err"></div>
     <div class="acts" style="grid-template-columns:1fr 1fr">
       <button id="ev-note">寫紀錄</button><button class="go" id="ev-resolve" style="background:var(--green)">已解決</button></div>
-    <p class="hint">寫紀錄或按已解決，都會記下是你處理的；還沒有人處理的事件，由你負責。</p>`, root => {
+    <p class="hint">寫紀錄或按已解決，都會記下是你處理的；還沒有人處理的事件，由你負責。</p>
+    ${toHq(e) ? `<p class="hint">📣 這件事已回報社會處。</p>` : `<button class="escbtn" id="ev-esc">⬆ 現場處理不了：回報社會處</button>`}`, root => {
     const t = () => root.querySelector("#ev-text").value.trim();
     root.querySelector("#ev-note").onclick = () => t() ? opsAct("update", { id, kind: "note", text: t() }, "已寫入處理紀錄") : (root.querySelector("#ev-err").textContent = "請先寫目前處理到哪裡");
     root.querySelector("#ev-resolve").onclick = () => confirm("確定這件事已經解決了嗎？") && opsAct("update", { id, kind: "resolve", text: t() }, "已標記解決");
+    const esc2 = root.querySelector("#ev-esc");
+    if (esc2) esc2.onclick = () => confirm("回報社會處：現場處理不了，請社會處協助？\n（上面寫的處理情形會一起送出）") && opsAct("update", { id, kind: "escalate", text: t() }, "已回報社會處");
   });
 }
 function reportSheet() {
@@ -1029,12 +1035,18 @@ function renderPub() {
     if (!P.info) { setHTML(app, pubHead("收容所資訊") + `<div class="blocked"><p>${esc(P.msg || "載入中…")}</p></div>`); return; }
     const qa = P.info.qa.filter(q => q.kw !== "緊急聯絡");
     const order = q => q.type === "公告" ? 0 : 1;
-    setHTML(app, pubHead("收容所資訊", "最新公告、用餐與物資、生活規定") +
+    const sh = P.info.shelters, cur = curShelter();
+    // 本所公告：先選「您在哪一所」（記在這支手機；在班工作人員自動帶派駐的那一所），再顯示那一所的公告
+    setHTML(app, pubHead("收容所資訊", cur ? cur.name : sh.length ? "請先選擇您所在的收容所" : "目前沒有開設中的收容所") +
+      (sh.length > 1 ? `<div class="sec">您在哪一所？</div><div class="pick" style="margin:0 16px">${sh.map(o => `<button data-mysh="${esc(o.id)}" class="${cur && cur.id === o.id ? "on" : ""}">${esc(shortName(o.name))}</button>`).join("")}</div>` : "") +
+      (cur ? `<div class="card notice mynotice"><small>📢 本所公告</small><h3>${esc(shortName(cur.name))}</h3>
+        <div class="body">${cur.notice ? linkify(cur.notice) : "目前沒有公告。"}</div>
+        ${cur.by ? `<div class="meta">最後編輯：${esc(cur.by)}</div>` : ""}
+        ${canEditNotice(cur) ? `<button class="hq-go ghost" id="editNotice">✏️ 編輯本所公告</button>` : ""}</div>` : "") +
+      (qa.length ? `<div class="sec">縣府公告與常見問答</div>` : "") +
       qa.sort((a, b) => order(a) - order(b)).map(q => `<div class="card ${q.type === "公告" ? "notice" : ""}">
         ${q.type === "公告" ? "<small>公告</small>" : ""}<h3>${esc(q.title)}</h3><div class="body">${linkify(q.text)}</div></div>`).join("") +
-      `<div class="sec">開設中的收容所 <small>${P.info.shelters.length} 所</small></div>
-       <div class="shelters">${P.info.shelters.map(o => `<div>🏠 ${esc(o.name)}</div>`).join("") || "<div>目前沒有開設中的收容所</div>"}</div>
-       <div class="card"><small>地址與交通請洽現場工作人員或縣府服務專線。</small></div>
+      `<div class="card"><small>地址與交通請洽現場工作人員或縣府服務專線。</small></div>
        <div class="biglinks"><button class="biglink" data-go="?v=report"><span class="ic">🙋</span><span>我要反映<small>身體不適、缺物資、環境問題</small></span></button>
          <button class="biglink" data-go="?v=sos"><span class="ic">📞</span><span>緊急聯絡</span></button></div>`);
     return;
@@ -1042,6 +1054,40 @@ function renderPub() {
   if (S.view === "report") return renderReport();
   if (S.view === "staff") return renderStaff();
   if (S.view === "signout") return renderSignout();
+}
+// ===== 本所公告（收容所開設的「現場公告」）=====
+const MYSH_KEY = "mySh";
+const isHqMe = me => !!me && me.role === "社會處" && me.state !== "pending" && me.state !== "none";
+const shortName = n => String(n || "").replace(/^.*｜/, "");   // 「災害｜收容所」只留收容所名稱
+function curShelter() {
+  const sh = (S.pub.info && S.pub.info.shelters) || [], me = S.pub.me || {};
+  let id = ""; try { id = localStorage.getItem(MYSH_KEY) || ""; } catch (e) {}
+  // 在班工作人員：沒選過就用派駐的那一所
+  if (!sh.some(o => o.id === id) && me.state === "on" && me.o) id = (sh.find(o => me.o.includes(o.id)) || {}).id || "";
+  if (!sh.some(o => o.id === id) && sh.length === 1) id = sh[0].id;
+  return sh.find(o => o.id === id) || null;
+}
+// 誰能編輯：社會處（任何一所）｜在班的工作人員（只有自己派駐的那一所）
+const canEditNotice = cur => { const me = S.pub.me; return !!cur && (isHqMe(me) || (!!me && me.state === "on" && me.kind === "工作人員" && !!me.o && me.o.includes(cur.id))); };
+function noticeSheet(cur) {
+  if (!cur) return;
+  sheet(`<button class="sheetx" data-close aria-label="關閉">✕</button><h2>編輯本所公告</h2><div class="meta">${esc(shortName(cur.name))}</div>
+    <label>公告內容（居民在「收容所資訊」看到）<textarea id="nt-text" maxlength="1500" rows="8" placeholder="例：晚餐 17:30 在一樓餐廳發放；熱水供應到晚上 10 點">${esc(cur.notice || "")}</textarea></label>
+    <div class="err" id="nt-err"></div>
+    <div class="acts" style="grid-template-columns:1fr 1fr"><button data-close>取消</button><button class="go" id="nt-ok">儲存公告</button></div>
+    <p class="hint">儲存後會記下編輯時間和你的名字（Notion 有完整編輯紀錄）。清空內容再儲存就是撤下公告。</p>`, root => {
+    root.querySelector("#nt-ok").onclick = async () => {
+      const b = root.querySelector("#nt-ok"), text = root.querySelector("#nt-text").value.trim();
+      b.disabled = true; b.textContent = "儲存中…";
+      try {
+        await (isHqMe(S.pub.me) ? api.hq("hqNotice", { o: cur.id, text }) : api.ops("notice", { text }));
+        closeSheet(); toast("已更新本所公告"); cur.notice = text; cur.by = `${fmtTime(new Date().toISOString())} ${isHqMe(S.pub.me) ? "社會處 " : ""}${S.pub.me.name || ""}`; render();
+      } catch (e) {
+        b.disabled = false; b.textContent = "儲存公告";
+        if (!handleApiError(e)) root.querySelector("#nt-err").textContent = e.code === "not_staff" || e.code === "not_on_duty" ? "要在班的工作人員或社會處才能編輯" : "網路不穩，沒有儲存，請再按一次";
+      }
+    };
+  });
 }
 function renderSos() {
   // 電話按鈕不等資料載入，打開就能撥
@@ -1068,7 +1114,7 @@ function renderReport() {
     // 工作人員版：和本所總覽的「記錄事件」同一張表單（類別、嚴重程度、說明）；社會處多一個「哪一所」
     const L = P.log || (P.log = { cat: "", sev: "中", o: "", text: "" });
     const opens = P.info.shelters;
-    setHTML($("#app"), pubHead("我要反映", mode === "hq" ? "社會處交辦：送出後 LINE 通知該所在班的管理者，處理完會回報您" : "工作人員：記錄到您派駐的收容所，本所總覽的待處理事件會看到") + `<div class="form">
+    setHTML($("#app"), pubHead("我要反映", mode === "hq" ? "社會處交辦：送出後 LINE 通知該所在班的管理者，處理完會回報您" : "工作人員：送給社會處處理（會 LINE 通知社會處）。現場自己處理的事，請在本所總覽按「記錄事件」") + `<div class="form">
       ${mode === "hq" ? `<label>哪一所？<b>*</b></label><div class="pick" id="lg-o">${opens.map(o => `<button data-lgo="${esc(o.id)}" class="${L.o === o.id ? "on" : ""}">${esc(o.name)}</button>`).join("") || "目前沒有開設中的收容所"}</div>` : ""}
       <label>類別 <b>*</b></label><div class="pick">${CATS.map(c => `<button data-lgc="${c}" class="${L.cat === c ? "on" : ""}">${c}</button>`).join("")}</div>
       <label>嚴重程度</label><div class="pick">${SEVS.map(v => `<button data-lgs="${v}" class="${L.sev === v ? "on" : ""}">${v}</button>`).join("")}</div>
@@ -1141,7 +1187,9 @@ async function loadPub() {
     const [d, me] = await Promise.all([pubCall("info"), pubCall("me")]);
     if (d) { P.info = d; P.me = me; P.msg = ""; } return render();
   }
-  if (S.view === "info" || S.view === "sos") { const d = await pubCall("info"); if (d) { P.info = d; P.msg = ""; } return render(); }
+  // 收容所資訊也讀「我的狀態」：在班工作人員自動帶派駐的那一所、社會處和在班工作人員可以編輯本所公告
+  if (S.view === "info") { const [d, me] = await Promise.all([pubCall("info"), pubCall("me")]); if (d) { P.info = d; P.me = me; P.msg = ""; } return render(); }
+  if (S.view === "sos") { const d = await pubCall("info"); if (d) { P.info = d; P.msg = ""; } return render(); }
   const me = await pubCall("me"); if (!me) return;
   P.me = me; P.msg = "";
   // 簽退畫面但不在班：順手解除加乘選單（名冊和選單對不上時讓它自己恢復）
@@ -1153,6 +1201,8 @@ document.addEventListener("click", async e => {
   const t = e.target.closest("button, a"); if (!t) return;
   const P = S.pub, f = P.form;
   if (t.dataset.go != null) return go(t.dataset.go);
+  if (t.dataset.mysh) { try { localStorage.setItem(MYSH_KEY, t.dataset.mysh); } catch (x) {} return render(); }
+  if (t.id === "editNotice") return noticeSheet(curShelter());
   if (t.id === "close") return closeLiff();
   if (t.id === "scanner") return openScanner();
   if (t.id === "cancel") return closeLiff();
@@ -1173,10 +1223,10 @@ document.addEventListener("click", async e => {
     if (!L.text) { P.msg = "請寫發生什麼事"; return render(); }
     S.busy = true; P.msg = ""; render();
     let ok = false;
-    try { await (mode === "hq" ? api.hq("hqLog", { o: L.o, cat: L.cat, sev: L.sev, text: L.text }) : api.ops("report", { cat: L.cat, sev: L.sev, text: L.text, g: "" })); ok = true; }
+    try { await (mode === "hq" ? api.hq("hqLog", { o: L.o, cat: L.cat, sev: L.sev, text: L.text }) : api.ops("report", { cat: L.cat, sev: L.sev, text: L.text, g: "", hq: "1" })); ok = true; }
     catch (e) { if (!handleApiError(e)) P.msg = e.code === "not_on_duty" ? "您目前不在班，請先到現場掃簽到 QR。" : "網路不穩，沒有送出，請再按一次。"; }
     S.busy = false;
-    if (ok) { const cat = L.cat; P.log = null; return pubDone("📝", "已記錄", `（${cat}）${mode === "hq" ? "已 LINE 通知該所在班的管理者；現場按「已解決」時會回報您。" : "本所工作人員會在「待處理事件」看到。"}${/緊急|高/.test(L.sev) ? "緊急狀況請同時電話通報。" : ""}`, "再記錄一件"); }
+    if (ok) { const cat = L.cat; P.log = null; return pubDone("📝", "已記錄", `（${cat}）${mode === "hq" ? "已 LINE 通知該所在班的管理者；現場按「已解決」時會回報您。" : "已 LINE 通知社會處，社會處會回覆指示或接手處理。"}${/緊急|高/.test(L.sev) ? "緊急狀況請同時電話通報。" : ""}`, "再記錄一件"); }
     return render();
   }
   if (t.id === "sendReport" && f.cat && f.where && !S.busy) {

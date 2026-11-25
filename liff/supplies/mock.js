@@ -38,13 +38,15 @@ function mockStage(o, set) {
 const mockOps = {
   stage: mockStage("o1"), n: 3,
   events: [
-    { id: "e1", title: "設施環境：2 樓男廁漏水", cat: "設施環境", sev: "高", status: "待處理", text: "2 樓男廁洗手台下方漏水，地板濕滑", log: "", owner: "", by: "s2", item: "", at: new Date(Date.now() - 50 * 60e3).toISOString() },
+    { id: "e1", title: "設施環境：2 樓男廁漏水", cat: "設施環境", sev: "高", status: "待處理", text: "2 樓男廁洗手台下方漏水，地板濕滑", log: "", owner: "", by: "s2", item: "", hq: true, at: new Date(Date.now() - 50 * 60e3).toISOString() },
     { id: "e2", title: "人員相關：夜班志工不足", cat: "人員相關", sev: "中", status: "處理中", text: "今晚 22:00 後只有 1 位志工", log: "\n10/19 14:20 測試小芳 認領處理：已聯絡社會處調派", owner: "s1", by: "s1", item: "", at: new Date(Date.now() - 3 * 3600e3).toISOString() },
-    { id: "e3", title: "緊急事件：長者跌倒", cat: "緊急事件", sev: "緊急", status: "待處理", text: "A 區 3 號床長者跌倒，意識清楚，右手腕疼痛", log: "", owner: "", by: "s2", item: "", at: new Date(Date.now() - 8 * 60e3).toISOString() },
+    { id: "e3", title: "緊急事件：長者跌倒", cat: "緊急事件", sev: "緊急", status: "待處理", text: "A 區 3 號床長者跌倒，意識清楚，右手腕疼痛", log: "", owner: "", by: "s2", item: "", hq: true, at: new Date(Date.now() - 8 * 60e3).toISOString() },
     { id: "p1", title: "整備回報：場地清潔已完成", cat: "整備回報", sev: "低", status: "已解決", text: "", log: "", owner: "", by: "s1", item: "場地清潔", at: new Date().toISOString() },
   ],
 };
 function params0() { return new URLSearchParams(location.search); }
+// 本所公告（原型）：開設 ID → { notice, by }
+const mockNotice = { o1: { notice: "晚餐 17:30 在一樓餐廳發放，請帶號碼牌。\n熱水供應到晚上 10 點。", by: "11/25 15:20 測試小芳" } };
 const mockPub = { state: params0().get("me") || "on" };   // 原型：?me=none｜pending｜off｜on
 function mockStatus() {
   const open = mockOps.events.filter(e => !/已解決|已結案/.test(e.status));
@@ -62,13 +64,16 @@ mockOps.call = async (a, f) => {
   await wait(400);
   const now = new Date(), st = `${now.getMonth() + 1}/${now.getDate()} ${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")} ${mock.me.name}`;
   if (a === "status") return mockStatus();
-  if (a === "report") { const id = "e" + (++mockOps.n); mockOps.events.unshift({ id, title: `${f.cat}：${f.text.slice(0, 24)}`, cat: f.cat, sev: f.sev, status: "待處理", text: f.text, log: "", owner: "", by: "s1", item: "", at: now.toISOString() }); return { ok: true, id }; }
+  if (a === "notice") { mockNotice.o1 = { notice: f.text, by: st }; return { ok: true }; }
+  if (a === "report") { const id = "e" + (++mockOps.n); mockOps.events.unshift({ hq: f.hq === "1" || /緊急|高/.test(f.sev), id, title: `${f.cat}：${f.text.slice(0, 24)}`, cat: f.cat, sev: f.sev, status: "待處理", text: f.text, log: "", owner: "", by: "s1", item: "", at: now.toISOString() }); return { ok: true, id }; }
   if (a === "update") {
     const e = mockOps.events.find(x => x.id === f.id);
     if (f.kind === "claim") { e.owner = "s1"; e.status = "處理中"; e.log += `\n${st} 認領處理${f.text ? "：" + f.text : ""}`; }
     // 寫紀錄／已解決：還沒有人負責的事件，由寫的人負責（和情境 13 一樣）
     const first = !e.owner;
     if (f.kind === "note") { if (first) e.owner = "s1"; if (!e.status || e.status === "待處理") e.status = "處理中"; e.log += `\n${st}${first ? " 開始處理" : ""}：${f.text}`; }
+    if (f.kind === "escalate") { e.hq = true; e.log += `
+${st} 回報社會處${f.text ? "：" + f.text : ""}`; }
     if (f.kind === "resolve") { if (first) e.owner = "s1"; e.status = "已解決"; e.log += `\n${st} 標記已解決${f.text ? "：" + f.text : ""}`; }
     return { ok: true };
   }
@@ -111,6 +116,7 @@ async function mockHqCall(a, f) {
     return { ok: true, eventId: ev.id, created };
   }
   if (a === "hqApps") return { ok: true, apps: mockHq.apps };
+  if (a === "hqNotice") { mockNotice[f.o] = { notice: f.text, by: "社會處 測試社會處長" }; return { ok: true }; }
   if (a === "hqReply" || a === "hqTake") {
     const e = mockOps.events.find(x => x.id === f.id); if (!e) throw new ApiError("not_ours");
     const n = new Date(), st = `${n.getMonth() + 1}/${n.getDate()} ${String(n.getHours()).padStart(2, "0")}:${String(n.getMinutes()).padStart(2, "0")}`.replace(/^(\d)\//, "0$1/").replace(/\/(\d) /, "/0$1 ");
@@ -123,8 +129,8 @@ async function mockHqCall(a, f) {
   if (a === "hqApprove" || a === "hqReject") { mockHq.apps = mockHq.apps.filter(x => x.id !== f.id); return { ok: true }; }
   if (a === "hqSites") return { ok: true, sites: mockHq.openings.filter(o => /開設中|撤收中/.test(mockStage(o.id))).map((o, i) => {
     const ev = mockHq.events.find(e => e.id === o.eventId), sh = shelters.find(x => x.id === o.shelterId), stage = mockStage(o.id);
-    return i === 0 ? { id: o.id, eventId: ev.id, name: o.name, stage, light: "🔴", inside: 37, capacity: 120, out: 2, late: 1, care: 4, open: 2, urgent: 1, staff: 2, vol: 1, low: 1, ready: mockOps.ready || "" }
-                   : { id: o.id, eventId: ev.id, name: o.name, stage, light: "🟢", inside: 12 * i, capacity: sh.cap, out: 0, late: 0, care: 1, open: 0, urgent: 0, staff: 1, vol: 0, low: 0 };
+    return i === 0 ? { id: o.id, eventId: ev.id, name: o.name, stage, light: "🔴", inside: 37, capacity: 120, out: 2, late: 1, care: 4, open: 2, urgent: 1, staff: 2, vol: 1, low: 1, ready: mockOps.ready || "", hqn: mockOps.events.filter(e => e.hq && !/已解決|已結案/.test(e.status)).length }
+                   : { id: o.id, eventId: ev.id, name: o.name, stage, light: "🟢", inside: 12 * i, capacity: sh.cap, out: 0, late: 0, care: 1, open: 0, urgent: 0, staff: 1, vol: 0, low: 0, hqn: 0 };
   }), events: mockHq.events.map(e => ({ id: e.id, name: e.name })),
     closed: [mockHq.closed, ...mockHq.openings.filter(o => mockStage(o.id) === "已撤收").map(o => ({ id: o.id, eventId: o.eventId, name: o.name, closeAt: new Date().toISOString(), n: 40, m: 33 }))] };
   // 撤收（開設中 → 撤收中）、結案（撤收中 → 已撤收）、結報原始資料
@@ -206,14 +212,14 @@ const mockApi = {
   hq: (a, f) => mockHqCall(a, f),
   async pub(a, f) {
     await wait(400);
-    if (a === "info") return { ok: true, shelters: [{ id: "o1", name: "【模擬】清華里活動中心" }, { id: "o2", name: "【模擬】大同國小" }], qa: [
+    if (a === "info") return { ok: true, shelters: [{ id: "o1", name: "【模擬】2026-10 風災｜清華里活動中心", ...(mockNotice.o1 || {}) }, { id: "o2", name: "【模擬】2026-10 風災｜大同國小", ...(mockNotice.o2 || {}) }], qa: [
       { title: "【演練】豪雨水災：收容所已開設", text: "受豪雨影響，苗栗市清華里、大同里一帶已開設收容所。請持號碼牌進出。", kw: "最新公告", type: "公告" },
       { title: "用餐與物資領取", text: "用餐：早餐 07:00、午餐 12:00、晚餐 18:00，在服務台旁領取。\n物資：飲用水、毛毯、盥洗用品請向服務台登記領取。", kw: "用餐與物資", type: "物資領取" },
       { title: "生活規定", text: "1. 進出請出示號碼牌。\n2. 外出請告知預計返回時間。\n3. 22:00 熄燈。", kw: "生活規定", type: "常見問題" },
       { title: "緊急聯絡", text: "緊急救護、火警：119\n報案：110\n在收容所內有緊急狀況，請直接找穿背心的現場工作人員。", kw: "緊急聯絡", type: "常見問題" }] };
     const st = mockPub.state;
     const hq = params0().get("role") === "hq";   // 原型：?role=hq 模擬社會處身分
-    const me = { ok: true, state: st, name: st === "none" ? "" : hq ? "測試社會處長" : mock.me.name, role: st === "none" ? "" : hq ? "社會處" : mock.me.role, kind: params.get("kind") || "工作人員", line: "測試帳號" };
+    const me = { ok: true, state: st, name: st === "none" ? "" : hq ? "測試社會處長" : mock.me.name, role: st === "none" ? "" : hq ? "社會處" : mock.me.role, kind: params.get("kind") || "工作人員", line: "測試帳號", o: hq || st !== "on" ? "" : "o1" };
     if (a === "me") return me;
     if (a === "apply") { if (st === "none") mockPub.state = "pending"; return { ...me, state: mockPub.state }; }
     if (a === "feedback") return { ok: true };

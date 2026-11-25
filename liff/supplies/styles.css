@@ -422,3 +422,9 @@ button:has(.ldots):not(.go):not(.main):not(.blue){color:var(--busy);border-color
 .chklist .chk.on{border-color:var(--green)}
 .chklist .chk.on .box{background:var(--green);border-color:var(--green);color:#fff}
 .chklist .chk small{display:block;color:var(--soft);font-size:0.8125rem;margin-top:2px}
+/* 事件詳情：回報社會處（次要按鈕） */
+.sheet .escbtn{display:block;width:100%;margin-top:10px;padding:12px;border-radius:12px;border:1px dashed var(--red);background:transparent;color:var(--red);font-weight:700;font-size:1rem}
+/* 收容所資訊：本所公告 */
+.card.mynotice{border:2px solid var(--blue)}
+.card.mynotice .meta{margin-top:8px;color:var(--soft);font-size:0.8125rem}
+.card.mynotice .hq-go{margin-top:10px;width:100%}

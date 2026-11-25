@@ -62,7 +62,8 @@ async function loadHq() {
       }
     }
   }
-  if (S.view === "inbox") { const d = await hqCall("hqApps"); if (d) H.apps = d.apps || []; }
+  // 待我處理：工作人員申請＋現場回報社會處的事件（各所的「待社會處」件數，點進去看）
+  if (S.view === "inbox") { const [d, st] = await Promise.all([hqCall("hqApps"), hqCall("hqSites")]); if (d) H.apps = d.apps || []; if (st) H.sites = st.sites || []; }
   if (S.view === "sites") {
     const d = await hqCall("hqSites");
     if (d) {
@@ -227,7 +228,11 @@ function renderInbox() {
     (H.apps.map(a => `<button class="app" data-app="${esc(a.id)}"><div class="t">${esc(a.name)}</div>
       <div class="meta">${esc(nz(a.unit))}・${esc(nz(a.phone))}</div><div class="meta">LINE：${esc(nz(a.line))}・${esc(ago(a.at))}申請</div></button>`).join("")
       || `<div class="card"><small>目前沒有待核准的申請。</small></div>`) +
-    `<div class="sec">其他通知 <small>下一階段</small></div><div class="card"><small>整備完成、緊急事件會在下一階段加進這裡。</small></div>`);
+    (() => { const hs = (H.sites || []).filter(s => toNum(s.hqn) > 0);
+      return `<div class="sec">現場回報的事件 <small>${hs.length ? `${hs.length} 所有事件等社會處處理` : "目前沒有"}</small></div>` +
+        (hs.map(s => `<button class="site" data-site="${esc(s.id)}"><div class="t">📣 ${esc(s.name)}<small>待社會處 ${toNum(s.hqn)} 件</small></div>
+          <div class="nums"><span>點進去看事件，回覆指示或接手處理</span></div></button>`).join("")
+          || `<div class="card"><small>現場處理不了、回報社會處的事件會列在這裡；工作人員從選單「我要反映」送來的也是。</small></div>`); })());
 }
 
 function appSheet(id) {
@@ -278,7 +283,7 @@ function renderSites() {
     H.sites.filter(s => s.event === g).map(s => `<button class="site" data-site="${esc(s.id)}">
       <div class="t">${esc(s.light || "")} ${esc(s.name)}${s.stage === "撤收中" ? `<span class="stagetag">撤收中</span>` : s.ready ? `<span class="stagetag ready">已回報可撤收</span>` : ""}<small>${s.inside}／${s.capacity} 人</small></div>
       <div class="nums">${n(s.out, "外出", "warn")}${n(s.late, "未返", "alert")}${n(s.care, "需關懷", "warn")}
-        ${n(s.open, s.urgent ? `待處理（緊急 ${s.urgent}）` : "待處理事件", s.urgent ? "alert" : "warn")}<span>在班 <b>${(s.staff || 0) + (s.vol || 0)}</b></span>${n(s.low, "低庫存", "warn")}</div></button>`).join("")).join("")
+        ${n(toNum(s.hqn), "待社會處", "alert")}<span>在班 <b>${(s.staff || 0) + (s.vol || 0)}</b></span>${n(s.low, "低庫存", "warn")}</div></button>`).join("")).join("")
     || `<div class="card"><small>目前沒有開設中的收容所。到「指揮台」開設。</small></div>`)
     + (closed.length ? `<div class="sec">最近結案 <small>點進去看結報</small></div>` + closed.map(c => `<button class="site" data-final="${esc(c.id)}">
       <div class="t">${esc(c.name)}<small>${esc(fmtTime(c.closeAt))} 結案</small></div>

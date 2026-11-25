@@ -239,7 +239,7 @@ AGES = ["成人", "長者", "兒童", "嬰幼兒"]
 KINDS = ["風災", "水災", "震災", "土石流", "海嘯", "其他"]
 HQ = "社會處"
 HQ_GRANT_ROLES = [MGR, "門禁組", "物資組", "醫療組", "志工"]   # 社會處核准時能給的角色（不含社會處本身）
-HQ_ACTS = ["hqInit", "hqOpen", "hqApps", "hqApprove", "hqReject", "hqSites", "hqClose", "hqFinish", "hqReport", "hqTags", "hqLog", "hqReply", "hqTake"]
+HQ_ACTS = ["hqInit", "hqOpen", "hqApps", "hqApprove", "hqReject", "hqSites", "hqClose", "hqFinish", "hqReport", "hqTags", "hqLog", "hqReply", "hqTake", "hqNotice"]
 
 
 def build_main():
@@ -687,7 +687,7 @@ def build_supply_api():
     ])]
 
     all_acts = ["load", "submit", "resident", "addItem", "addTags", "tagInfo", "register", "move",
-                "status", "report", "update", "prep", "prepDone", "closeReady"] + PUBLIC_ACTS + HQ_ACTS
+                "status", "report", "update", "prep", "prepDone", "closeReady", "notice"] + PUBLIC_ACTS + HQ_ACTS
     # 社會處的動作與「看某一所」：不需要在班，從「不是在班工作人員」排除
     not_hq = [c("{{1.a}}", "text:notequal", a) for a in HQ_ACTS]
     off_groups = [[auth_ok, c(f"{{{{{W}.id}}}}", "notexist")],
@@ -785,7 +785,8 @@ def status_flow_for(b, respond, W, open_expr, all_res=False, sfx=""):
         "title": sp(L, "日誌標題", "[].plain_text"), "cat": sp(L, "日誌類別", ".name"), "sev": sp(L, "嚴重程度", ".name"),
         "status": sp(L, "處理進度", ".name"), "text": sp(L, "內容說明", "[].plain_text"), "log": sp(L, "處理紀錄", "[].plain_text"),
         "owner": sp(L, "負責人", "[].id"), "by": sp(L, "回報人", "[].id"), "item": sp(L, "整備項目", ".name"),
-        "src": sp(L, "來源", ".name"), "who": sp(L, "反映者", "[].plain_text"), "at": f"{{{{{L}.created_time}}}}"})
+        "src": sp(L, "來源", ".name"), "who": sp(L, "反映者", "[].plain_text"), "hq": sp(L, "需回報社會處"),
+        "at": f"{{{{{L}.created_time}}}}"})
     num = lambda p: "{{ifempty(" + sp(O, p, ".number")[2:-2] + "; 0)}}"
     status_body = ('{"ok":true,"me":{"id":"' + f"{{{{{W}.id}}}}" + '","name":"' + enc(w_name) + '","role":"' + w_role + '"},'
                    # id：管理者按「撤收本所」時送回來（hqClose 的 o）
@@ -806,6 +807,17 @@ def push_to_hq(b, sfx, text, f=None):
     push = b.line_api("推播給社會處" + sfx, "/v2/bot/message/push", body={
         "to": sp(hqs["id"], "LINE User ID", "[].plain_text"), "messages": [{"type": "text", "text": text}]})
     return [hqs, push]
+
+
+def notice_flow(b, respond, open_expr, who, sfx):
+    """本所公告（收容所開設的「現場公告」）：在班工作人員改自己派駐的那一所、社會處改指定的 o。
+    text 可空白（清除公告）；每次編輯都更新「公告最後編輯」，並在「公告編輯紀錄」加一行（時間 編輯者）。"""
+    og = b.get("讀開設（本所公告）" + sfx, open_expr)
+    stamp = '{{formatDate(now; "MM/DD HH:mm")}} ' + who
+    upd = b.update("更新本所公告" + sfx, DS_OPEN, open_expr, [
+        f_text("現場公告", cut("1.text", 1500)), f_text("公告最後編輯", stamp),
+        f_text("公告編輯紀錄", sp(og["id"], "公告編輯紀錄", "[].plain_text") + "\n" + stamp)])
+    return [og, upd, respond("回傳已更新公告" + sfx, '{"ok":true}')]
 
 
 def push_to_managers(b, sfx, open_expr, text, f=None):
@@ -845,7 +857,8 @@ def ops_routes(b, respond, W, on, act):
 
 
     # ---- report：記錄事件（cat 類別、sev 嚴重程度、text 說明、g 相關居民 ID 可空白） ----
-    urgent = '{{if(contains("緊急,高"; 1.sev); true; false)}}'
+    # hq＝1：選單「我要反映」，一律回報社會處由社會處接手；本所總覽的「記錄事件」是內部紀錄（緊急、高仍自動回報社會處）
+    urgent = '{{if(1.hq = "1"; true; if(contains("緊急,高"; 1.sev); true; false))}}'
     new_log = b.create("新增事件（本所頁面）", DS_LOG, [
         f_title("日誌標題", pick("1.cat", FIELD_CATS, "交班紀錄") + "：{{substring(1.text; 0; 24)}}"),
         f_sel("日誌類別", pick("1.cat", FIELD_CATS, "交班紀錄")),
@@ -856,11 +869,11 @@ def ops_routes(b, respond, W, on, act):
         f_chk("需回報社會處", urgent),
         {"key": "相關居民", "type": "relation", "value": '{{if(1.g; split(1.g; ","); emptyarray)}}'}])
     # 緊急、高：回應之後推播給社會處（開設名稱、類別、嚴重程度都是系統的值）
-    op_u = b.get("讀派駐開設（通知社會處）", w_open, flt("緊急或高才通知社會處", [[c("{{1.sev}}", "text:equal", "緊急")],
+    op_u = b.get("讀派駐開設（通知社會處）", w_open, flt("緊急、高或我要反映才通知社會處", [[c("{{1.sev}}", "text:equal", "緊急")], [c("{{1.hq}}", "text:equal", "1")],
                                                                           [c("{{1.sev}}", "text:equal", "高")]]))
     report_flow = [new_log, respond("回傳已記錄", '{"ok":true,"id":"' + f"{{{{{new_log['id']}.id}}}}" + '"}'),
                    op_u, *push_to_hq(b, "（緊急事件）",
-                                     "🚨【" + pick("1.sev", SEVS, "中") + "】" + sp(op_u["id"], "開設名稱", "[].plain_text") + "\n"
+                                     '{{if(1.hq = "1"; "📣 現場請社會處處理"; "🚨 緊急事件")}}【' + pick("1.sev", SEVS, "中") + "】" + sp(op_u["id"], "開設名稱", "[].plain_text") + "\n"
                                      + pick("1.cat", FIELD_CATS, "交班紀錄") + "\n請到社會處選單「各所現況」點這一所查看：\n"
                                      + f"https://liff.line.me/{LIFF_ID}?v=sites")]
 
@@ -891,6 +904,14 @@ def ops_routes(b, respond, W, on, act):
             upd("寫處理紀錄", [f_rel("負責人", owner_keep), f_sel("處理進度", prog_keep),
                            f_text("處理紀錄", old_log + stamp + first_mark + "：" + cut("1.text", 500))]),
             respond("回傳已寫紀錄", ok_body)]),
+        (flt("回報社會處", [[ours, kind("escalate")]]), [
+            upd("回報社會處", [f_chk("需回報社會處", True),
+                          f_text("處理紀錄", old_log + stamp + " 回報社會處{{if(1.text; \"：\"; \"\")}}" + cut("1.text", 500))]),
+            respond("回傳已回報社會處", ok_body),
+            *(lambda og2: [og2, *push_to_hq(b, "（回報社會處）",
+                "📣 " + sp(og2["id"], "開設名稱", "[].plain_text") + "\n現場回報需要社會處協助：「" + sp(G, "日誌類別", ".name")
+                + "」（" + w_name + "）\n請到社會處選單「待我處理」查看：\n" + f"https://liff.line.me/{LIFF_ID}?v=inbox")])(
+                b.get("讀事件的開設（回報社會處）", sp(G, "收容所開設", "[].id")))]),
         (flt("已解決", [[ours, kind("resolve")]]), [
             upd("事件已解決", [f_rel("負責人", owner_keep), f_sel("處理進度", "已解決"),
                           f_text("處理紀錄", old_log + stamp + " 標記已解決{{if(1.text; \"：\"; \"\")}}" + cut("1.text", 500))]),
@@ -945,13 +966,14 @@ def ops_routes(b, respond, W, on, act):
             respond("回傳不是開設中（可撤收回報）", '{"ok":false,"error":"bad_stage"}', "409")]),
     ])]
     is_mgr = c(w_role, "text:contain", "管理者")
-    ops_acts = ["status", "report", "update", "prep", "prepDone", "closeReady"]
+    ops_acts = ["status", "report", "update", "prep", "prepDone", "closeReady", "notice"]
     return [
         (flt("不是工作人員（本所）", [on + [act(a), c(w_kind, "text:notequal", "工作人員"), no_o] for a in ops_acts]), [
             respond("回傳不是工作人員", '{"ok":false,"error":"not_staff"}', "403")]),
         (flt("本所狀況", [staff_on + [act("status"), no_o]]), status_flow),
         (flt("記錄事件", [staff_on + [act("report")]]), report_flow),
         (flt("事件處理", [staff_on + [act("update")]]), update_flow),
+        (flt("本所公告", [staff_on + [act("notice")]]), notice_flow(b, respond, w_open, w_name, "（工作人員）")),
         (flt("整備回報", [staff_on + [act("prep")]]), prep_flow),
         (flt("送出整備完成", [staff_on + [act("prepDone"), is_mgr]]), prepdone_flow),
         (flt("不是管理者（整備完成）", [staff_on + [act("prepDone"), c(w_role, "text:notcontain", "管理者")]]), [
@@ -984,7 +1006,8 @@ def public_routes(b, respond, W, auth_ok, on, act):
     opens = b.search("找開設中的收容所（民眾）", DS_OPEN, [c("開設狀態 |&*^%$#@| select", "select:equals", "開設中")])
     opens["mapper"]["limit"] = "30"
     OP = opens["id"]
-    o_mods, OJ = agg_json("開設中的收容所", OP, {"id": f"{{{{{OP}.id}}}}", "name": sp(OP, "開設名稱", "[].plain_text")})
+    o_mods, OJ = agg_json("開設中的收容所", OP, {"id": f"{{{{{OP}.id}}}}", "name": sp(OP, "開設名稱", "[].plain_text"),
+                                             "notice": sp(OP, "現場公告", "[].plain_text"), "by": sp(OP, "公告最後編輯", "[].plain_text")})
     qa = b.search("找問答與公告（民眾）", DS_QA, [c("啟用 |&*^%$#@| checkbox", "checkbox:equals", "true")], sort_created=True)
     qa["mapper"]["limit"] = "30"
     QA = qa["id"]
@@ -997,7 +1020,9 @@ def public_routes(b, respond, W, auth_ok, on, act):
     state = ('{{if(' + f"{W}.id" + '; if(' + sp(W, "啟用中")[2:-2] + '; if(' + sp(W, "簽到狀態", ".name")[2:-2]
              + ' = "上班中"; "on"; "off"); "pending"); "none")}}')
     me_body = ('{"ok":true,"state":"' + state + '","name":"' + enc(sp(W, "姓名", "[].plain_text")) + '","role":"'
-               + sp(W, "角色", ".name") + '","kind":"' + sp(W, "身分類別", ".name") + '","line":"{{encodeURL(4.data.displayName)}}"}')
+               + sp(W, "角色", ".name") + '","kind":"' + sp(W, "身分類別", ".name") + '","line":"{{encodeURL(4.data.displayName)}}"'
+               # o：派駐開設 ID（收容所資訊自動帶自己這一所、判斷能不能編輯本所公告）
+               + ',"o":"' + sp(W, "派駐開設", "[].id") + '"}')
 
     # ---- apply：申請開通（新增一筆待審名冊；已在名冊就回目前狀態） ----
     hqs = b.search("找社會處（通知申請）", DS_STAFF, [c("角色 |&*^%$#@| select", "select:equals", HQ),
@@ -1031,6 +1056,8 @@ def public_routes(b, respond, W, auth_ok, on, act):
         f_sel("日誌類別", '{{switch(1.cat; "環境問題"; "設施環境"; "缺物資"; "物資相關"; "身體不適"; "重大事件"; "其他")}}'),
         f_sel("協助類別", pick("1.cat", REPORT_CATS, "其他")),
         f_sel("嚴重程度", '{{if(1.cat = "身體不適"; "高"; "中")}}'), f_sel("處理進度", "待處理"),
+        # 居民反映只給該所工作人員處理；身體不適照樣自動通知社會處，社會處也看得到
+        f_chk("需回報社會處", '{{if(1.cat = "身體不適"; true; false)}}'),
         f_text("反映者 LINE ID", uid), f_now("發生時間"),
         f_sel("來源", '{{if(' + f"{W}.id" + '; if(' + w_on + '; "工作人員反映"; "民眾反映"); "民眾反映")}}'),
         # 反映者：身分｜姓名（名冊裡啟用中的用名冊姓名，其他人用 LINE 顯示名稱）
@@ -1239,7 +1266,7 @@ def hq_routes(b, respond, W, auth_ok, on, act, load_flow_for):
         "care": num(ST, "需關懷人數"), "open": num(ST, "未結日誌數"), "urgent": num(ST, "緊急未結數"),
         # 在班人數（沒有足額標準，只回報現在有幾人，不算缺幾人）
         "staff": num(ST, "在班工作人員數"), "vol": num(ST, "在班志工數"), "low": num(ST, "低庫存品項數"),
-        "ready": sp(ST, "可撤收回報", ".start")})
+        "ready": sp(ST, "可撤收回報", ".start"), "hqn": num(ST, "待社會處數")})
     ev2 = search_all("找進行中的災害（各所現況）", DS_EVENT, [c("狀態 |&*^%$#@| select", "select:does_not_equal", "已結束")], 20)
     EV2 = ev2["id"]
     ev2_mods, EJ2 = agg_json("災害（各所現況）", EV2, {"id": f"{{{{{EV2}.id}}}}", "name": sp(EV2, "災害名稱", "[].plain_text")})
@@ -1396,7 +1423,7 @@ def hq_routes(b, respond, W, auth_ok, on, act, load_flow_for):
         # 撤收只有社會處能按（11/25 起，現場管理者改用 closeReady 回報可撤收）
         (flt("不是社會處", [g + [act(a)] for g in not_hq_groups for a in HQ_ACTS]), [
             respond("回傳不是社會處", '{"ok":false,"error":"not_hq"}', "403")]),
-        (flt("缺開設 ID（撤收・結案・結報）", [is_hq + [act(a), no_o] for a in ("hqClose", "hqFinish", "hqReport", "hqLog", "hqReply", "hqTake")]), [
+        (flt("缺開設 ID（撤收・結案・結報）", [is_hq + [act(a), no_o] for a in ("hqClose", "hqFinish", "hqReport", "hqLog", "hqReply", "hqTake", "hqNotice")]), [
             respond("回傳缺開設 ID", '{"ok":false,"error":"bad_request"}', "400")]),
         (flt("撤收（社會處）", [is_hq + [act("hqClose"), has_o]]), close_flow),
         (flt("結案", [is_hq + [act("hqFinish"), has_o]]), finish_flow),
@@ -1407,6 +1434,7 @@ def hq_routes(b, respond, W, auth_ok, on, act, load_flow_for):
         (flt("記錄事件（社會處）", [is_hq + [act("hqLog"), has_o, c("{{1.text}}", "exist")]]), hqlog_flow),
         (flt("回覆指示（社會處）", [is_hq + [act("hqReply"), has_o, c("{{1.id}}", "exist"), c("{{1.text}}", "exist")]]), hqreply_flow),
         (flt("接手事件（社會處）", [is_hq + [act("hqTake"), has_o, c("{{1.id}}", "exist")]]), hqtake_flow),
+        (flt("本所公告（社會處）", [is_hq + [act("hqNotice"), has_o]]), notice_flow(b, respond, "{{1.o}}", "社會處 " + w_name, "（社會處）")),
         (flt("指揮台資料", hq("hqInit")), init_flow),
         (flt("開設收容所", hq("hqOpen")), open_flow),
         (flt("待核准的申請", hq("hqApps")), apps_flow),
