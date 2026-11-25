@@ -838,12 +838,12 @@ async function submit(ls) {
 
 function addItemSheet() {
   sheet(`<h2>新增品項</h2>
-    <label>品名<input id="f-name" maxlength="40" placeholder="例：牙刷"></label>
+    <label>品名<input id="f-name" maxlength="40" placeholder="例：礦泉水、泡麵"></label>
     <label>類別<select id="f-cat">${["飲用水", "食品", "寢具", "衛生用品", "醫療", "防寒", "其他"].map(c => `<option>${c}</option>`).join("")}</select></label>
-    <label>最小單位<input id="f-unit" maxlength="10" placeholder="例：支"></label>
-    <label>包裝單位（可空白）<input id="f-pack" maxlength="10" placeholder="例：盒"></label>
-    <label>每包裝數量<input id="f-per" inputmode="numeric" placeholder="例：20"></label>
-    <label>安全庫存<input id="f-safety" inputmode="numeric" placeholder="例：30"></label>
+    <label>最小單位（例：瓶、碗）<input id="f-unit" maxlength="10" placeholder="發放時一個一個算的單位，例：瓶"></label>
+    <label>包裝單位（例：箱、盒，可空白）<input id="f-pack" maxlength="10" placeholder="整批送來的單位，例：箱"></label>
+    <label>每包裝數量（一箱裝幾瓶）<input id="f-per" inputmode="numeric" placeholder="例：24"></label>
+    <label>安全庫存（以最小單位計）<input id="f-safety" inputmode="numeric" placeholder="少於這個數量會提醒補貨，例：30"></label>
     <div class="err" id="f-err"></div>
     <div class="acts"><button data-close>取消</button><button class="go" id="f-ok" style="background:var(--green)">新增</button></div>`, root => {
     root.querySelector("#f-ok").onclick = async () => {
