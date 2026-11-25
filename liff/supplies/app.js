@@ -286,9 +286,11 @@ function renderOps() {
   if (o.stage === "待核准" && !ro) body += `<div class="rcard"><b>已送出整備完成</b><div class="meta">等社會處核准開放進駐。核准後這裡會改顯示開設中的狀況。</div></div>`;
   if (o.stage === "撤收中") body += `<div class="rcard"><b>撤收中</b><div class="meta">不再接受新的報到；外出、返回、離所、物資、事件、簽退照常。${ro ? "居民都離所後，按最下方「完成撤收（結案並產生結報）」。" : "等社會處結案。"}</div></div>`;
   // 社會處檢視才能點「在所」看全部居民（工作人員的本所狀況只回外出、未返、需關懷的人，維持原樣）
-  body += `<div class="stats">${stat(ro ? "all" : "", `${o.inside}<small style="font-size:0.8125rem">／${o.capacity}</small>`, "在所／容量")}
+  // 數字分兩組：居民現況（人在哪、誰要照顧）＋收容所現況（事件、人力）；點居民的數字展開的名單接在居民現況下面
+  body += `<div class="sec">居民現況</div><div class="stats">${stat(ro ? "all" : "", `${o.inside}<small style="font-size:0.8125rem">／${o.capacity}</small>`, "在所／容量")}
     ${stat("out", o.out, "外出", o.out ? "warn" : "")}${stat("late", o.late, "未返", o.late ? "alert" : "")}
-    ${stat("care", o.care, "需關懷", o.care ? "warn" : "")}${stat("", evs.length, urgent ? `待處理・緊急 ${urgent}` : "待處理事件", urgent ? "alert" : evs.length ? "warn" : "")}
+    ${stat("care", o.care, "需關懷", o.care ? "warn" : "")}</div>`;
+  const siteStats = `<div class="sec">收容所現況</div><div class="stats">${stat("", evs.length, urgent ? `待處理・緊急 ${urgent}` : "待處理事件", urgent ? "alert" : evs.length ? "warn" : "")}
     ${(() => {   // 在班人數：沒有「足額」標準，所以只顯示現在有幾人，不算缺幾人
       const vol = d.duty.filter(x => x.kind === "志工").length, staff = d.duty.length - vol;
       return stat("", d.duty.length, `在班人數<br><small>工作人員 ${staff}・志工 ${vol}</small>`);
@@ -299,6 +301,7 @@ function renderOps() {
     body += `<div class="sec">${{ all: "居民名單", out: "外出中", late: "未返", care: "需關懷" }[S.opsShow]} <small>${rs.length} 人</small></div>
       <div class="plist">${rs.map(r => `<div class="prow"><span class="n">${esc(r.name)}</span><span class="meta">${esc(meta(r))}</span></div>`).join("") || `<div class="prow">沒有</div>`}</div>`;
   }
+  body += siteStats;
   body += `<div class="sec">在班人員 <small>${d.duty.length} 人</small></div><div class="chips2">${d.duty.map(x => `<span>${esc(x.name)}${x.kind === "志工" ? "（志工）" : x.role ? `・${esc(x.role.replace("（收容所負責人）", ""))}` : ""}</span>`).join("")}</div>`;
   // 待處理事件分兩組：工作人員回報的優先看，居民反映（跟個人有關）放後面；各組裡緊急的排最上面
   const evtBtn = e => {
