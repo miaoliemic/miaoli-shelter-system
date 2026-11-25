@@ -5845,9 +5845,21 @@
                     "page": "{{187.id}}",
                     "fields": [
                      {
+                      "key": "負責人",
+                      "type": "relation",
+                      "value": [
+                       "{{if(length(187.properties_value.`負責人`) = 0; 3.id; first(map(187.properties_value.`負責人`; \"id\")))}}"
+                      ]
+                     },
+                     {
+                      "key": "處理進度",
+                      "type": "select",
+                      "value": "{{if(ifempty(187.properties_value.`處理進度`.name; \"待處理\") = \"待處理\"; \"處理中\"; 187.properties_value.`處理進度`.name)}}"
+                     },
+                     {
                       "key": "處理紀錄",
                       "type": "rich_text",
-                      "value": "{{187.properties_value.`處理紀錄`[].plain_text}}\n{{formatDate(now; \"MM/DD HH:mm\")}} {{3.properties_value.`姓名`[].plain_text}}：{{substring(1.text; 0; 500)}}"
+                      "value": "{{187.properties_value.`處理紀錄`[].plain_text}}\n{{formatDate(now; \"MM/DD HH:mm\")}} {{3.properties_value.`姓名`[].plain_text}}{{if(length(187.properties_value.`負責人`) = 0; \" 開始處理\"; \"\")}}：{{substring(1.text; 0; 500)}}"
                      }
                     ],
                     "select": "map",
@@ -5858,7 +5870,7 @@
                     "designer": {
                      "x": 900,
                      "y": 13350,
-                     "name": "追加處理紀錄"
+                     "name": "寫處理紀錄"
                     },
                     "parameters": [
                      {
@@ -5873,7 +5885,7 @@
                     "__IMTCONN__": 0
                    },
                    "filter": {
-                    "name": "追加紀錄",
+                    "name": "寫紀錄",
                     "conditions": [
                      [
                       {
@@ -5913,7 +5925,7 @@
                     "designer": {
                      "x": 900,
                      "y": 13500,
-                     "name": "回傳已追加"
+                     "name": "回傳已寫紀錄"
                     }
                    }
                   }
@@ -5928,6 +5940,13 @@
                    "mapper": {
                     "page": "{{187.id}}",
                     "fields": [
+                     {
+                      "key": "負責人",
+                      "type": "relation",
+                      "value": [
+                       "{{if(length(187.properties_value.`負責人`) = 0; 3.id; first(map(187.properties_value.`負責人`; \"id\")))}}"
+                      ]
+                     },
                      {
                       "key": "處理進度",
                       "type": "select",

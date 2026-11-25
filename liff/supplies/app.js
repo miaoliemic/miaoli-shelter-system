@@ -97,7 +97,7 @@ const real = {
   async register(f) { return await post({ a: "register", ...f }); },
   // dest：離所去向（返家、投靠親友…），結報統計安全撤離用
   async move(tag, kind, hours, dest) { return await post({ a: "move", tag, kind, hours: String(hours || ""), dest: dest || "" }); },
-  // 本所：status 狀況｜report 記錄事件｜update 認領・追加紀錄・解決｜prep 整備回報｜prepDone 送出整備完成
+  // 本所：status 狀況｜report 記錄事件｜update 寫紀錄・解決（claim 舊版保留）｜prep 整備回報｜prepDone 送出整備完成
   async ops(a, f) { return await post({ a, ...(f || {}) }); },
   // 一般畫面：info 收容所資訊｜me 我的狀態｜apply 申請開通｜feedback 我要反映｜signout 簽退
   async pub(a, f) { return await post({ a, ...(f || {}) }); },
@@ -305,7 +305,7 @@ function renderOps() {
   body += `<div class="sec">在班人員 <small>${d.duty.length} 人</small></div><div class="chips2">${d.duty.map(x => `<span>${esc(x.name)}${x.kind === "志工" ? "（志工）" : x.role ? `・${esc(x.role.replace("（收容所負責人）", ""))}` : ""}</span>`).join("")}</div>`;
   // 待處理事件分兩組：工作人員回報的優先看，居民反映（跟個人有關）放後面；各組裡緊急的排最上面
   const evtBtn = e => {
-    const own = !e.owner ? `<span class="own free">待認領</span>` : e.owner === d.me.id ? `<span class="own mine">我負責</span>` : `<span class="own">${esc(ownerName(e) || "其他人")}處理中</span>`;
+    const own = !e.owner ? `<span class="own free">還沒有人處理</span>` : e.owner === d.me.id ? `<span class="own mine">我負責</span>` : `<span class="own">${esc(ownerName(e) || "其他人")}處理中</span>`;
     return `<button class="evt ${esc(e.sev)}" data-evt="${esc(e.id)}"><div class="t">${esc(nz(e.title))}</div>${whoLine(e)}
         <div class="m"><span class="sev ${esc(e.sev)}">${esc(e.sev)}</span>${own}${hqMark(e)}<span>${esc(ago(e.at))}</span></div></button>`;
   };
@@ -451,19 +451,17 @@ function eventSheet(id) {
     root.querySelector("#hq-reply").onclick = () => send("hqReply", "已送出指示");
     root.querySelector("#hq-take").onclick = () => send("hqTake", "社會處已接手");
   });
-  const mine = e.owner === S.ops.me.id;
-  sheet(`<h2>${esc(nz(e.title))}</h2>
+  sheet(`<button class="sheetx" data-close aria-label="關閉">✕</button><h2>${esc(nz(e.title))}</h2>
     <div class="meta"><span class="sev ${esc(e.sev)}">${esc(e.sev)}</span>　${esc(nz(e.cat))}・${esc(nz(e.status))}・${esc(fmtTime(e.at))}</div>${whoLine(e)}
     ${e.text ? `<div class="pre">${esc(e.text)}</div>` : ""}
     <label>處理紀錄</label><div class="pre">${esc((e.log || "").trim() || "（還沒有）")}</div>
-    <label>寫一句處理情形（追加紀錄時必填，認領和解決可留空）<textarea id="ev-text" maxlength="500" placeholder="例：已請水電師傅明早來修，先放警示牌"></textarea></label>
+    <label>寫下目前處理到哪裡（按「已解決」時可留空）<textarea id="ev-text" maxlength="500" placeholder="例：已通報水電師傅，明早來修，先放警示牌"></textarea></label>
     <div class="err" id="ev-err"></div>
-    <div class="acts" style="grid-template-columns:1fr 1fr 1fr">
-      ${mine ? `<button data-close>關閉</button>` : `<button id="ev-claim">我來處理</button>`}
-      <button id="ev-note">追加紀錄</button><button class="go" id="ev-resolve" style="background:var(--green)">已解決</button></div>`, root => {
+    <div class="acts" style="grid-template-columns:1fr 1fr">
+      <button id="ev-note">寫紀錄</button><button class="go" id="ev-resolve" style="background:var(--green)">已解決</button></div>
+    <p class="hint">寫紀錄或按已解決，都會記下是你處理的；還沒有人處理的事件，由你負責。</p>`, root => {
     const t = () => root.querySelector("#ev-text").value.trim();
-    const c = root.querySelector("#ev-claim"); if (c) c.onclick = () => opsAct("update", { id, kind: "claim", text: t() }, "已認領，負責人是你");
-    root.querySelector("#ev-note").onclick = () => t() ? opsAct("update", { id, kind: "note", text: t() }, "已追加處理紀錄") : (root.querySelector("#ev-err").textContent = "請先寫處理情形");
+    root.querySelector("#ev-note").onclick = () => t() ? opsAct("update", { id, kind: "note", text: t() }, "已寫入處理紀錄") : (root.querySelector("#ev-err").textContent = "請先寫目前處理到哪裡");
     root.querySelector("#ev-resolve").onclick = () => confirm("確定這件事已經解決了嗎？") && opsAct("update", { id, kind: "resolve", text: t() }, "已標記解決");
   });
 }
@@ -1268,7 +1266,7 @@ function eventOf(l) {
   const t = Date.parse(l.at) || Date.parse(l.made), steps = logSteps(l.log, t), done = isDone(l.prog);
   const fin = [...steps].reverse().find(s => /標記已解決|已結案/.test(s.text) && !isNaN(s.t));
   const doneAt = done ? (fin ? fin.t : Date.parse(l.upd)) : NaN;
-  const act = steps.find(s => !isNaN(s.t) && /認領|接手|指示|標記已解決/.test(s.text));
+  const act = steps.find(s => !isNaN(s.t) && /認領|開始處理|接手|指示|標記已解決/.test(s.text));
   return { title: l.title || l.cat || "事件", text: l.text || "", cat: l.cat || "未填", sev: l.sev || "未填", prog: l.prog || "待處理",
            src: l.src || "", who: l.who || "", help: l.help || "", done, t,
            hq: l.hq === true || l.hq === "true" || l.src === "社會處" || steps.some(s => /社會處/.test(s.text)),

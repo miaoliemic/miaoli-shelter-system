@@ -66,8 +66,10 @@ mockOps.call = async (a, f) => {
   if (a === "update") {
     const e = mockOps.events.find(x => x.id === f.id);
     if (f.kind === "claim") { e.owner = "s1"; e.status = "處理中"; e.log += `\n${st} 認領處理${f.text ? "：" + f.text : ""}`; }
-    if (f.kind === "note") e.log += `\n${st}：${f.text}`;
-    if (f.kind === "resolve") { e.status = "已解決"; e.log += `\n${st} 標記已解決${f.text ? "：" + f.text : ""}`; }
+    // 寫紀錄／已解決：還沒有人負責的事件，由寫的人負責（和情境 13 一樣）
+    const first = !e.owner;
+    if (f.kind === "note") { if (first) e.owner = "s1"; if (!e.status || e.status === "待處理") e.status = "處理中"; e.log += `\n${st}${first ? " 開始處理" : ""}：${f.text}`; }
+    if (f.kind === "resolve") { if (first) e.owner = "s1"; e.status = "已解決"; e.log += `\n${st} 標記已解決${f.text ? "：" + f.text : ""}`; }
     return { ok: true };
   }
   if (a === "prep") { mockOps.events.unshift({ id: "p" + (++mockOps.n), title: `整備回報：${f.item}${f.result}`, cat: "整備回報", sev: f.result === "已完成" ? "低" : "中", status: f.result === "已完成" ? "已解決" : "待處理", text: f.text, log: "", owner: "", by: "s1", item: f.item, at: now.toISOString() }); return { ok: true }; }

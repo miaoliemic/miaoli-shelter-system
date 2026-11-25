@@ -77,7 +77,7 @@ header{position:sticky;top:0;z-index:5;background:var(--bg);padding:14px 16px 10
 .demo{max-width:528px;margin:8px auto 0;display:flex;gap:6px;flex-wrap:wrap;font-size:0.75rem;color:var(--muted)}
 .demo button,.demo a{font-size:0.75rem;padding:2px 8px;border-radius:999px;border:1px dashed var(--muted);color:var(--soft)}
 .sheet-bg{position:fixed;inset:0;z-index:10;background:rgba(0,0,0,.45);display:flex;align-items:flex-end;justify-content:center}
-.sheet{width:100%;max-width:560px;background:var(--card);border-radius:20px 20px 0 0;padding:18px 16px calc(18px + env(safe-area-inset-bottom));max-height:85vh;overflow:auto}
+.sheet{position:relative;width:100%;max-width:560px;background:var(--card);border-radius:20px 20px 0 0;padding:18px 16px calc(18px + env(safe-area-inset-bottom));max-height:85vh;overflow:auto}
 .sheet h2{font-size:1.1875rem;margin-bottom:10px}
 .sheet .line{display:flex;justify-content:space-between;padding:8px 0;border-top:1px solid var(--line);font-size:1rem}
 .sheet .line small{color:var(--soft)}
@@ -412,3 +412,6 @@ button:has(.ldots):not(.go):not(.main):not(.blue){color:var(--busy);border-color
 .rcard.ready{background:var(--green-bg);border-color:var(--green)}
 .rcard.ready b{color:var(--green)}
 .stagetag.ready{background:var(--green-bg);color:var(--green)}
+
+.sheet .sheetx{position:absolute;top:10px;right:10px;width:40px;height:40px;border-radius:50%;border:0;background:transparent;color:var(--muted,#888);font-size:1.25rem;cursor:pointer}
+.sheet .sheetx+h2{padding-right:44px}

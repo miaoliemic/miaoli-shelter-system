@@ -822,7 +822,7 @@ def push_to_managers(b, sfx, open_expr, text, f=None):
 def ops_routes(b, respond, W, on, act):
     """本所畫面（liff/supplies/?v=ops）的動作，掛在情境 13 的「依身分與動作分流」底下（免費方案只能啟用兩個情境）。
     限在班的工作人員（身分類別＝工作人員）；志工屬勞務型，用一般介面，不使用本所畫面。
-      a＝status 本所狀況｜report 記錄事件｜update 認領・追加紀錄・解決｜prep 整備回報｜prepDone 送出整備完成
+      a＝status 本所狀況｜report 記錄事件｜update 寫紀錄・解決｜prep 整備回報｜prepDone 送出整備完成
     事件就是「現場日誌」的一筆；居民用「我要反映」送來的（日誌類別＝居民反映）也列入待處理，可認領、處理。"""
     w_kind = sp(W, "身分類別", ".name")
     staff_on = on + [c(w_kind, "text:equal", "工作人員")]
@@ -864,7 +864,7 @@ def ops_routes(b, respond, W, on, act):
                                      + pick("1.cat", FIELD_CATS, "交班紀錄") + "\n請到社會處選單「各所現況」點這一所查看：\n"
                                      + f"https://liff.line.me/{LIFF_ID}?v=sites")]
 
-    # ---- update：id 事件、kind＝claim 我來處理｜note 追加紀錄｜resolve 已解決、text 紀錄內容 ----
+    # ---- update：id 事件、kind＝note 寫紀錄｜resolve 已解決（claim 我來處理：舊版畫面用，保留）、text 紀錄內容 ----
     gl = b.get("讀事件", "{{1.id}}")
     G = gl["id"]
     ours = c(sp(G, "收容所開設", "[].id"), "text:contain", w_open)
@@ -874,6 +874,12 @@ def ops_routes(b, respond, W, on, act):
     kind = lambda k: c("{{1.kind}}", "text:equal", k)
     upd = lambda name, fields: b.update(name, DS_LOG, f"{{{{{G}.id}}}}", fields)
     ok_body = '{"ok":true}'
+    # 寫紀錄／已解決不用先「我來處理」：還沒有負責人的事件，由寫的人負責；第一筆標「開始處理」（結報算第一次回應時間）
+    owner_arr = f"{G}.properties_value.`負責人`"
+    owner_keep = "{{if(length(" + owner_arr + ") = 0; " + str(W) + ".id; first(map(" + owner_arr + "; \"id\")))}}"
+    first_mark = "{{if(length(" + owner_arr + ") = 0; \" 開始處理\"; \"\")}}"
+    prog_now = f"{G}.properties_value.`處理進度`.name"
+    prog_keep = "{{if(ifempty(" + prog_now + "; \"待處理\") = \"待處理\"; \"處理中\"; " + prog_now + ")}}"
     update_flow = [gl, b.router("事件動作", [
         (flt("不是本所的事件", [[c(sp(G, "收容所開設", "[].id"), "text:notcontain", w_open)]]), [
             respond("回傳不是本所事件", '{"ok":false,"error":"not_ours"}', "403")]),
@@ -881,11 +887,12 @@ def ops_routes(b, respond, W, on, act):
             upd("認領事件", [f_rel("負責人", f"{{{{{W}.id}}}}"), f_sel("處理進度", "處理中"),
                          f_text("處理紀錄", old_log + stamp + " 認領處理{{if(1.text; \"：\"; \"\")}}" + cut("1.text", 500))]),
             respond("回傳已認領", ok_body)]),
-        (flt("追加紀錄", [[ours, kind("note")]]), [
-            upd("追加處理紀錄", [f_text("處理紀錄", old_log + stamp + "：" + cut("1.text", 500))]),
-            respond("回傳已追加", ok_body)]),
+        (flt("寫紀錄", [[ours, kind("note")]]), [
+            upd("寫處理紀錄", [f_rel("負責人", owner_keep), f_sel("處理進度", prog_keep),
+                           f_text("處理紀錄", old_log + stamp + first_mark + "：" + cut("1.text", 500))]),
+            respond("回傳已寫紀錄", ok_body)]),
         (flt("已解決", [[ours, kind("resolve")]]), [
-            upd("事件已解決", [f_sel("處理進度", "已解決"),
+            upd("事件已解決", [f_rel("負責人", owner_keep), f_sel("處理進度", "已解決"),
                           f_text("處理紀錄", old_log + stamp + " 標記已解決{{if(1.text; \"：\"; \"\")}}" + cut("1.text", 500))]),
             respond("回傳已解決", ok_body),
             # 需回報社會處的事件（緊急、高、社會處指示或接手過）解決後，回報社會處
