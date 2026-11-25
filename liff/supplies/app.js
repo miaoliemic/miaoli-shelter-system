@@ -339,16 +339,33 @@ function prepView(d) {
     ${mgr ? `<div class="ract"><button class="main" id="prepDone" ${allDone ? "" : "disabled style=\"opacity:.4\""}>送出整備完成（申請開放進駐）</button></div>
     ${allDone ? "" : `<div class="hint" style="margin:6px 16px 0">五項都完成後才能送出。</div>`}` : ""}`;
 }
-// 撤收・結案按鈕列：社會處檢視（開設中→撤收、撤收中→結案、隨時看結報）；管理者在本所開設中時可以撤收本所
+// 撤收・結案按鈕列：只有社會處能撤收、結案（開設中→撤收、撤收中→結案、隨時看結報）。
+// 現場管理者不撤收，改成「撤收準備回報」：清點、打掃都完成後回報社會處可以撤收（資訊回報，不改開設狀態）
+const READY_ITEMS = ["居民都已離所或轉介", "物資已清點", "場地已打掃復原", "設備已歸位"];
+const readyLog = d => (d.events || []).filter(e => e.cat === "整備回報" && String(e.title || "").startsWith("撤收準備回報")).sort((a, b) => new Date(b.at) - new Date(a.at))[0];
+const readyBox = e => `<div class="rcard ready"><b>📋 現場已回報：可以撤收</b><div class="meta">${esc(fmtTime(e.at))}${e.who ? `・${esc(String(e.who).replace(/^.*｜/, ""))}` : ""}</div>
+    ${e.text ? `<div class="meta">${esc(e.text).replace(/\n/g, "<br>")}</div>` : ""}</div>`;
 function closeActs(d, ro) {
-  const st = d.opening.stage, full = ' style="grid-column:1 / -1"';
-  if (ro) return `<div class="sec">撤收與結案</div><div class="ract">
+  const st = d.opening.stage, full = ' style="grid-column:1 / -1"', rep = readyLog(d);
+  if (ro) return `<div class="sec">撤收與結案</div>${rep && st === "開設中" ? readyBox(rep) : ""}<div class="ract">
     ${st === "開設中" ? `<button class="warn" id="opsClose"${full}>撤收這一所</button>` : ""}
     ${st === "撤收中" ? `<button class="main" id="opsFinish">完成撤收（結案並產生結報）</button>` : ""}
     <button id="opsReport"${full}>查看結報</button></div>`;
-  if (st === "開設中" && /管理者/.test(d.me.role || "")) return `<div class="sec">撤收</div><div class="ract"><button class="warn" id="opsClose"${full}>撤收本所</button></div>
-    <div class="hint" style="margin:6px 16px 0">災情解除、要關閉收容所時才按。撤收後不再接受新的報到。</div>`;
-  return "";
+  if (st !== "開設中" || !/管理者/.test(d.me.role || "")) return "";
+  if (rep) return `<div class="sec">撤收準備回報</div>${readyBox(rep)}<div class="hint" style="margin:6px 16px 0">已通知社會處。撤收由社會處確認後按，撤收前一切照常運作。</div>`;
+  const R = S.ready || (S.ready = { checks: [], note: "" }), all = READY_ITEMS.every(i => R.checks.includes(i));
+  return `<div class="sec">撤收準備回報 <small>災情解除、現場整理完成後回報社會處</small></div>
+    <div class="pick" style="margin:0 16px">${READY_ITEMS.map(i => `<button data-ready="${esc(i)}" class="${R.checks.includes(i) ? "on" : ""}">${R.checks.includes(i) ? "✓ " : ""}${esc(i)}</button>`).join("")}</div>
+    <div class="form"><label>備註（可不填）<textarea id="rd-note" maxlength="500" placeholder="例：毛毯 3 條待送洗">${esc(R.note)}</textarea></label></div>
+    <div class="ract"><button class="main" id="readySend"${full} ${all && !S.busy ? "" : 'disabled style="opacity:.4"'}>回報社會處：可以撤收</button></div>
+    <div class="hint" style="margin:6px 16px 0">${all ? "送出後 LINE 通知社會處；撤收由社會處按。" : "四項都完成後才能回報。"}</div>`;
+}
+async function sendReady() {
+  const R = S.ready, n = $("#rd-note");
+  if (n) R.note = n.value;
+  if (!READY_ITEMS.every(i => R.checks.includes(i))) return;
+  if (!confirm("回報社會處：現場已整理完成，可以撤收？\n撤收由社會處確認後按。")) return;
+  if (await opsAct("closeReady", { items: R.checks.join("、"), note: R.note.trim() }, "已回報社會處可以撤收")) S.ready = null;
 }
 // 撤收前的檢查清單（用本所狀況已有的數字）：還有沒處理完的，按下去會再問一次
 function closeCheckSheet() {
@@ -397,7 +414,7 @@ async function opsAct(a, f, okMsg) {
   }
   catch (e) {
     S.busy = false;
-    if (e.code === "not_manager") toast("只有管理者可以送出整備完成");
+    if (e.code === "not_manager") toast(a === "closeReady" ? "只有管理者可以回報可撤收" : "只有管理者可以送出整備完成");
     else if (e.code === "bad_stage") { toast("本所已不在整備階段，已重新讀取"); loadOps(); }
     else if (!handleApiError(e)) toast("網路不穩，沒有送出，請再按一次");
     return false;
@@ -673,6 +690,8 @@ document.addEventListener("click", async e => {
   else if (b.id === "opsReload") loadOps();
   else if (b.id === "hqBack") go("?v=sites");
   else if (b.id === "opsClose") closeCheckSheet();
+  else if (b.dataset.ready) { const R = S.ready, n = $("#rd-note"); if (n) R.note = n.value; const i = b.dataset.ready; R.checks = R.checks.includes(i) ? R.checks.filter(x => x !== i) : [...R.checks, i]; render(); }
+  else if (b.id === "readySend") sendReady();
   else if (b.id === "opsFinish" || b.id === "opsReport") go(`?v=report&o=${encodeURIComponent(S.hqO)}`);
   else if (b.id === "finBack") history.length > 1 ? history.back() : go("?v=sites");
   else if (b.id === "finReload") loadFinal();

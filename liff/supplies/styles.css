@@ -407,3 +407,8 @@ button:has(.ldots){font-weight:800}
 button span:has(> .ldots){font-size:inherit;color:inherit}
 button:has(.ldots):not(.go):not(.main):not(.blue){color:var(--busy);border-color:var(--busy)}
 .ldots i{font-size:1.15em}
+
+/* 撤收準備回報（現場回報可以撤收，社會處看得到） */
+.rcard.ready{background:var(--green-bg);border-color:var(--green)}
+.rcard.ready b{color:var(--green)}
+.stagetag.ready{background:var(--green-bg);color:var(--green)}

@@ -276,7 +276,7 @@ function renderSites() {
   const closed = H.closed || [];
   setHTML(app, hqHead("開設中、撤收中的收容所，點進去看該所狀況") + (groups.map(g => `<div class="sec">${esc(g)} <small>${H.sites.filter(s => s.event === g).length} 所</small></div>` +
     H.sites.filter(s => s.event === g).map(s => `<button class="site" data-site="${esc(s.id)}">
-      <div class="t">${esc(s.light || "")} ${esc(s.name)}${s.stage === "撤收中" ? `<span class="stagetag">撤收中</span>` : ""}<small>${s.inside}／${s.capacity} 人</small></div>
+      <div class="t">${esc(s.light || "")} ${esc(s.name)}${s.stage === "撤收中" ? `<span class="stagetag">撤收中</span>` : s.ready ? `<span class="stagetag ready">已回報可撤收</span>` : ""}<small>${s.inside}／${s.capacity} 人</small></div>
       <div class="nums">${n(s.out, "外出", "warn")}${n(s.late, "未返", "alert")}${n(s.care, "需關懷", "warn")}
         ${n(s.open, s.urgent ? `待處理（緊急 ${s.urgent}）` : "待處理事件", s.urgent ? "alert" : "warn")}<span>在班 <b>${(s.staff || 0) + (s.vol || 0)}</b></span>${n(s.low, "低庫存", "warn")}</div></button>`).join("")).join("")
     || `<div class="card"><small>目前沒有開設中的收容所。到「指揮台」開設。</small></div>`)

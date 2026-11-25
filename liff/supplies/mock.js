@@ -72,6 +72,8 @@ mockOps.call = async (a, f) => {
   }
   if (a === "prep") { mockOps.events.unshift({ id: "p" + (++mockOps.n), title: `整備回報：${f.item}${f.result}`, cat: "整備回報", sev: f.result === "已完成" ? "低" : "中", status: f.result === "已完成" ? "已解決" : "待處理", text: f.text, log: "", owner: "", by: "s1", item: f.item, at: now.toISOString() }); return { ok: true }; }
   if (a === "prepDone") { mockOps.stage = "待核准"; return { ok: true }; }
+  if (a === "closeReady") { mockOps.ready = now.toISOString(); mockOps.events.unshift({ id: "p" + (++mockOps.n), title: "撤收準備回報：可以撤收", cat: "整備回報", sev: "低", status: "已解決", text: `已完成：${f.items}
+備註：${f.note || "無"}`, log: "", owner: "", by: "s1", item: "", who: `工作人員・管理者｜${mock.me.name}`, at: now.toISOString() }); return { ok: true }; }
 };
 // ===== 社會處（hq.js）的模擬後端：收容所主檔借用 qr-generator/shelters.js（公開資訊） =====
 const mockHq = {
@@ -119,7 +121,7 @@ async function mockHqCall(a, f) {
   if (a === "hqApprove" || a === "hqReject") { mockHq.apps = mockHq.apps.filter(x => x.id !== f.id); return { ok: true }; }
   if (a === "hqSites") return { ok: true, sites: mockHq.openings.filter(o => /開設中|撤收中/.test(mockStage(o.id))).map((o, i) => {
     const ev = mockHq.events.find(e => e.id === o.eventId), sh = shelters.find(x => x.id === o.shelterId), stage = mockStage(o.id);
-    return i === 0 ? { id: o.id, eventId: ev.id, name: o.name, stage, light: "🔴", inside: 37, capacity: 120, out: 2, late: 1, care: 4, open: 2, urgent: 1, staff: 2, vol: 1, low: 1 }
+    return i === 0 ? { id: o.id, eventId: ev.id, name: o.name, stage, light: "🔴", inside: 37, capacity: 120, out: 2, late: 1, care: 4, open: 2, urgent: 1, staff: 2, vol: 1, low: 1, ready: mockOps.ready || "" }
                    : { id: o.id, eventId: ev.id, name: o.name, stage, light: "🟢", inside: 12 * i, capacity: sh.cap, out: 0, late: 0, care: 1, open: 0, urgent: 0, staff: 1, vol: 0, low: 0 };
   }), events: mockHq.events.map(e => ({ id: e.id, name: e.name })),
     closed: [mockHq.closed, ...mockHq.openings.filter(o => mockStage(o.id) === "已撤收").map(o => ({ id: o.id, eventId: o.eventId, name: o.name, closeAt: new Date().toISOString(), n: 40, m: 33 }))] };

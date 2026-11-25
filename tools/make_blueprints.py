@@ -687,7 +687,7 @@ def build_supply_api():
     ])]
 
     all_acts = ["load", "submit", "resident", "addItem", "addTags", "tagInfo", "register", "move",
-                "status", "report", "update", "prep", "prepDone"] + PUBLIC_ACTS + HQ_ACTS
+                "status", "report", "update", "prep", "prepDone", "closeReady"] + PUBLIC_ACTS + HQ_ACTS
     # 社會處的動作與「看某一所」：不需要在班，從「不是在班工作人員」排除
     not_hq = [c("{{1.a}}", "text:notequal", a) for a in HQ_ACTS]
     off_groups = [[auth_ok, c(f"{{{{{W}.id}}}}", "notexist")],
@@ -917,8 +917,28 @@ def ops_routes(b, respond, W, on, act):
         (flt("不是整備中", [[c(sp(O2, "開設狀態", ".name"), "text:notequal", "整備中")]]), [
             respond("回傳不是整備中", '{"ok":false,"error":"bad_stage"}', "409")]),
     ])]
+    # ---- closeReady：管理者回報「已整理完成，可以撤收」（撤收本身只有社會處能按）。items 勾選項目、note 備註 ----
+    # 寫一筆整備回報日誌＋開設的「可撤收回報」時間，再推播社會處（推播只放系統的字，不放使用者打的備註）
+    op3 = b.get("讀派駐開設（可撤收回報）", w_open)
+    O3 = op3["id"]
+    ready_flow = [op3, b.router("可否回報可撤收", [
+        (flt("開設中（可撤收回報）", [[c(sp(O3, "開設狀態", ".name"), "text:equal", "開設中")]]), [
+            b.update("開設記錄可撤收回報", DS_OPEN, f"{{{{{O3}.id}}}}", [f_now("可撤收回報")]),
+            b.create("新增撤收準備回報日誌", DS_LOG, [
+                f_title("日誌標題", "撤收準備回報：可以撤收"), f_sel("日誌類別", "整備回報"), f_sel("處理進度", "已解決"),
+                f_sel("嚴重程度", "低"), f_chk("需回報社會處", True),
+                f_text("內容說明", "已完成：" + cut("1.items", 300) + "\n備註：{{ifempty(substring(1.note; 0; 500); \"無\")}}"),
+                f_rel("收容所開設", f"{{{{{O3}.id}}}}"), f_rel("回報人", f"{{{{{W}.id}}}}"),
+                f_text("反映者", "工作人員・{{replace(" + w_role[2:-2] + '; "（收容所負責人）"; "")}}｜' + w_name),
+                f_now("發生時間"), f_sel("來源", "LINE 回報")]),
+            respond("回傳已回報可撤收", ok_body),
+            *push_to_hq(b, "（可撤收回報）", "📋 " + sp(O3, "開設名稱", "[].plain_text") + "\n現場回報：已整理完成，可以撤收（" + w_name
+                        + "）\n請到社會處選單「各所現況」點這一所，確認後按「撤收這一所」：\n" + f"https://liff.line.me/{LIFF_ID}?v=sites")]),
+        (flt("不是開設中（可撤收回報）", [[c(sp(O3, "開設狀態", ".name"), "text:notequal", "開設中")]]), [
+            respond("回傳不是開設中（可撤收回報）", '{"ok":false,"error":"bad_stage"}', "409")]),
+    ])]
     is_mgr = c(w_role, "text:contain", "管理者")
-    ops_acts = ["status", "report", "update", "prep", "prepDone"]
+    ops_acts = ["status", "report", "update", "prep", "prepDone", "closeReady"]
     return [
         (flt("不是工作人員（本所）", [on + [act(a), c(w_kind, "text:notequal", "工作人員"), no_o] for a in ops_acts]), [
             respond("回傳不是工作人員", '{"ok":false,"error":"not_staff"}', "403")]),
@@ -929,6 +949,9 @@ def ops_routes(b, respond, W, on, act):
         (flt("送出整備完成", [staff_on + [act("prepDone"), is_mgr]]), prepdone_flow),
         (flt("不是管理者（整備完成）", [staff_on + [act("prepDone"), c(w_role, "text:notcontain", "管理者")]]), [
             respond("回傳不是管理者（整備完成）", '{"ok":false,"error":"not_manager"}', "403")]),
+        (flt("回報可撤收", [staff_on + [act("closeReady"), is_mgr]]), ready_flow),
+        (flt("不是管理者（可撤收回報）", [staff_on + [act("closeReady"), c(w_role, "text:notcontain", "管理者")]]), [
+            respond("回傳不是管理者（可撤收回報）", '{"ok":false,"error":"not_manager"}', "403")]),
     ]
 
 
@@ -1208,7 +1231,8 @@ def hq_routes(b, respond, W, auth_ok, on, act, load_flow_for):
         "inside": num(ST, "在所人數"), "capacity": num(ST, "容納人數"), "out": num(ST, "外出人數"), "late": num(ST, "未返人數"),
         "care": num(ST, "需關懷人數"), "open": num(ST, "未結日誌數"), "urgent": num(ST, "緊急未結數"),
         # 在班人數（沒有足額標準，只回報現在有幾人，不算缺幾人）
-        "staff": num(ST, "在班工作人員數"), "vol": num(ST, "在班志工數"), "low": num(ST, "低庫存品項數")})
+        "staff": num(ST, "在班工作人員數"), "vol": num(ST, "在班志工數"), "low": num(ST, "低庫存品項數"),
+        "ready": sp(ST, "可撤收回報", ".start")})
     ev2 = search_all("找進行中的災害（各所現況）", DS_EVENT, [c("狀態 |&*^%$#@| select", "select:does_not_equal", "已結束")], 20)
     EV2 = ev2["id"]
     ev2_mods, EJ2 = agg_json("災害（各所現況）", EV2, {"id": f"{{{{{EV2}.id}}}}", "name": sp(EV2, "災害名稱", "[].plain_text")})
@@ -1362,18 +1386,12 @@ def hq_routes(b, respond, W, auth_ok, on, act, load_flow_for):
                     [auth_ok, c(w_role, "text:notequal", HQ), c(w_role, "text:notcontain", "管理者")]]
     no_o = c("{{1.o}}", "notexist")
     return [
-        (flt("不是社會處", [g + [act(a)] for g in not_hq_groups for a in HQ_ACTS if a != "hqClose"]
-                         + [g + [act("hqClose")] for g in not_hq_close]), [
+        # 撤收只有社會處能按（11/25 起，現場管理者改用 closeReady 回報可撤收）
+        (flt("不是社會處", [g + [act(a)] for g in not_hq_groups for a in HQ_ACTS]), [
             respond("回傳不是社會處", '{"ok":false,"error":"not_hq"}', "403")]),
         (flt("缺開設 ID（撤收・結案・結報）", [is_hq + [act(a), no_o] for a in ("hqClose", "hqFinish", "hqReport", "hqLog", "hqReply", "hqTake")]), [
             respond("回傳缺開設 ID", '{"ok":false,"error":"bad_request"}', "400")]),
-        (flt("撤收（社會處或本所管理者）", [is_hq + [act("hqClose"), has_o],
-                                         mgr_close + [has_o, c(w_open, "text:contain", "{{1.o}}")]]), close_flow),
-        (flt("管理者不在班（撤收）", [[auth_ok, c(f"{{{{{W}.id}}}}", "exist"), c(sp(W, "啟用中"), "boolean:equal", "true"),
-                                      c(w_role, "text:notequal", HQ), c(w_role, "text:contain", "管理者"), w_duty_no, act("hqClose")]]), [
-            respond("回傳不在班（撤收）", '{"ok":false,"error":"not_on_duty"}', "403")]),
-        (flt("不是本所（撤收）", [mgr_close + [no_o], mgr_close + [has_o, c(w_open, "text:notcontain", "{{1.o}}")]]), [
-            respond("回傳不是本所（撤收）", '{"ok":false,"error":"not_ours"}', "403")]),
+        (flt("撤收（社會處）", [is_hq + [act("hqClose"), has_o]]), close_flow),
         (flt("結案", [is_hq + [act("hqFinish"), has_o]]), finish_flow),
         (flt("產生空白號碼牌（社會處）", [is_hq + [act("hqTags"), c("{{1.s}}", "exist"), c("{{1.tg}}", "exist")]]), hqtags_flow),
         (flt("缺收容所（號碼牌）", [is_hq + [act("hqTags"), c("{{1.s}}", "notexist")], is_hq + [act("hqTags"), c("{{1.tg}}", "notexist")]]), [
