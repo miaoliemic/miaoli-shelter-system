@@ -204,6 +204,7 @@ function render() {
   if (PUB_VIEWS.includes(S.view)) return renderPub();
   document.documentElement.style.setProperty("--accent", ACCENT[S.mode]);
   const app = $("#app");
+  if (S.view === "resident" && S.rtag && (S.guest || (S.me && !S.me.onDuty && !S.hqO))) return renderBind();
   if (S.guest || (S.me && !S.me.onDuty && !S.hqO)) {
     setHTML(app, `<div class="blocked"><h2>這個頁面限在班的工作人員使用</h2><p>請先到服務台掃「工作人員簽到 QR」簽到。</p></div>`);
     $("#bar").hidden = false; $("#bar .in").hidden = true; return;
@@ -1055,6 +1056,48 @@ function renderPub() {
   if (S.view === "staff") return renderStaff();
   if (S.view === "signout") return renderSignout();
 }
+// ===== 居民綁定：居民用自己的 LINE 掃號碼牌，輸入身分證後四碼，把這支手機綁到收容登記 =====
+// 綁定後：收容所資訊直接顯示本所公告、我要反映自動帶入收容所（記在手機 mySh）；Notion 收容登記記下 LINE User ID（之後可以用 LINE 通知居民）
+const MYTAG_KEY = "myTag";
+function renderBind() {
+  document.title = "我的號碼牌";
+  $("#bar").hidden = REAL; $("#bar .in").style.display = "none";
+  const B = S.bind || (S.bind = { msg: "", done: null }), app = $("#app");
+  if (B.done) {
+    setHTML(app, pubHead("我的號碼牌", S.rtag) + `<div class="done"><div class="big">✅</div><h2>已綁定這支手機</h2>
+      <p>${esc(B.done.name)}${B.done.status ? `・${esc(B.done.status)}` : ""}</p>
+      <p>以後打開「收容所資訊」會直接看到本所公告，「我要反映」會自動帶入您的收容所。</p></div>
+      <div class="biglinks"><button class="biglink blue" data-go="?v=info"><span class="ic">📢</span><span>看本所公告</span></button>
+        <button class="biglink" data-go="?v=report"><span class="ic">🙋</span><span>我要反映</span></button></div>`);
+    app.querySelectorAll("[data-go]").forEach(b => { b.onclick = () => go(b.dataset.go); });
+    return;
+  }
+  setHTML(app, pubHead("我的號碼牌", S.rtag) + `<div class="card"><h3>這是您的號碼牌嗎？</h3>
+      <div class="body">綁定到這支手機後，查本所公告、反映問題都會自動帶入您的收容所。</div></div>
+    <div class="form"><label>身分證後四碼（報到時登記的）<input id="bd-id4" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="例：1234"></label>
+      <p class="err" id="bd-err">${esc(B.msg)}</p></div>
+    <div class="biglinks"><button class="biglink blue" id="bindGo" ${S.busy ? "disabled" : ""}><span class="ic">🔗</span><span>${S.busy ? "綁定中…" : "綁定這支手機"}<small>報到時沒有登記後四碼，請找現場工作人員</small></span></button></div>
+    <p class="hint" style="margin:8px 16px">工作人員要掃號碼牌辦理進出，請先到服務台掃「工作人員簽到 QR」簽到。</p>`);
+  $("#bindGo").onclick = async () => {
+    const id4 = ($("#bd-id4").value || "").trim();
+    if (!/^[0-9A-Za-z]{4}$/.test(id4)) { B.msg = "請輸入 4 碼"; return render(); }
+    S.busy = true; B.msg = ""; render();
+    try {
+      const d = await api.pub("bindTag", { tag: S.rtag, id4 });
+      if (!d || !d.ok) throw new ApiError("bad");
+      const name = decodeURIComponent(d.name || "");
+      try { if (d.o) localStorage.setItem(MYSH_KEY, d.o); localStorage.setItem(MYTAG_KEY, S.rtag); } catch (x) {}
+      B.done = { name, status: d.status || "" };
+    } catch (e) {
+      if (handleApiError(e)) { S.busy = false; return; }
+      B.msg = e.code === "bad_id" ? "後四碼不對，請再確認；或請現場工作人員協助"
+            : e.code === "not_used" ? "這張號碼牌還沒報到或已失效，請找現場工作人員"
+            : "沒有綁定成功，請再試一次，或請現場工作人員協助";
+    }
+    S.busy = false; render();
+  };
+}
+
 // ===== 本所公告（收容所開設的「現場公告」）=====
 const MYSH_KEY = "mySh";
 const isHqMe = me => !!me && me.role === "社會處" && me.state !== "pending" && me.state !== "none";
@@ -1126,6 +1169,8 @@ function renderReport() {
     return;
   }
   const places = [...P.info.shelters, { id: "", name: "不在收容所" }];
+  // 綁定過號碼牌（或在收容所資訊選過）就自動帶入這一所，居民不用再選
+  if (!f.where) { const my = curShelter(); if (my) { f.o = my.id; f.where = my.name; } }
   setHTML($("#app"), pubHead("我要反映", "現場工作人員會盡快處理") + `<div class="form">
       <label>要反映什麼？<b>*</b></label><div class="pick" id="cats">${REPORT_CATS.map(c => `<button data-cat="${c}" class="${f.cat === c ? "on" : ""}">${c}</button>`).join("")}</div>
       ${f.cat === "身體不適" ? `<p class="err">情況緊急請直接撥 119，或找現場工作人員。</p>` : ""}

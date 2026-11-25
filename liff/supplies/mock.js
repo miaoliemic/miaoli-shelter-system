@@ -223,6 +223,8 @@ const mockApi = {
     if (a === "me") return me;
     if (a === "apply") { if (st === "none") mockPub.state = "pending"; return { ...me, state: mockPub.state }; }
     if (a === "feedback") return { ok: true };
+    // 居民綁定（原型）：後四碼 1234 才對
+    if (a === "bindTag") { if (f.id4 !== "1234") throw new ApiError("bad_id"); return { ok: true, name: "測試王小明", o: "o1", status: "在所" }; }
     if (a === "signout") { if (st !== "on") return { ok: true, already: true }; mockPub.state = "off"; return { ok: true, name: mock.me.name }; }
   },
   async tagInfo(tag) {

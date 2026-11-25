@@ -984,7 +984,7 @@ def ops_routes(b, respond, W, on, act):
     ]
 
 
-PUBLIC_ACTS = ["info", "me", "apply", "feedback", "signout"]
+PUBLIC_ACTS = ["info", "me", "apply", "feedback", "signout", "bindTag"]
 
 
 def public_routes(b, respond, W, auth_ok, on, act):
@@ -1074,6 +1074,26 @@ def public_routes(b, respond, W, auth_ok, on, act):
                                         + "\n民眾反映：身體不適\n請到社會處選單「各所現況」點這一所查看：\n"
                                         + f"https://liff.line.me/{LIFF_ID}?v=sites")]
 
+    # ---- bindTag：居民用自己的 LINE 掃號碼牌，輸入身分證後四碼，把這支手機綁到收容登記（tag 號碼牌編號、id4 後四碼） ----
+    # 只綁使用中的號碼牌；後四碼要和報到時登記的一樣（沒登記後四碼的不能自己綁，請找現場工作人員），避免撿到號碼牌就亂綁
+    tb = b.search("找號碼牌（居民綁定）", DS_TAG, [c("編號 |&*^%$#@| title", "text:equals", "{{1.tag}}")])
+    TB = tb["id"]
+    rb = b.get("讀居民（居民綁定）", sp(TB, "綁定居民", "[].id"))
+    RB = rb["id"]
+    r_id4 = sp(RB, "身分證後四碼", "[].plain_text")
+    bind_flow = [tb, b.router("號碼牌能不能綁定", [
+        (flt("號碼牌不是使用中（綁定）", [[c(sp(TB, "狀態", ".name"), "text:notequal", "使用中")]]), [
+            respond("回傳號碼牌不能綁定", '{"ok":false,"error":"not_used"}', "409")]),
+        (flt("號碼牌使用中（綁定）", [[c(sp(TB, "狀態", ".name"), "text:equal", "使用中")]]), [rb, b.router("後四碼對不對", [
+            (flt("後四碼不對", [[c(r_id4, "notexist")], [c(r_id4, "text:notequal", "{{1.id4}}")]]), [
+                respond("回傳後四碼不對", '{"ok":false,"error":"bad_id"}', "403")]),
+            (flt("後四碼正確", [[c(r_id4, "exist"), c(r_id4, "text:equal", "{{1.id4}}")]]), [
+                b.update("綁定居民 LINE", DS_RES, f"{{{{{RB}.id}}}}", [f_text("LINE User ID", uid), f_now("LINE 綁定時間")]),
+                respond("回傳已綁定", '{"ok":true,"name":"' + enc(sp(RB, "姓名", "[].plain_text")) + '","o":"' + sp(RB, "收容所開設", "[].id")
+                        + '","status":"' + sp(RB, "在所狀態", ".name") + '"}')]),
+        ])]),
+    ])]
+
     # ---- signout：簽退（名冊改已簽退、解除加乘選單、補出勤簽退時間）。不在班時也解除選單，讓選單恢復一般版 ----
     def unlink(name):
         return {"id": b.nid(), "module": "line:makeApiCall", "version": 1, "parameters": {"__IMTCONN__": CONN_LINE},
@@ -1104,6 +1124,7 @@ def public_routes(b, respond, W, auth_ok, on, act):
         (flt("我的狀態", [[auth_ok, act("me")]]), [respond("回傳我的狀態", me_body), *hq_menu_link(b, W, "（我的狀態）")]),
         (flt("申請開通", [[auth_ok, act("apply")]]), apply_flow),
         (flt("我要反映", [[auth_ok, act("feedback")]]), feedback_flow),
+        (flt("居民綁定號碼牌", [[auth_ok, act("bindTag"), c("{{1.tag}}", "exist"), c("{{1.id4}}", "exist")]]), bind_flow),
         (flt("簽退", [on + [act("signout")]]), signout_on),
         (flt("簽退（不在班）", [g + [act("signout")] for g in w_off]), [
             unlink("解除加乘選單（不在班，頁面）"), respond("回傳不在班（簽退）", '{"ok":true,"already":true}'),
