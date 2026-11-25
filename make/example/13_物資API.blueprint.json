@@ -7412,7 +7412,7 @@
                       "value": "application/json"
                      }
                     ],
-                    "body": "{\"to\": \"{{216.properties_value.`LINE User ID`[].plain_text}}\", \"messages\": [{\"type\": \"text\", \"text\": \"📋 {{212.properties_value.`開設名稱`[].plain_text}}\\n現場回報：已整理完成，可以撤收（{{3.properties_value.`姓名`[].plain_text}}）\\n請到社會處選單「各所現況」點這一所，確認後按「撤收這一所」：\\nhttps://liff.line.me/<現場頁面的 LIFF ID（必填：圖文選單每一格都打開它）>?v=sites\"}]}"
+                    "body": "{\"to\": \"{{216.properties_value.`LINE User ID`[].plain_text}}\", \"messages\": [{\"type\": \"text\", \"text\": \"📋 {{212.properties_value.`開設名稱`[].plain_text}}\\n現場回報：已整理完成，可以撤收（{{3.properties_value.`姓名`[].plain_text}}）\\n請到社會處選單「各所現況」點這一所，確認後按「完成撤收並結案」：\\nhttps://liff.line.me/<現場頁面的 LIFF ID（必填：圖文選單每一格都打開它）>?v=sites\"}]}"
                    },
                    "metadata": {
                     "designer": {

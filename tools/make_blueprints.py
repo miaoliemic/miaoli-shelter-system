@@ -961,7 +961,7 @@ def ops_routes(b, respond, W, on, act):
                 f_now("發生時間"), f_sel("來源", "LINE 回報")]),
             respond("回傳已回報可撤收", ok_body),
             *push_to_hq(b, "（可撤收回報）", "📋 " + sp(O3, "開設名稱", "[].plain_text") + "\n現場回報：已整理完成，可以撤收（" + w_name
-                        + "）\n請到社會處選單「各所現況」點這一所，確認後按「撤收這一所」：\n" + f"https://liff.line.me/{LIFF_ID}?v=sites")]),
+                        + "）\n請到社會處選單「各所現況」點這一所，確認後按「完成撤收並結案」：\n" + f"https://liff.line.me/{LIFF_ID}?v=sites")]),
         (flt("不是開設中（可撤收回報）", [[c(sp(O3, "開設狀態", ".name"), "text:notequal", "開設中")]]), [
             respond("回傳不是開設中（可撤收回報）", '{"ok":false,"error":"bad_stage"}', "409")]),
     ])]
