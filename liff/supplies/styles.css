@@ -322,9 +322,9 @@ body.pub{font-size:1.0625rem}
   #printArea .rep-print .prow.bar .track i,#printArea .rep-print .vd,#printArea .rep-print .rep-head{-webkit-print-color-adjust:exact;print-color-adjust:exact}
 }
 /* 指揮台：收容所清單收合後的一行摘要；展開時固定在畫面下方的「已選 N 所・選好了」列 */
-.picked{display:flex;align-items:center;gap:8px;margin-top:8px;padding:10px 12px;border-radius:12px;background:var(--blue-bg);color:var(--blue);font-weight:700}
-.picked span{flex:1;min-width:0}
-.picked button{flex:none;padding:6px 10px;border-radius:10px;border:1px solid var(--blue);background:var(--card);color:var(--blue);font-weight:700}
+.hq-picked{display:flex;align-items:center;gap:8px;margin-top:8px;padding:10px 12px;border-radius:12px;background:var(--blue-bg);color:var(--blue);font-weight:700}
+.hq-picked span{flex:1;min-width:0}
+.hq-picked button{flex:none;padding:6px 10px;border-radius:10px;border:1px solid var(--blue);background:var(--card);color:var(--blue);font-weight:700}
 .hq-sticky{position:sticky;bottom:calc(64px + env(safe-area-inset-bottom,0px));z-index:4;display:flex;align-items:center;gap:8px;margin-top:10px;padding:10px 12px;border-radius:12px;background:var(--blue);color:#fff;box-shadow:0 4px 14px rgba(0,0,0,.25)}
 .hq-sticky span{flex:1;min-width:0}
 .hq-sticky button{flex:none;padding:8px 14px;border-radius:10px;background:#fff;color:var(--blue);font-weight:700}
@@ -415,3 +415,10 @@ button:has(.ldots):not(.go):not(.main):not(.blue){color:var(--busy);border-color
 
 .sheet .sheetx{position:absolute;top:10px;right:10px;width:40px;height:40px;border-radius:50%;border:0;background:transparent;color:var(--muted,#888);font-size:1.25rem;cursor:pointer}
 .sheet .sheetx+h2{padding-right:44px}
+/* 撤收準備回報：由上而下的勾選清單 */
+.chklist{margin:0 16px;display:flex;flex-direction:column;gap:8px}
+.chklist .chk{display:flex;align-items:flex-start;gap:10px;text-align:left;padding:12px;border-radius:12px;border:1px solid var(--line);background:var(--card);color:var(--text);font-size:1rem;line-height:1.4}
+.chklist .chk .box{flex:none;width:1.4em;height:1.4em;border-radius:6px;border:2px solid var(--soft);display:inline-flex;align-items:center;justify-content:center;font-weight:700;margin-top:1px}
+.chklist .chk.on{border-color:var(--green)}
+.chklist .chk.on .box{background:var(--green);border-color:var(--green);color:#fff}
+.chklist .chk small{display:block;color:var(--soft);font-size:0.8125rem;margin-top:2px}

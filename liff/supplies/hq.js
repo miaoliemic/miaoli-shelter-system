@@ -122,7 +122,7 @@ function renderCmd() {
   const listOpen = H.pickOpen || !sel.length;
   const needName = H.ev === "new" && !H.newEv.name.trim();
   html += `<div class="hq-step" id="hq-step2"><h2><span class="n">2</span>選擇收容所</h2>
-    ${!listOpen ? `<div class="picked"><span>已選 ${sel.length} 所：${esc(sel.map(s => s.name).join("、"))}</span><button id="hq-pickopen">▸ 修改</button></div>` : `<p class="hint">綠色標籤＝適用「${esc(kind)}」；橘色＝適合安置避難弱者。已開設的不能重複開設。</p>
+    ${!listOpen ? `<div class="hq-picked"><span>已選 ${sel.length} 所：${esc(sel.map(s => s.name).join("、"))}</span><button id="hq-pickopen">▸ 修改</button></div>` : `<p class="hint">綠色標籤＝適用「${esc(kind)}」；橘色＝適合安置避難弱者。已開設的不能重複開設。</p>
     <button class="opt" id="hq-fit" style="margin-top:8px"><span class="box" style="${H.onlyFit ? "background:var(--blue);border-color:var(--blue)" : ""}">${H.onlyFit ? "✓" : ""}</span>
       <span class="meta">只顯示適用「${esc(kind)}」的收容所</span></button>
     ${list.map(s => {

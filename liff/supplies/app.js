@@ -128,6 +128,7 @@ const S = {
   view: params.get("r") ? "resident" : params.get("v") === "report" && params.get("o") ? "final" : PRINT_VIEWS.includes(params.get("v")) ? params.get("v") : PUB_VIEWS.includes(params.get("v")) || HQ_VIEWS.includes(params.get("v")) || params.get("v") === "ops" ? params.get("v") : "supply",
   hqO: params.get("v") === "ops" ? params.get("o") : null,   // 社會處從「各所現況」點進來看某一所（只能看，撤收・結案除外）
   finO: params.get("v") === "report" ? params.get("o") : null,   // 結報畫面的開設 ID
+  finAuto: params.get("v") === "report" && params.get("fin") === "1",   // 從「完成撤收並結案」過來：載完直接結案（確認已在前一步問過）
   hqItems: null,
   pub: { info: null, me: null, msg: "", done: "", form: { cat: "", o: "", where: "", text: "" }, ap: { name: "", unit: "", phone: "" } },
   ops: null, opsShow: "", reportRes: null,   // 本所畫面的資料、展開的名單、記錄事件時帶入的居民
@@ -323,6 +324,13 @@ function renderOps() {
     body += `<div class="sec">物資庫存 <small>${low.length ? `${low.length} 項低於安全庫存` : "都在安全庫存以上"}</small></div>
       <div class="plist">${[...low, ...S.hqItems.filter(it => !low.includes(it))].map(it => `<div class="prow stk ${it.stock < it.safety ? "low" : ""}"><span class="n">${esc(it.name)}${it.stock < it.safety ? " ⚠" : ""}</span><span class="meta">${esc(stockText(it))}</span></div>`).join("") || `<div class="prow">沒有品項</div>`}</div>`;
   }
+  // 加印空白號碼牌：開設後人數變多、空白牌不夠時用（管理者；社會處在指揮台的「居民號碼牌」產生）
+  if (!ro && d.opening.stage === "開設中" && /管理者/.test(d.me.role || "")) {
+    const last = lastTags();
+    body += `<div class="sec">居民號碼牌</div><div class="biglinks rbtns">
+      <button class="biglink" id="mkTags"><span class="ic">🏷</span><span>加印空白號碼牌<small>空白牌不夠時，產生新的號碼牌並列印</small></span></button>
+      ${last ? `<button class="hq-go ghost" id="lastTags">🖨 重印上次產生的號碼牌（${esc(last.p)}・${last.c.length} 張）</button>` : ""}</div>`;
+  }
   body += closeActs(d, ro);
   setHTML(app, head + body);
   if (ro) return;
@@ -344,21 +352,23 @@ function prepView(d) {
 }
 // 撤收・結案按鈕列：只有社會處能撤收、結案（開設中→撤收、撤收中→結案、隨時看結報）。
 // 現場管理者不撤收，改成「撤收準備回報」：清點、打掃都完成後回報社會處可以撤收（資訊回報，不改開設狀態）
-const READY_ITEMS = ["居民都已離所或轉介", "物資已清點", "場地已打掃復原", "設備已歸位"];
+const READY_ITEMS = ["居民都已離所或轉介", "剩餘物資已盤點，系統數量正確", "場地已打掃、恢復原狀", "借用設備（床墊、桌椅、延長線等）已歸還或歸位"];
 const readyLog = d => (d.events || []).filter(e => e.cat === "整備回報" && String(e.title || "").startsWith("撤收準備回報")).sort((a, b) => new Date(b.at) - new Date(a.at))[0];
 const readyBox = e => `<div class="rcard ready"><b>📋 現場已回報：可以撤收</b><div class="meta">${esc(fmtTime(e.at))}${e.who ? `・${esc(String(e.who).replace(/^.*｜/, ""))}` : ""}</div>
     ${e.text ? `<div class="meta">${esc(e.text).replace(/\n/g, "<br>")}</div>` : ""}</div>`;
 function closeActs(d, ro) {
   const st = d.opening.stage, full = ' style="grid-column:1 / -1"', rep = readyLog(d);
-  if (ro) return `<div class="sec">撤收與結案</div>${rep && st === "開設中" ? readyBox(rep) : ""}<div class="ract">
-    ${st === "開設中" ? `<button class="warn" id="opsClose"${full}>撤收這一所</button>` : ""}
-    ${st === "撤收中" ? `<button class="main" id="opsFinish">完成撤收（結案並產生結報）</button>` : ""}
+  // 社會處：現場回報「可以撤收」→ 一個按鈕「完成撤收並結案」（撤收＋結案一次做完，接著打開結報）
+  if (ro) return `<div class="sec">撤收與結案</div>${st === "開設中" ? (rep ? readyBox(rep) : `<div class="hint" style="margin:0 16px 8px">現場還沒回報可以撤收。</div>`) : ""}<div class="ract">
+    ${st === "開設中" || st === "撤收中" ? `<button class="main" id="opsClose"${full}>完成撤收並結案</button>` : ""}
     <button id="opsReport"${full}>查看結報</button></div>`;
   if (st !== "開設中" || !/管理者/.test(d.me.role || "")) return "";
   if (rep) return `<div class="sec">撤收準備回報</div>${readyBox(rep)}<div class="hint" style="margin:6px 16px 0">已通知社會處。撤收由社會處確認後按，撤收前一切照常運作。</div>`;
   const R = S.ready || (S.ready = { checks: [], note: "" }), all = READY_ITEMS.every(i => R.checks.includes(i));
   return `<div class="sec">撤收準備回報 <small>災情解除、現場整理完成後回報社會處</small></div>
-    <div class="pick" style="margin:0 16px">${READY_ITEMS.map(i => `<button data-ready="${esc(i)}" class="${R.checks.includes(i) ? "on" : ""}">${R.checks.includes(i) ? "✓ " : ""}${esc(i)}</button>`).join("")}</div>
+    <div class="chklist">${READY_ITEMS.map((i, k) => { const on = R.checks.includes(i), o = d.opening;
+      const sub = k === 0 ? `目前在所 ${o.inside || 0} 人、外出 ${o.out || 0} 人${o.late ? `、未返 ${o.late} 人` : ""}` : "";
+      return `<button class="chk ${on ? "on" : ""}" data-ready="${esc(i)}" role="checkbox" aria-checked="${on}"><span class="box">${on ? "✓" : ""}</span><span>${esc(i)}${sub ? `<small>${esc(sub)}</small>` : ""}</span></button>`; }).join("")}</div>
     <div class="form"><label>備註（可不填）<textarea id="rd-note" maxlength="500" placeholder="例：毛毯 3 條待送洗">${esc(R.note)}</textarea></label></div>
     <div class="ract"><button class="main" id="readySend"${full} ${all && !S.busy ? "" : 'disabled style="opacity:.4"'}>回報社會處：可以撤收</button></div>
     <div class="hint" style="margin:6px 16px 0">${all ? "送出後 LINE 通知社會處；撤收由社會處按。" : "四項都完成後才能回報。"}</div>`;
@@ -374,20 +384,21 @@ async function sendReady() {
 function closeCheckSheet() {
   const d = S.ops, o = d.opening, evs = openEvents(), id = S.hqO || o.id;
   const rows = [["居民在所", o.inside, "人"], ["居民外出", o.out, "人"], ["居民未返", o.late, "人"], ["待處理事件", evs.length, "件"], ["在班工作人員", d.duty.length, "人"]];
-  const left = rows.filter(r => r[1] > 0);
-  sheet(`<h2>撤收「${esc(o.name)}」</h2>
-    <div class="meta">撤收後不再接受新的報到；外出、返回、離所、物資、事件、簽退照常可用。之後由社會處結案。</div>
+  const left = rows.filter(r => r[1] > 0), rep = readyLog(d);
+  sheet(`<h2>完成撤收並結案「${esc(o.name)}」</h2>
+    ${rep ? readyBox(rep) : `<div class="err" style="margin:6px 0">⚠ 現場還沒回報可以撤收，確定要直接撤收嗎？</div>`}
+    <div class="meta">按下後這一所改為「已撤收」，結報寫進 Notion，接著打開結報。</div>
     <label>撤收前檢查</label><div class="plist">${rows.map(([k, n, u]) => `<div class="prow"><span class="n">${k}</span><span class="meta ${n ? "bad" : "ok"}">${n ? `${n} ${u}` : "✓ 0"}</span></div>`).join("")}</div>
     <div class="err" id="cl-err"></div>
-    <div class="acts"><button data-close>取消</button><button class="go" id="cl-ok" style="background:var(--red)">確定撤收</button></div>`, root => {
+    <div class="acts"><button data-close>取消</button><button class="go" id="cl-ok" style="background:var(--red)">確定撤收並結案</button></div>`, root => {
     root.querySelector("#cl-ok").onclick = async () => {
       if (left.length && !confirm(`還有：\n${left.map(([k, n, u]) => `${k} ${n} ${u}`).join("\n")}\n\n仍要撤收嗎？`)) return;
       if (S.busy) return;
       if (!id) { root.querySelector("#cl-err").textContent = "讀不到開設編號，請關閉後重新整理"; return; }
       const b = root.querySelector("#cl-ok"); b.disabled = true; b.textContent = "撤收中…"; S.busy = true;
-      try { await api.hq("hqClose", { o: id }); S.busy = false; closeSheet(); toast("已改為撤收中"); loadOps(); }
+      try { await api.hq("hqClose", { o: id }); S.busy = false; closeSheet(); go(`?v=report&o=${encodeURIComponent(id)}&fin=1`); }
       catch (e) {
-        S.busy = false; b.disabled = false; b.textContent = "確定撤收";
+        S.busy = false; b.disabled = false; b.textContent = "確定撤收並結案";
         if (e.code === "bad_state") { closeSheet(); toast("這一所已不是開設中，已重新讀取"); loadOps(); }
         else if (e.code === "not_ours") root.querySelector("#cl-err").textContent = "只能撤收自己派駐的這一所";
         else if (e.code === "not_hq") root.querySelector("#cl-err").textContent = "只有社會處或本所的管理者可以撤收";
@@ -634,7 +645,7 @@ function recipBar() {
   if (r.kind === "public") return `<div class="recipient"><div class="who">領取對象<br><b>公共用途</b><small>補到廁所、公共區等，不是發給個人</small></div>
     <button id="rscan">改掃號碼牌</button></div>`;
   return `<div class="recipient"><div class="who">領取人<br><b>${esc(r.name)}</b>　${esc(r.tag)}${r.note ? `・${esc(r.note)}` : ""}<small>掃錯了就直接掃另一張；可代領全家</small></div>
-    <button id="pub">改公共用途</button></div>`;
+    <button id="rscan">換一位</button></div>`;   // 發給居民時不提供公共用途：公共用途由工作人員另外從發放進來處理
 }
 function rowCtrl(it) {
   const p = S.pick[it.id] || { qty: "", unit: it.unit };
@@ -690,7 +701,7 @@ document.addEventListener("click", async e => {
   }
   else if (b.id === "opsReload") loadOps();
   else if (b.id === "hqBack") go("?v=sites");
-  else if (b.id === "opsClose") closeCheckSheet();
+  else if (b.id === "opsClose") S.ops && S.ops.opening.stage === "撤收中" ? go(`?v=report&o=${encodeURIComponent(S.hqO)}&fin=1`) : closeCheckSheet();
   else if (b.dataset.ready) { const R = S.ready, n = $("#rd-note"); if (n) R.note = n.value; const i = b.dataset.ready; R.checks = R.checks.includes(i) ? R.checks.filter(x => x !== i) : [...R.checks, i]; render(); }
   else if (b.id === "readySend") sendReady();
   else if (b.id === "opsFinish" || b.id === "opsReport") go(`?v=report&o=${encodeURIComponent(S.hqO)}`);
@@ -1442,17 +1453,17 @@ function renderFinal() {
 }
 async function loadFinal() {
   S.view = "final"; F.d = null; F.msg = ""; render();
-  try { F.d = await api.hq("hqReport", { o: S.finO }); }
+  try { F.d = await api.hq("hqReport", { o: S.finO }); if (S.finAuto && F.d.opening.status === "撤收中") { S.finAuto = false; render(); return doFinish(true); } }
   catch (e) {
     if (e.code === "not_hq") F.msg = "結報限社會處查看。";
     else if (!handleApiError(e)) F.msg = "網路不穩，沒讀到結報資料。請按右上角重新整理。";
   }
   render();
 }
-async function doFinish() {
+async function doFinish(skipAsk) {
   if (F.busy || !F.d) return;
   const R = computeReport(F.d), s = reportText(R);
-  if (!confirm(`確定結案「${R.o.name}」？\n累計收容 ${R.total} 人、最高同時在所 ${R.peak} 人。\n結案後狀態改為「已撤收」，結報會寫進 Notion。`)) return;
+  if (!skipAsk && !confirm(`確定結案「${R.o.name}」？\n累計收容 ${R.total} 人、最高同時在所 ${R.peak} 人。\n結案後狀態改為「已撤收」，結報會寫進 Notion。`)) return;
   F.busy = true; render();
   try {
     await api.hq("hqFinish", { o: S.finO, n: String(R.total), m: String(R.peak), s });
