@@ -190,11 +190,14 @@ function lines() {
 }
 
 // ===== 畫面 =====
+const TAB_TITLE = { ops: "本所總覽", resident: "居民進出管理", supply: "物資收發管理" };   // 和 title.js 一致
 function render() {
   if (PRINT_VIEWS.includes(S.view)) return renderPrintView();
   document.body.classList.toggle("ops", S.view === "ops");
   document.body.classList.toggle("final", S.view === "final");
   if (S.view === "final") return renderFinal();
+  // 本所三個分頁在同一頁切換，標題跟著換（社會處看某一所時，renderOps 會換成該所名稱）
+  if (TAB_TITLE[S.view] && !S.hqO) document.title = TAB_TITLE[S.view];
   document.body.classList.toggle("pub", PUB_VIEWS.includes(S.view) || HQ_VIEWS.includes(S.view));
   if (HQ_VIEWS.includes(S.view)) return renderHq();
   if (PUB_VIEWS.includes(S.view)) return renderPub();
