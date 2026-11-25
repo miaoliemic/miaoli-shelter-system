@@ -793,7 +793,7 @@ def status_flow_for(b, respond, W, open_expr, all_res=False, sfx=""):
                    + '","light":"' + sp(O, "狀況燈號", ".string") + '","inside":' + num("在所人數") + ',"capacity":' + num("容納人數")
                    + ',"out":' + num("外出人數") + ',"late":' + num("未返人數") + ',"care":' + num("需關懷人數")
                    + ',"open":' + num("未結日誌數") + ',"urgent":' + num("緊急未結數")
-                   + ',"needStaff":' + num("缺工作人員") + ',"needVol":' + num("缺志工") + '},'
+                   + ',"staff":' + num("在班工作人員數") + ',"vol":' + num("在班志工數") + '},'
                    '"duty":' + f"{{{{{DJ}.json}}}}" + ',"residents":' + f"{{{{{RJ}.json}}}}" + ',"events":' + f"{{{{{LJ}.json}}}}" + '}')
     return [og, duty, *duty_mods, res, *res_mods, logs, *log_mods, respond("回傳本所狀況" + sfx, status_body)]
 
@@ -1207,7 +1207,8 @@ def hq_routes(b, respond, W, auth_ok, on, act, load_flow_for):
         "name": sp(ST, "開設名稱", "[].plain_text"), "stage": sp(ST, "開設狀態", ".name"), "light": sp(ST, "狀況燈號", ".string"),
         "inside": num(ST, "在所人數"), "capacity": num(ST, "容納人數"), "out": num(ST, "外出人數"), "late": num(ST, "未返人數"),
         "care": num(ST, "需關懷人數"), "open": num(ST, "未結日誌數"), "urgent": num(ST, "緊急未結數"),
-        "needStaff": num(ST, "缺工作人員"), "needVol": num(ST, "缺志工"), "low": num(ST, "低庫存品項數")})
+        # 在班人數（沒有足額標準，只回報現在有幾人，不算缺幾人）
+        "staff": num(ST, "在班工作人員數"), "vol": num(ST, "在班志工數"), "low": num(ST, "低庫存品項數")})
     ev2 = search_all("找進行中的災害（各所現況）", DS_EVENT, [c("狀態 |&*^%$#@| select", "select:does_not_equal", "已結束")], 20)
     EV2 = ev2["id"]
     ev2_mods, EJ2 = agg_json("災害（各所現況）", EV2, {"id": f"{{{{{EV2}.id}}}}", "name": sp(EV2, "災害名稱", "[].plain_text")})

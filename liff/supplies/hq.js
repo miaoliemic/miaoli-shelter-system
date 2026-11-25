@@ -278,7 +278,7 @@ function renderSites() {
     H.sites.filter(s => s.event === g).map(s => `<button class="site" data-site="${esc(s.id)}">
       <div class="t">${esc(s.light || "")} ${esc(s.name)}${s.stage === "撤收中" ? `<span class="stagetag">撤收中</span>` : ""}<small>${s.inside}／${s.capacity} 人</small></div>
       <div class="nums">${n(s.out, "外出", "warn")}${n(s.late, "未返", "alert")}${n(s.care, "需關懷", "warn")}
-        ${n(s.open, s.urgent ? `待處理（緊急 ${s.urgent}）` : "待處理事件", s.urgent ? "alert" : "warn")}${n(s.needStaff + s.needVol, "缺人", "warn")}${n(s.low, "低庫存", "warn")}</div></button>`).join("")).join("")
+        ${n(s.open, s.urgent ? `待處理（緊急 ${s.urgent}）` : "待處理事件", s.urgent ? "alert" : "warn")}<span>在班 <b>${(s.staff || 0) + (s.vol || 0)}</b></span>${n(s.low, "低庫存", "warn")}</div></button>`).join("")).join("")
     || `<div class="card"><small>目前沒有開設中的收容所。到「指揮台」開設。</small></div>`)
     + (closed.length ? `<div class="sec">最近結案 <small>點進去看結報</small></div>` + closed.map(c => `<button class="site" data-final="${esc(c.id)}">
       <div class="t">${esc(c.name)}<small>${esc(fmtTime(c.closeAt))} 結案</small></div>

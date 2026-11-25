@@ -51,7 +51,7 @@ function mockStatus() {
   return { ok: true, me: { id: "s1", name: mock.me.name, role: mock.me.role },
     opening: { id: S.hqO || "o1", name: S.hqO ? (mockHq.openings.find(o => o.id === S.hqO) || {}).name || mock.me.opening : mock.me.opening,
                stage: S.hqO ? mockStage(S.hqO) : mockOps.stage, light: open.some(e => e.sev === "緊急") ? "🔴" : "🟡", inside: 37, capacity: 120, out: 2, late: 1, care: 4,
-               open: open.length, urgent: open.filter(e => e.sev === "緊急").length, needStaff: 1, needVol: 2 },
+               open: open.length, urgent: open.filter(e => e.sev === "緊急").length, staff: 2, vol: 1 },
     duty: [{ id: "s1", name: mock.me.name, role: mock.me.role, kind: "工作人員" }, { id: "s2", name: "測試阿明", role: "門禁組", kind: "工作人員" }, { id: "s3", name: "測試小美", role: "志工", kind: "志工" }],
     residents: [{ id: "r1", name: "測試王小明", status: "在所", back: "", care: "高齡者" }, { id: "r2", name: "測試林阿姨", status: "外出", back: new Date(Date.now() + 2 * 3600e3).toISOString(), care: "" },
                 { id: "r4", name: "測試陳伯伯", status: "未返", back: new Date(Date.now() - 3600e3).toISOString(), care: "身心障礙" }],
@@ -119,8 +119,8 @@ async function mockHqCall(a, f) {
   if (a === "hqApprove" || a === "hqReject") { mockHq.apps = mockHq.apps.filter(x => x.id !== f.id); return { ok: true }; }
   if (a === "hqSites") return { ok: true, sites: mockHq.openings.filter(o => /開設中|撤收中/.test(mockStage(o.id))).map((o, i) => {
     const ev = mockHq.events.find(e => e.id === o.eventId), sh = shelters.find(x => x.id === o.shelterId), stage = mockStage(o.id);
-    return i === 0 ? { id: o.id, eventId: ev.id, name: o.name, stage, light: "🔴", inside: 37, capacity: 120, out: 2, late: 1, care: 4, open: 2, urgent: 1, needStaff: 1, needVol: 2, low: 1 }
-                   : { id: o.id, eventId: ev.id, name: o.name, stage, light: "🟢", inside: 12 * i, capacity: sh.cap, out: 0, late: 0, care: 1, open: 0, urgent: 0, needStaff: 0, needVol: 0, low: 0 };
+    return i === 0 ? { id: o.id, eventId: ev.id, name: o.name, stage, light: "🔴", inside: 37, capacity: 120, out: 2, late: 1, care: 4, open: 2, urgent: 1, staff: 2, vol: 1, low: 1 }
+                   : { id: o.id, eventId: ev.id, name: o.name, stage, light: "🟢", inside: 12 * i, capacity: sh.cap, out: 0, late: 0, care: 1, open: 0, urgent: 0, staff: 1, vol: 0, low: 0 };
   }), events: mockHq.events.map(e => ({ id: e.id, name: e.name })),
     closed: [mockHq.closed, ...mockHq.openings.filter(o => mockStage(o.id) === "已撤收").map(o => ({ id: o.id, eventId: o.eventId, name: o.name, closeAt: new Date().toISOString(), n: 40, m: 33 }))] };
   // 撤收（開設中 → 撤收中）、結案（撤收中 → 已撤收）、結報原始資料

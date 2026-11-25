@@ -5258,7 +5258,7 @@
                "parameters": {},
                "mapper": {
                 "status": "200",
-                "body": "{\"ok\":true,\"me\":{\"id\":\"{{3.id}}\",\"name\":\"{{encodeURL(3.properties_value.`姓名`[].plain_text)}}\",\"role\":\"{{3.properties_value.`角色`.name}}\"},\"opening\":{\"id\":\"{{171.id}}\",\"name\":\"{{encodeURL(171.properties_value.`開設名稱`[].plain_text)}}\",\"stage\":\"{{171.properties_value.`開設狀態`.name}}\",\"light\":\"{{171.properties_value.`狀況燈號`.string}}\",\"inside\":{{ifempty(171.properties_value.`在所人數`.number; 0)}},\"capacity\":{{ifempty(171.properties_value.`容納人數`.number; 0)}},\"out\":{{ifempty(171.properties_value.`外出人數`.number; 0)}},\"late\":{{ifempty(171.properties_value.`未返人數`.number; 0)}},\"care\":{{ifempty(171.properties_value.`需關懷人數`.number; 0)}},\"open\":{{ifempty(171.properties_value.`未結日誌數`.number; 0)}},\"urgent\":{{ifempty(171.properties_value.`緊急未結數`.number; 0)}},\"needStaff\":{{ifempty(171.properties_value.`缺工作人員`.number; 0)}},\"needVol\":{{ifempty(171.properties_value.`缺志工`.number; 0)}}},\"duty\":{{174.json}},\"residents\":{{177.json}},\"events\":{{180.json}}}",
+                "body": "{\"ok\":true,\"me\":{\"id\":\"{{3.id}}\",\"name\":\"{{encodeURL(3.properties_value.`姓名`[].plain_text)}}\",\"role\":\"{{3.properties_value.`角色`.name}}\"},\"opening\":{\"id\":\"{{171.id}}\",\"name\":\"{{encodeURL(171.properties_value.`開設名稱`[].plain_text)}}\",\"stage\":\"{{171.properties_value.`開設狀態`.name}}\",\"light\":\"{{171.properties_value.`狀況燈號`.string}}\",\"inside\":{{ifempty(171.properties_value.`在所人數`.number; 0)}},\"capacity\":{{ifempty(171.properties_value.`容納人數`.number; 0)}},\"out\":{{ifempty(171.properties_value.`外出人數`.number; 0)}},\"late\":{{ifempty(171.properties_value.`未返人數`.number; 0)}},\"care\":{{ifempty(171.properties_value.`需關懷人數`.number; 0)}},\"open\":{{ifempty(171.properties_value.`未結日誌數`.number; 0)}},\"urgent\":{{ifempty(171.properties_value.`緊急未結數`.number; 0)}},\"staff\":{{ifempty(171.properties_value.`在班工作人員數`.number; 0)}},\"vol\":{{ifempty(171.properties_value.`在班志工數`.number; 0)}}},\"duty\":{{174.json}},\"residents\":{{177.json}},\"events\":{{180.json}}}",
                 "headers": [
                  {
                   "key": "Content-Type",
@@ -12946,8 +12946,8 @@
                 "care": "{{ifempty(286.properties_value.`需關懷人數`.number; 0)}}",
                 "open": "{{ifempty(286.properties_value.`未結日誌數`.number; 0)}}",
                 "urgent": "{{ifempty(286.properties_value.`緊急未結數`.number; 0)}}",
-                "needStaff": "{{ifempty(286.properties_value.`缺工作人員`.number; 0)}}",
-                "needVol": "{{ifempty(286.properties_value.`缺志工`.number; 0)}}",
+                "staff": "{{ifempty(286.properties_value.`在班工作人員數`.number; 0)}}",
+                "vol": "{{ifempty(286.properties_value.`在班志工數`.number; 0)}}",
                 "low": "{{ifempty(286.properties_value.`低庫存品項數`.number; 0)}}"
                },
                "metadata": {
@@ -13491,7 +13491,7 @@
                "parameters": {},
                "mapper": {
                 "status": "200",
-                "body": "{\"ok\":true,\"me\":{\"id\":\"{{3.id}}\",\"name\":\"{{encodeURL(3.properties_value.`姓名`[].plain_text)}}\",\"role\":\"{{3.properties_value.`角色`.name}}\"},\"opening\":{\"id\":\"{{350.id}}\",\"name\":\"{{encodeURL(350.properties_value.`開設名稱`[].plain_text)}}\",\"stage\":\"{{350.properties_value.`開設狀態`.name}}\",\"light\":\"{{350.properties_value.`狀況燈號`.string}}\",\"inside\":{{ifempty(350.properties_value.`在所人數`.number; 0)}},\"capacity\":{{ifempty(350.properties_value.`容納人數`.number; 0)}},\"out\":{{ifempty(350.properties_value.`外出人數`.number; 0)}},\"late\":{{ifempty(350.properties_value.`未返人數`.number; 0)}},\"care\":{{ifempty(350.properties_value.`需關懷人數`.number; 0)}},\"open\":{{ifempty(350.properties_value.`未結日誌數`.number; 0)}},\"urgent\":{{ifempty(350.properties_value.`緊急未結數`.number; 0)}},\"needStaff\":{{ifempty(350.properties_value.`缺工作人員`.number; 0)}},\"needVol\":{{ifempty(350.properties_value.`缺志工`.number; 0)}}},\"duty\":{{353.json}},\"residents\":{{356.json}},\"events\":{{359.json}}}",
+                "body": "{\"ok\":true,\"me\":{\"id\":\"{{3.id}}\",\"name\":\"{{encodeURL(3.properties_value.`姓名`[].plain_text)}}\",\"role\":\"{{3.properties_value.`角色`.name}}\"},\"opening\":{\"id\":\"{{350.id}}\",\"name\":\"{{encodeURL(350.properties_value.`開設名稱`[].plain_text)}}\",\"stage\":\"{{350.properties_value.`開設狀態`.name}}\",\"light\":\"{{350.properties_value.`狀況燈號`.string}}\",\"inside\":{{ifempty(350.properties_value.`在所人數`.number; 0)}},\"capacity\":{{ifempty(350.properties_value.`容納人數`.number; 0)}},\"out\":{{ifempty(350.properties_value.`外出人數`.number; 0)}},\"late\":{{ifempty(350.properties_value.`未返人數`.number; 0)}},\"care\":{{ifempty(350.properties_value.`需關懷人數`.number; 0)}},\"open\":{{ifempty(350.properties_value.`未結日誌數`.number; 0)}},\"urgent\":{{ifempty(350.properties_value.`緊急未結數`.number; 0)}},\"staff\":{{ifempty(350.properties_value.`在班工作人員數`.number; 0)}},\"vol\":{{ifempty(350.properties_value.`在班志工數`.number; 0)}}},\"duty\":{{353.json}},\"residents\":{{356.json}},\"events\":{{359.json}}}",
                 "headers": [
                  {
                   "key": "Content-Type",

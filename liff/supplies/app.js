@@ -289,7 +289,10 @@ function renderOps() {
   body += `<div class="stats">${stat(ro ? "all" : "", `${o.inside}<small style="font-size:0.8125rem">／${o.capacity}</small>`, "在所／容量")}
     ${stat("out", o.out, "外出", o.out ? "warn" : "")}${stat("late", o.late, "未返", o.late ? "alert" : "")}
     ${stat("care", o.care, "需關懷", o.care ? "warn" : "")}${stat("", evs.length, urgent ? `待處理・緊急 ${urgent}` : "待處理事件", urgent ? "alert" : evs.length ? "warn" : "")}
-    ${stat("", o.needStaff + o.needVol, `缺工 ${o.needStaff}・缺志 ${o.needVol}`, o.needStaff + o.needVol ? "warn" : "")}</div>`;
+    ${(() => {   // 在班人數：沒有「足額」標準，所以只顯示現在有幾人，不算缺幾人
+      const vol = d.duty.filter(x => x.kind === "志工").length, staff = d.duty.length - vol;
+      return stat("", d.duty.length, `在班・工作人員 ${staff}・志工 ${vol}`);
+    })()}</div>`;
   if (S.opsShow) {
     const rs = d.residents.filter(r => S.opsShow === "all" ? true : S.opsShow === "care" ? r.care : r.status === (S.opsShow === "late" ? "未返" : "外出"));
     const meta = r => S.opsShow === "all" ? [r.status, r.care].filter(Boolean).join("・") : S.opsShow === "care" ? r.care : r.back ? `預計 ${fmtTime(r.back)}` : "";
