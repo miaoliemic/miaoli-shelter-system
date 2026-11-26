@@ -373,7 +373,7 @@ function closeActs(d, ro) {
     <div class="chklist">${READY_ITEMS.map((i, k) => { const on = R.checks.includes(i), o = d.opening;
       const sub = k === 0 ? `目前在所 ${o.inside || 0} 人、外出 ${o.out || 0} 人${o.late ? `、未返 ${o.late} 人` : ""}` : "";
       return `<button class="chk ${on ? "on" : ""}" data-ready="${esc(i)}" role="checkbox" aria-checked="${on}"><span class="box">${on ? "✓" : ""}</span><span>${esc(i)}${sub ? `<small>${esc(sub)}</small>` : ""}</span></button>`; }).join("")}</div>
-    <div class="form"><label>備註（可不填）<textarea id="rd-note" maxlength="500" placeholder="例：毛毯 3 條待送洗">${esc(R.note)}</textarea></label></div>
+    <div class="form"><label>備註（可不填）<textarea id="rd-note" data-max="500" placeholder="例：毛毯 3 條待送洗">${esc(R.note)}</textarea></label></div>
     <div class="ract"><button class="main" id="readySend"${full} ${all && !S.busy ? "" : 'disabled style="opacity:.4"'}>回報社會處：可以撤收</button></div>
     <div class="hint" style="margin:6px 16px 0">${all ? "送出後 LINE 通知社會處；撤收由社會處按。" : "四項都完成後才能回報。"}</div>`;
 }
@@ -451,7 +451,7 @@ function eventSheet(id) {
     <div class="meta"><span class="sev ${esc(e.sev)}">${esc(e.sev)}</span>　${esc(nz(e.cat))}・${esc(nz(e.status))}・${esc(fmtTime(e.at))}${ownerName(e) ? `・${esc(ownerName(e))} 負責` : ""}</div>${whoLine(e)}
     ${e.text ? `<div class="pre">${esc(e.text)}</div>` : ""}
     <label>處理紀錄</label><div class="pre">${esc((e.log || "").trim() || "（還沒有）")}</div>
-    ${isOpen(e) ? `<label>給現場的指示（回覆指示必填，接手可留空）<textarea id="hq-text" maxlength="500" placeholder="例：已協調大同國小調 2 箱水過去，14:00 前送到"></textarea></label>
+    ${isOpen(e) ? `<label>給現場的指示（回覆指示必填，接手可留空）<textarea id="hq-text" data-max="500" placeholder="例：已協調大同國小調 2 箱水過去，14:00 前送到"></textarea></label>
     <div class="err" id="hq-err"></div>
     <div class="acts" style="grid-template-columns:1fr 1fr 1fr"><button data-close>關閉</button>
       <button id="hq-take">社會處接手</button><button class="go" id="hq-reply">回覆指示</button></div>
@@ -473,7 +473,7 @@ function eventSheet(id) {
     <div class="meta"><span class="sev ${esc(e.sev)}">${esc(e.sev)}</span>　${esc(nz(e.cat))}・${esc(nz(e.status))}・${esc(fmtTime(e.at))}</div>${whoLine(e)}
     ${e.text ? `<div class="pre">${esc(e.text)}</div>` : ""}
     <label>處理紀錄</label><div class="pre">${esc((e.log || "").trim() || "（還沒有）")}</div>
-    <label>寫下目前處理到哪裡（按「已解決」時可留空）<textarea id="ev-text" maxlength="500" placeholder="例：已通報水電師傅，明早來修，先放警示牌"></textarea></label>
+    <label>寫下目前處理到哪裡（按「已解決」時可留空）<textarea id="ev-text" data-max="500" placeholder="例：已通報水電師傅，明早來修，先放警示牌"></textarea></label>
     <div class="err" id="ev-err"></div>
     <div class="acts" style="grid-template-columns:1fr 1fr">
       <button id="ev-note">寫紀錄</button><button class="go" id="ev-resolve" style="background:var(--green)">已解決</button></div>
@@ -497,7 +497,7 @@ function reportSheet() {
     ${rr ? `<div class="recipient" style="margin:0 0 6px"><div class="who">相關居民<br><b>${esc(rr.name)}</b></div><button id="rp-unres">不關聯</button></div>` : ""}
     <label>類別</label><div class="pick" id="rp-cat"></div>
     <label>嚴重程度</label><div class="pick" id="rp-sev"></div><div class="err" id="rp-warn"></div>
-    <label>發生什麼事 <b style="color:var(--red)">*</b><textarea id="rp-text" maxlength="1000" placeholder="例：2 樓男廁洗手台漏水，地板濕滑，已放警示牌"></textarea></label>
+    <label>發生什麼事 <b style="color:var(--red)">*</b><textarea id="rp-text" data-max="1000" placeholder="例：2 樓男廁洗手台漏水，地板濕滑，已放警示牌"></textarea></label>
     <div class="err" id="rp-err"></div>
     <div class="acts"><button data-close>取消</button><button class="go" id="rp-ok">送出</button></div>`, root => {
     draw(root);
@@ -559,15 +559,15 @@ function blankView(d) {
   const f = S.rform || (S.rform = { name: "", age: "", care: [], phone: "", contact: "", id4: "", noId: false, note: "", area: "" });
   const pick = (k, list, multi) => `<div class="pick">${list.map(v => `<button data-pick="${k}" data-v="${esc(v)}" class="${(multi ? f[k].includes(v) : f[k] === v) ? "on" : ""}">${esc(v)}</button>`).join("")}</div>`;
   return `<div class="form"><h2>🆕 新居民報到</h2><div class="meta">號碼牌 ${esc(S.rtag)}，一次填完按「完成報到」。只有姓名和年齡層必填。</div>
-    <label>姓名 <b>*</b><input id="f-name" maxlength="40" value="${esc(f.name)}" placeholder="例：王小明" autocomplete="off"></label>
+    <label>姓名 <b>*</b><input id="f-name" data-max="40" value="${esc(f.name)}" placeholder="例：王小明" autocomplete="off"></label>
     <label>年齡層 <b>*</b></label>${pick("age", AGES)}
     <label>特殊關懷（可複選）</label>${pick("care", CARES, true)}
     <label>聯絡電話<input id="f-phone" maxlength="20" inputmode="tel" value="${esc(f.phone)}" placeholder="例：0912345678"></label>
     <label>身分證後四碼<input id="f-id4" inputmode="numeric" maxlength="4" value="${esc(f.id4)}" placeholder="本人的，只填後四碼" ${f.noId ? "disabled" : ""}></label>
     <div class="chkline"><input type="checkbox" id="f-noid" ${f.noId ? "checked" : ""}><span>沒有帶證件，之後補查</span></div>
-    <label>照護需求說明（敏感資料，只有授權人員看得到）<textarea id="f-note" maxlength="500" placeholder="例：需每日服用降血壓藥">${esc(f.note)}</textarea></label>
-    <label>緊急聯絡人<input id="f-contact" maxlength="60" value="${esc(f.contact)}" placeholder="例：王大明（兒子）0933…"></label>
-    <label>分配區域<input id="f-area" maxlength="40" value="${esc(f.area)}" placeholder="例：A 區 3 號床"></label>
+    <label>照護需求說明（敏感資料，只有授權人員看得到）<textarea id="f-note" data-max="500" placeholder="例：需每日服用降血壓藥">${esc(f.note)}</textarea></label>
+    <label>緊急聯絡人<input id="f-contact" data-max="60" value="${esc(f.contact)}" placeholder="例：王大明（兒子）0933…"></label>
+    <label>分配區域<input id="f-area" data-max="40" value="${esc(f.area)}" placeholder="例：A 區 3 號床"></label>
     <div class="err" id="f-err"></div>
     <div class="ract"><button class="main" id="doRegister" ${S.busy ? "disabled" : ""}>${S.busy ? "報到中…" : "完成報到"}</button></div></div>`;
 }
@@ -733,7 +733,7 @@ document.addEventListener("click", async e => {
       }
       opsAct("prep", { item, result, text: "" }, `已回報：${item}完成`);
     })();
-    else sheet(`<h2>${esc(item)}：有問題</h2><label>是什麼問題？<textarea id="pp-text" maxlength="500" placeholder="例：2 樓緊急照明燈不亮"></textarea></label>
+    else sheet(`<h2>${esc(item)}：有問題</h2><label>是什麼問題？<textarea id="pp-text" data-max="500" placeholder="例：2 樓緊急照明燈不亮"></textarea></label>
       <div class="acts"><button data-close>取消</button><button class="go" id="pp-ok">送出</button></div>`, root => {
       root.querySelector("#pp-ok").onclick = () => opsAct("prep", { item, result, text: root.querySelector("#pp-text").value.trim() }, `已回報：${item}有問題`);
     });
@@ -761,6 +761,10 @@ document.addEventListener("click", async e => {
   else if (b.id === "mkTags") tagGenSheet(S.me.opening || "本所", codes => api.addTags(codes));
   else if (b.id === "lastTags") { const d = lastTags(); if (d) tagResultSheet(d); }
 });
+// 字數上限：不用 maxlength（手機注音組字時會重複跳字），改成組字結束後再截
+const capLen = el => { const m = +(el && el.dataset && el.dataset.max); if (m && el.value.length > m) el.value = el.value.slice(0, m); };
+document.addEventListener("compositionend", e => capLen(e.target));
+document.addEventListener("input", e => { if (!e.isComposing) capLen(e.target); }, true);
 document.addEventListener("input", e => {
   if (S.rform && e.target.id && e.target.id.startsWith("f-") && e.target.id !== "f-noid" && document.querySelector(".form h2")) {
     S.rform[e.target.id.slice(2)] = e.target.value; return;
@@ -857,10 +861,10 @@ async function submit(ls) {
 
 function addItemSheet() {
   sheet(`<h2>新增品項</h2>
-    <label>品名<input id="f-name" maxlength="40" placeholder="例：礦泉水、泡麵"></label>
+    <label>品名<input id="f-name" data-max="40" placeholder="例：礦泉水、泡麵"></label>
     <label>類別<select id="f-cat">${["飲用水", "食品", "寢具", "衛生用品", "醫療", "防寒", "其他"].map(c => `<option>${c}</option>`).join("")}</select></label>
-    <label>最小單位（例：瓶、碗）<input id="f-unit" maxlength="10" placeholder="發放時一個一個算的單位，例：瓶"></label>
-    <label>包裝單位（例：箱、盒，可空白）<input id="f-pack" maxlength="10" placeholder="整批送來的單位，例：箱"></label>
+    <label>最小單位（例：瓶、碗）<input id="f-unit" data-max="10" placeholder="發放時一個一個算的單位，例：瓶"></label>
+    <label>包裝單位（例：箱、盒，可空白）<input id="f-pack" data-max="10" placeholder="整批送來的單位，例：箱"></label>
     <label>每包裝數量（一箱裝幾瓶）<input id="f-per" inputmode="numeric" placeholder="例：24"></label>
     <label>安全庫存（以最小單位計）<input id="f-safety" inputmode="numeric" placeholder="少於這個數量會提醒補貨，例：30"></label>
     <div class="err" id="f-err"></div>
@@ -1115,7 +1119,7 @@ const canEditNotice = cur => { const me = S.pub.me; return !!cur && (isHqMe(me) 
 function noticeSheet(cur) {
   if (!cur) return;
   sheet(`<button class="sheetx" data-close aria-label="關閉">✕</button><h2>編輯本所公告</h2><div class="meta">${esc(shortName(cur.name))}</div>
-    <label>公告內容（居民在「收容所資訊」看到）<textarea id="nt-text" maxlength="1500" rows="8" placeholder="例：晚餐 17:30 在一樓餐廳發放；熱水供應到晚上 10 點">${esc(cur.notice || "")}</textarea></label>
+    <label>公告內容（居民在「收容所資訊」看到）<textarea id="nt-text" data-max="1500" rows="8" placeholder="例：晚餐 17:30 在一樓餐廳發放；熱水供應到晚上 10 點">${esc(cur.notice || "")}</textarea></label>
     <div class="err" id="nt-err"></div>
     <div class="acts" style="grid-template-columns:1fr 1fr"><button data-close>取消</button><button class="go" id="nt-ok">儲存公告</button></div>
     <p class="hint">儲存後會記下編輯時間和你的名字（Notion 有完整編輯紀錄）。清空內容再儲存就是撤下公告。</p>`, root => {
@@ -1162,7 +1166,7 @@ function renderReport() {
       <label>類別 <b>*</b></label><div class="pick">${CATS.map(c => `<button data-lgc="${c}" class="${L.cat === c ? "on" : ""}">${c}</button>`).join("")}</div>
       <label>嚴重程度</label><div class="pick">${SEVS.map(v => `<button data-lgs="${v}" class="${L.sev === v ? "on" : ""}">${v}</button>`).join("")}</div>
       ${/緊急|高/.test(L.sev) ? `<p class="err">⚠ 緊急狀況請同時電話通報。</p>` : ""}
-      <label>發生什麼事 <b>*</b></label><textarea id="lg-text" maxlength="1000" placeholder="例：2 樓男廁洗手台漏水，地板濕滑，已放警示牌">${esc(L.text)}</textarea>
+      <label>發生什麼事 <b>*</b></label><textarea id="lg-text" data-max="1000" placeholder="例：2 樓男廁洗手台漏水，地板濕滑，已放警示牌">${esc(L.text)}</textarea>
       ${P.msg ? `<p class="err">${esc(P.msg)}</p>` : ""}
     </div>
     <div class="biglinks"><button class="biglink blue" id="sendLog" ${!S.busy ? "" : "disabled"}><span class="ic">📨</span><span>${S.busy ? "送出中…" : "送出"}</span></button></div>`);
@@ -1175,7 +1179,7 @@ function renderReport() {
       <label>要反映什麼？<b>*</b></label><div class="pick" id="cats">${REPORT_CATS.map(c => `<button data-cat="${c}" class="${f.cat === c ? "on" : ""}">${c}</button>`).join("")}</div>
       ${f.cat === "身體不適" ? `<p class="err">情況緊急請直接撥 119，或找現場工作人員。</p>` : ""}
       <label>您在哪裡？<b>*</b></label><div class="pick" id="places">${places.map(o => `<button data-o="${o.id}" data-where="${esc(o.name)}" class="${f.where === o.name ? "on" : ""}">${esc(o.name)}</button>`).join("")}</div>
-      <label>說明（可不填）</label><textarea id="rtext" maxlength="500" placeholder="例：A 區 3 號床，頭很暈">${esc(f.text)}</textarea>
+      <label>說明（可不填）</label><textarea id="rtext" data-max="500" placeholder="例：A 區 3 號床，頭很暈">${esc(f.text)}</textarea>
       ${P.msg ? `<p class="err">${esc(P.msg)}</p>` : ""}
     </div>
     <div class="biglinks"><button class="biglink blue" id="sendReport" ${f.cat && f.where && !S.busy ? "" : 'disabled style="opacity:.4"'}><span class="ic">📨</span><span>${S.busy ? "送出中…" : "送出反映"}</span></button></div>`);
@@ -1186,8 +1190,8 @@ function renderStaff() {
   const hello = me.name ? `${me.name}（${me.role || me.kind}）您好` : "";
   const ap = S.pub.ap;
   if (me.state === "none") setHTML(app, pubHead("工作人員專區", "開通後才能使用工作人員功能") + `<div class="card"><div class="body">社會處派出的人員、支援社工和志工，請填寫以下資料申請開通，由社會處審核。</div></div>
-      <div class="form"><label>姓名 <b>*</b><input id="ap-name" maxlength="40" value="${esc(ap.name)}" placeholder="請填真實姓名" autocomplete="name"></label>
-        <label>單位 <b>*</b><input id="ap-unit" maxlength="40" value="${esc(ap.unit)}" placeholder="例：苗栗縣社會處、○○社福協會"></label>
+      <div class="form"><label>姓名 <b>*</b><input id="ap-name" data-max="40" value="${esc(ap.name)}" placeholder="請填真實姓名" autocomplete="name"></label>
+        <label>單位 <b>*</b><input id="ap-unit" data-max="40" value="${esc(ap.unit)}" placeholder="例：苗栗縣社會處、○○社福協會"></label>
         <label>聯絡電話 <b>*</b><input id="ap-phone" maxlength="20" inputmode="tel" value="${esc(ap.phone)}" placeholder="例：0912345678" autocomplete="tel"></label>
         <p class="err" id="ap-err">${esc(S.pub.msg || "")}</p></div>
       <div class="biglinks"><button class="biglink blue" id="apply" ${S.busy ? "disabled" : ""}><span class="ic">📝</span><span>${S.busy ? "送出中…" : "送出申請"}<small>LINE 名稱「${esc(me.line || "")}」</small></span></button></div>`);

@@ -116,7 +116,7 @@ function renderCmd() {
     ${evs.map(e => `<button class="opt ${H.ev === e.id ? "on" : ""}" data-ev="${esc(e.id)}"><span class="box">${H.ev === e.id ? "✓" : ""}</span>
       <span><span class="nm">${esc(e.name)}</span><br><span class="meta">${esc(e.kind)}・${esc(e.status)}・已開設 ${d.openings.filter(o => o.eventId === e.id).length} 所</span></span></button>`).join("")}
     <button class="opt ${H.ev === "new" ? "on" : ""}" data-ev="new"><span class="box">${H.ev === "new" ? "✓" : ""}</span><span class="nm">＋ 建立新的災害</span></button>
-    ${H.ev === "new" ? `<label>災害名稱<input id="hq-evname" maxlength="40" placeholder="例：2026-10 ○○颱風" value="${esc(H.newEv.name)}"></label>
+    ${H.ev === "new" ? `<label>災害名稱<input id="hq-evname" data-max="40" placeholder="例：2026-10 ○○颱風" value="${esc(H.newEv.name)}"></label>
       <label>災害類別<select id="hq-evkind">${HQ_KINDS.map(k => `<option ${k === H.newEv.kind ? "selected" : ""}>${k}</option>`).join("")}</select></label>` : ""}</div>`;
 
   // 選了之後可以收合清單，只留一行摘要；展開時下方有固定的「已選 N 所・選好了」列，不用捲到最下面找開設按鈕
